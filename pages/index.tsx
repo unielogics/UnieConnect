@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4001';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://api.unieconnect.com';
 const TOKEN_KEY = 'unie-token';
 
 type Account = { id: string; channel: string; shopDomain?: string; status: string };
