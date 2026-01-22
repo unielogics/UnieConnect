@@ -10,7 +10,7 @@ const resolveBackendUrl = () => {
       return envBackend;
     }
     if (host === 'user.unieconnect.com') {
-      return window.location.origin;
+      return 'https://api.unieconnect.com';
     }
     if (host === 'unieconnect.com') {
       return 'https://user.unieconnect.com';
