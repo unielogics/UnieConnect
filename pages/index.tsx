@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
 
 const resolveBackendUrl = () => {
+  const envBackend =
+    process.env.NEXT_PUBLIC_API_BASE ||
+    process.env.NEXT_PUBLIC_BACKEND_URL;
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
+    if (envBackend && !/localhost|127\.0\.0\.1/.test(envBackend)) {
+      return envBackend;
+    }
     if (host === 'user.unieconnect.com') {
       return window.location.origin;
     }
@@ -10,7 +16,7 @@ const resolveBackendUrl = () => {
       return 'https://user.unieconnect.com';
     }
   }
-  return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4001';
+  return envBackend || 'http://localhost:4001';
 };
 const BACKEND_URL = resolveBackendUrl();
 const TOKEN_KEY = 'unie-token';

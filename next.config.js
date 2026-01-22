@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const backendOrigin =
   process.env.UNIECONNECT_BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_BASE ||
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   'http://localhost:4001';
 const normalizedBackendOrigin = backendOrigin.replace(/\/+$/, '');
