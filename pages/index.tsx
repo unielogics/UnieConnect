@@ -126,9 +126,15 @@ export default function Home() {
     const url = new URL(`${BACKEND_URL}${path}`);
     Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/868bcac9-47ee-4f49-9fa2-f82e87e09392',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'oauth-start-pre',hypothesisId:'H1',location:'pages/index.tsx:109',message:'oauth start request',data:{path,params,backendUrl:BACKEND_URL,hasToken:Boolean(token)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       const res = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/868bcac9-47ee-4f49-9fa2-f82e87e09392',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'oauth-start-pre',hypothesisId:'H2',location:'pages/index.tsx:117',message:'oauth start response',data:{status:res.status,ok:res.ok,redirected:res.redirected,finalUrl:res.url,contentType:res.headers.get('content-type')},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || 'Unable to start connection');
