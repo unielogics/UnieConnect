@@ -1,8 +1,14 @@
 import { FormEvent, useEffect, useState } from 'react';
 
 const resolveBackendUrl = () => {
-  if (typeof window !== 'undefined' && window.location.hostname.endsWith('unieconnect.com')) {
-    return 'https://user.unieconnect.com';
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'user.unieconnect.com') {
+      return window.location.origin;
+    }
+    if (host === 'unieconnect.com') {
+      return 'https://user.unieconnect.com';
+    }
   }
   return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4001';
 };
@@ -22,6 +28,10 @@ export default function Login() {
   useEffect(() => {
     setMounted(true);
     if (typeof window === 'undefined') return;
+    if (window.location.hostname === 'unieconnect.com') {
+      window.location.href = `https://user.unieconnect.com${window.location.pathname}${window.location.search}`;
+      return;
+    }
     const saved = localStorage.getItem('unie-theme');
     const initial =
       saved === 'dark' || saved === 'light'
