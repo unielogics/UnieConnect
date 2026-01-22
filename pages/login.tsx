@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react';
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ||
-  (typeof window !== 'undefined' && window.location.hostname.endsWith('unieconnect.com')
-    ? 'https://user.unieconnect.com'
-    : 'http://localhost:4001');
+const resolveBackendUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('unieconnect.com')) {
+    return 'https://user.unieconnect.com';
+  }
+  return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4001';
+};
+const BACKEND_URL = resolveBackendUrl();
 const TOKEN_KEY = 'unie-token';
 
 export default function Login() {
