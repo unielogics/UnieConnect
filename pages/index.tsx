@@ -155,8 +155,7 @@ export default function Home() {
   };
 
   const handleConnectAmazon = () => {
-    const region = window.prompt('Amazon region (na, eu, fe):', 'na') || 'na';
-    void startOAuth('/api/v1/auth/amazon/start', { region, format: 'json' });
+    void startOAuth('/api/v1/auth/amazon/start', { format: 'json' });
   };
 
   const handleConnectEbay = () => {
