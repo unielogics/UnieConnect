@@ -131,29 +131,7 @@ export default function Home() {
     setIntegrationMsg(null);
     const url = new URL(`${BACKEND_URL}${path}`);
     Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
-    try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/868bcac9-47ee-4f49-9fa2-f82e87e09392',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'oauth-start-pre',hypothesisId:'H1',location:'pages/index.tsx:109',message:'oauth start request',data:{path,params,backendUrl:BACKEND_URL,hasToken:Boolean(token)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      });
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/868bcac9-47ee-4f49-9fa2-f82e87e09392',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'oauth-start-pre',hypothesisId:'H2',location:'pages/index.tsx:117',message:'oauth start response',data:{status:res.status,ok:res.ok,redirected:res.redirected,finalUrl:res.url,contentType:res.headers.get('content-type')},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || 'Unable to start connection');
-      }
-      const data = await res.json();
-      if (!data?.url) throw new Error('Missing redirect URL from server');
-      window.location.href = data.url;
-    } catch (err: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/868bcac9-47ee-4f49-9fa2-f82e87e09392',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'oauth-start-pre',hypothesisId:'H7',location:'pages/index.tsx:131',message:'oauth start failed',data:{errorMessage:err?.message||'unknown',path,params},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
-      setIntegrationMsg(err?.message || 'Unable to start connection');
-    }
+    window.location.href = url.toString();
   };
 
   const handleConnectShopify = () => {
