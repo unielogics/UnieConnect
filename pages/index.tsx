@@ -143,6 +143,9 @@ export default function Home() {
       if (!data?.url) throw new Error('Missing redirect URL from server');
       window.location.href = data.url;
     } catch (err: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/868bcac9-47ee-4f49-9fa2-f82e87e09392',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'oauth-start-pre',hypothesisId:'H7',location:'pages/index.tsx:131',message:'oauth start failed',data:{errorMessage:err?.message||'unknown',path,params},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       setIntegrationMsg(err?.message || 'Unable to start connection');
     }
   };
