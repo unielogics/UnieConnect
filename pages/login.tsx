@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://api.unieconnect.com';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4001';
 const TOKEN_KEY = 'unie-token';
 
 export default function Login() {
-  const [email, setEmail] = useState('franco@unielogics.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -50,6 +50,9 @@ export default function Login() {
     setStatusMessage(null);
     setLoading(true);
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/868bcac9-47ee-4f49-9fa2-f82e87e09392',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'login-timeout-pre',hypothesisId:'H1',location:'pages/login.tsx:54',message:'login attempt started',data:{backendUrl:BACKEND_URL,emailDomain:email.includes('@')?email.split('@')[1]:'',hasPassword:Boolean(password)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       // Front-end level logging for quick traceability
       console.info('[unieconnect][login] attempting', { email });
       const res = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
@@ -57,6 +60,9 @@ export default function Login() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/868bcac9-47ee-4f49-9fa2-f82e87e09392',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'login-timeout-pre',hypothesisId:'H2',location:'pages/login.tsx:62',message:'login response received',data:{status:res.status,ok:res.ok},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || 'Login failed');
@@ -65,10 +71,16 @@ export default function Login() {
       localStorage.setItem(TOKEN_KEY, data.token);
       setStatusMessage('Signed in. Redirecting…');
       console.info('[unieconnect][login] success', { email });
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/868bcac9-47ee-4f49-9fa2-f82e87e09392',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'login-timeout-pre',hypothesisId:'H3',location:'pages/login.tsx:72',message:'login success',data:{tokenStored:Boolean(data?.token)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       window.location.href = '/';
     } catch (err: any) {
       const message = err?.message || 'Login failed';
       console.warn('[unieconnect][login] failed', { email, message });
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/868bcac9-47ee-4f49-9fa2-f82e87e09392',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'login-timeout-pre',hypothesisId:'H4',location:'pages/login.tsx:78',message:'login failed',data:{errorMessage:message},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       setLoginError(message);
     } finally {
       setLoading(false);

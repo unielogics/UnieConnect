@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://api.unieconnect.com';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4001';
 const TOKEN_KEY = 'unie-token';
 
 type Account = { id: string; channel: string; shopDomain?: string; status: string };
@@ -11,22 +11,11 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [shopifyStatus, setShopifyStatus] = useState<'not_connected' | 'connected' | 'paused'>('not_connected');
   const [shopifyShop, setShopifyShop] = useState<string | undefined>(undefined);
-  const [shopifyAccountId, setShopifyAccountId] = useState<string | undefined>(undefined);
-  const [ebayStatus, setEbayStatus] = useState<'not_connected' | 'connected' | 'paused'>('not_connected');
-  const [ebayAccountId, setEbayAccountId] = useState<string | undefined>(undefined);
-  const [amazonStatus, setAmazonStatus] = useState<'not_connected' | 'connected' | 'paused'>('not_connected');
-  const [amazonAccountId, setAmazonAccountId] = useState<string | undefined>(undefined);
-  const [amazonSeller, setAmazonSeller] = useState<string | undefined>(undefined);
-  const [amazonMarketplaces, setAmazonMarketplaces] = useState<string[]>([]);
-  const [amazonRegion, setAmazonRegion] = useState<string | undefined>(undefined);
   const [token, setToken] = useState<string | null>(null);
   const [showChangePwd, setShowChangePwd] = useState(false);
   const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [pwdMsg, setPwdMsg] = useState<string | null>(null);
-  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
-  const [ebayRefreshMsg, setEbayRefreshMsg] = useState<string | null>(null);
-  const [amazonMsg, setAmazonMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -66,49 +55,17 @@ export default function Home() {
         const shopify = Array.isArray(accounts)
           ? accounts.find((a) => a.channel === 'shopify')
           : null;
-        const ebay = Array.isArray(accounts) ? accounts.find((a) => a.channel === 'ebay') : null;
-        const amazon = Array.isArray(accounts) ? accounts.find((a) => a.channel === 'amazon') : null;
         if (shopify) {
           setShopifyStatus(shopify.status === 'active' ? 'connected' : 'paused');
           setShopifyShop(shopify.shopDomain);
-          setShopifyAccountId(shopify.id);
         } else {
           setShopifyStatus('not_connected');
           setShopifyShop(undefined);
-          setShopifyAccountId(undefined);
-        }
-        if (ebay) {
-          setEbayStatus(ebay.status === 'active' ? 'connected' : 'paused');
-          setEbayAccountId(ebay.id);
-        } else {
-          setEbayStatus('not_connected');
-          setEbayAccountId(undefined);
-        }
-        if (amazon) {
-          setAmazonStatus(amazon.status === 'active' ? 'connected' : 'paused');
-          setAmazonAccountId(amazon.id);
-          setAmazonSeller((amazon as any).sellingPartnerId);
-          setAmazonMarketplaces(Array.isArray((amazon as any).marketplaceIds) ? (amazon as any).marketplaceIds : []);
-          setAmazonRegion((amazon as any).region);
-        } else {
-          setAmazonStatus('not_connected');
-          setAmazonAccountId(undefined);
-          setAmazonSeller(undefined);
-          setAmazonMarketplaces([]);
-          setAmazonRegion(undefined);
         }
       })
       .catch(() => {
         setShopifyStatus('not_connected');
         setShopifyShop(undefined);
-        setShopifyAccountId(undefined);
-        setEbayStatus('not_connected');
-        setEbayAccountId(undefined);
-        setAmazonStatus('not_connected');
-        setAmazonAccountId(undefined);
-        setAmazonSeller(undefined);
-        setAmazonMarketplaces([]);
-        setAmazonRegion(undefined);
       });
   }, [mounted, token]);
 
@@ -123,9 +80,10 @@ export default function Home() {
 
   const handleChangePassword = () => {
     setPwdMsg(null);
-    const auth: HeadersInit = token
-      ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-      : { 'Content-Type': 'application/json' };
+    const auth: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
     fetch(`${BACKEND_URL}/api/v1/auth/change-password`, {
       method: 'POST',
       headers: auth,
@@ -151,60 +109,6 @@ export default function Home() {
     window.location.href = url;
   };
 
-  const handleConnectEbay = () => {
-    const tenantId = 'demo-tenant'; // TODO: replace with real tenant/user context
-    const url = `${BACKEND_URL}/api/v1/auth/ebay/start?tenantId=${encodeURIComponent(tenantId)}`;
-    window.location.href = url;
-  };
-
-  const handleManualRefresh = async () => {
-    if (!shopifyAccountId || !token) {
-      setRefreshMsg('No connected Shopify account to refresh.');
-      return;
-    }
-    setRefreshMsg('Refreshing…');
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/channel-accounts/${shopifyAccountId}/refresh`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || 'Refresh failed');
-      }
-      setRefreshMsg('Manual refresh triggered.');
-    } catch (err: any) {
-      setRefreshMsg(err?.message || 'Refresh failed');
-    }
-  };
-
-  const handleManualRefreshEbay = async () => {
-    if (!ebayAccountId || !token) {
-      setEbayRefreshMsg('No connected eBay account to refresh.');
-      return;
-    }
-    setEbayRefreshMsg('Refreshing…');
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/channel-accounts/${ebayAccountId}/refresh`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || 'Refresh failed');
-      }
-      setEbayRefreshMsg('Manual refresh triggered.');
-    } catch (err: any) {
-      setEbayRefreshMsg(err?.message || 'Refresh failed');
-    }
-  };
-
-  const handleConnectAmazon = () => {
-    const region = window.prompt('Enter Amazon region (na, eu, fe):', 'na') || 'na';
-    const url = `${BACKEND_URL}/api/v1/auth/amazon/start?region=${encodeURIComponent(region)}`;
-    window.location.href = url;
-  };
-
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'collapsed' : ''}`}>
       <aside className="sidebar">
@@ -215,12 +119,14 @@ export default function Home() {
           {sidebarCollapsed ? '›' : '‹'}
         </button>
         <nav className="nav">
-          <a className="active" href="/">
+          <a className="active" href="#">
             Integrations
           </a>
-          <a href="/items">Items</a>
-          <a href="/customers">Customers</a>
-          <a href="/orders">Orders</a>
+          <a href="#">Items / Inventory</a>
+          <a href="#">Orders</a>
+          <a href="#">Customers</a>
+          <a href="#">Activity</a>
+          <a href="#">Settings</a>
         </nav>
       </aside>
       <div className="main">
@@ -300,86 +206,17 @@ export default function Home() {
                 <button className="button-primary" onClick={handleConnectShopify}>
                   {shopifyStatus === 'connected' ? 'Manage' : 'Connect'}
                 </button>
-                <button className="button-secondary" onClick={handleManualRefresh} disabled={!shopifyAccountId}>
-                  Refresh now
-                </button>
-              </div>
-              {refreshMsg ? (
-                <div className="muted" style={{ marginTop: 6, color: refreshMsg.includes('fail') ? 'red' : 'inherit' }}>
-                  {refreshMsg}
-                </div>
-              ) : null}
-            </div>
-            <div className="card">
-              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div className="title">eBay</div>
-                <span className={`badge status ${ebayStatus.replace('_', '-')}`}>
-                  {ebayStatus === 'not_connected' ? 'Not connected' : ebayStatus === 'connected' ? 'Connected' : 'Paused'}
-                </span>
-              </div>
-              <div className="caps">
-                {['Orders', 'Inventory'].map((cap) => (
-                  <span key={cap} className="badge">
-                    {cap}
-                  </span>
-                ))}
-              </div>
-              <div className="muted">Import orders and inventory from eBay into UnieConnect.</div>
-              <div className="card-footer">
-                <button className="button-primary" onClick={handleConnectEbay}>
-                  {ebayStatus === 'connected' ? 'Manage' : 'Connect'}
-                </button>
-                <button className="button-secondary" onClick={handleManualRefreshEbay} disabled={!ebayAccountId}>
-                  Refresh now
-                </button>
-              </div>
-              {ebayRefreshMsg ? (
-                <div className="muted" style={{ marginTop: 6, color: ebayRefreshMsg.includes('fail') ? 'red' : 'inherit' }}>
-                  {ebayRefreshMsg}
-                </div>
-              ) : null}
-            </div>
-            <div className="card">
-              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div className="title">
-                  Amazon {amazonSeller ? `(${amazonSeller})` : ''} {amazonRegion ? `• ${amazonRegion.toUpperCase()}` : ''}
-                </div>
-                <span className={`badge status ${amazonStatus.replace('_', '-')}`}>
-                  {amazonStatus === 'not_connected' ? 'Not connected' : amazonStatus === 'connected' ? 'Connected' : 'Paused'}
-                </span>
-              </div>
-              <div className="caps">
-                {['Orders', 'Inventory', 'Fulfillment', 'FBA Inbound'].map((cap) => (
-                  <span key={cap} className="badge">
-                    {cap}
-                  </span>
-                ))}
-              </div>
-              <div className="muted">
-                {amazonMarketplaces.length
-                  ? `Marketplaces: ${amazonMarketplaces.join(', ')}`
-                  : 'Connect to start syncing Amazon (SP-API).'}
-              </div>
-              <div className="card-footer">
-                <button className="button-primary" onClick={handleConnectAmazon}>
-                  {amazonStatus === 'connected' ? 'Manage' : 'Connect'}
-                </button>
                 <button className="button-secondary" disabled>
-                  Refresh soon
+                  Details
                 </button>
               </div>
-              {amazonMsg ? (
-                <div className="muted" style={{ marginTop: 6, color: amazonMsg.includes('fail') ? 'red' : 'inherit' }}>
-                  {amazonMsg}
-                </div>
-              ) : null}
             </div>
             <div className="card">
               <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div className="title">More marketplaces</div>
                 <span className="badge status paused">Coming soon</span>
               </div>
-              <div className="muted">TikTok, Elsy, Wayfair will appear here once enabled.</div>
+              <div className="muted">Amazon, eBay, TikTok, Elsy, Wayfair will appear here once enabled.</div>
             </div>
           </div>
         </div>
