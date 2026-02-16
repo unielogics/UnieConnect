@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/prepare-next-dev.js && next dev",
+    "dev:clean": "cmd /c scripts\\clean-next.cmd && npm run dev",
+    "dev:live": "node scripts/dev-live.js",
+    "dev:clean:live": "cmd /c scripts\\clean-next.cmd && node scripts/dev-live.js",
     "build": "next build",
     "start": "next start"
   },

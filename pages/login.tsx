@@ -1,25 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-
-const resolveBackendUrl = () => {
-  const envBackend =
-    process.env.NEXT_PUBLIC_API_BASE ||
-    process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (envBackend && !/localhost|127\.0\.0\.1/.test(envBackend)) {
-      return envBackend;
-    }
-    if (host === 'user.unieconnect.com') {
-      return 'https://api.unieconnect.com';
-    }
-    if (host === 'unieconnect.com') {
-      return 'https://user.unieconnect.com';
-    }
-  }
-  return envBackend || 'http://localhost:4001';
-};
-const BACKEND_URL = resolveBackendUrl();
-const TOKEN_KEY = 'unie-token';
+import { apiUrl, getApiOrigin, TOKEN_KEY } from '../lib/api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -38,6 +18,7 @@ export default function Login() {
       window.location.href = `https://user.unieconnect.com${window.location.pathname}${window.location.search}`;
       return;
     }
+    console.info('[unieconnect][config]', { apiOrigin: getApiOrigin(), host: window.location.host });
     const saved = localStorage.getItem('unie-theme');
     const initial =
       saved === 'dark' || saved === 'light'
@@ -74,15 +55,27 @@ export default function Login() {
     try {
       // Front-end level logging for quick traceability
       console.info('[unieconnect][login] attempting', { email });
-      const res = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
+      const res = await fetch(apiUrl('/api/v1/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || 'Login failed');
+        const text = await res.text().catch(() => '');
+        const err = (() => {
+          try {
+            return text ? JSON.parse(text) : {};
+          } catch {
+            return {};
+          }
+        })();
+        const message =
+          err?.error ||
+          (typeof err?.message === 'string' ? err.message : '') ||
+          (text && text.length < 200 ? text : '') ||
+          `Login failed (HTTP ${res.status})`;
+        throw new Error(message);
       }
       const data = await res.json();
       localStorage.setItem(TOKEN_KEY, data.token);

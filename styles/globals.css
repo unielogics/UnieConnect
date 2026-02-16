@@ -230,6 +230,50 @@ a {
   align-items: center;
 }
 
+/* Right-side panel */
+.panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: block;
+  z-index: 50;
+}
+
+.side-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(520px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px 0 0 16px;
+  padding: 16px 16px 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+  transform: translateX(0);
+  animation: slideInPanel 140ms ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@keyframes slideInPanel {
+  from {
+    transform: translateX(18px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 /* Auth layout */
 .auth-shell {
   min-height: 100vh;

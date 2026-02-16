@@ -6,6 +6,10 @@ const backendOrigin =
   'http://localhost:4001';
 const normalizedBackendOrigin = backendOrigin.replace(/\/+$/, '');
 
+// Helpful startup log so it's obvious what the UI is proxying to.
+// eslint-disable-next-line no-console
+console.log('[unieconnect] API proxy target:', normalizedBackendOrigin);
+
 const nextConfig = {
   reactStrictMode: true,
   async rewrites() {
