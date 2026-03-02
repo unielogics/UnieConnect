@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { apiUrl, getApiOrigin, TOKEN_KEY } from '../lib/api';
+import DashboardLayout from '../components/DashboardLayout';
 
 type Account = { id: string; channel: string; shopDomain?: string; status: string };
 type Channel = 'shopify' | 'amazon' | 'ebay';
@@ -77,18 +77,12 @@ function normalizeShopifyShopInput(raw: string): { shop: string | null; error?: 
 }
 
 export default function Dashboard() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [mounted, setMounted] = useState(false);
   const [shopifyStatus, setShopifyStatus] = useState<'not_connected' | 'connected' | 'paused'>('not_connected');
   const [shopifyShop, setShopifyShop] = useState<string | undefined>(undefined);
   const [amazonStatus, setAmazonStatus] = useState<'not_connected' | 'connected' | 'paused'>('not_connected');
   const [ebayStatus, setEbayStatus] = useState<'not_connected' | 'connected' | 'paused'>('not_connected');
   const [token, setToken] = useState<string | null>(null);
-  const [showChangePwd, setShowChangePwd] = useState(false);
-  const [oldPwd, setOldPwd] = useState('');
-  const [newPwd, setNewPwd] = useState('');
-  const [pwdMsg, setPwdMsg] = useState<string | null>(null);
   const [integrationMsg, setIntegrationMsg] = useState<string | null>(null);
   const [integrationMsgType, setIntegrationMsgType] = useState<'success' | 'error' | null>(null);
   const [accountsByChannel, setAccountsByChannel] = useState<Partial<Record<Channel, Account>>>({});
@@ -106,19 +100,7 @@ export default function Dashboard() {
       return;
     }
     console.info('[unieconnect][config]', { apiOrigin: getApiOrigin(), host: window.location.host });
-    const saved = localStorage.getItem('unie-theme');
-    const initial =
-      saved === 'dark' || saved === 'light'
-        ? saved
-        : 'dark';
-    setTheme(initial as 'light' | 'dark');
   }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    document.body.classList.toggle('theme-dark', theme === 'dark');
-    localStorage.setItem('unie-theme', theme);
-  }, [theme, mounted]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -195,39 +177,6 @@ export default function Dashboard() {
       });
   };
 
-  const handleLogout = () => {
-    setToken(null);
-    localStorage.removeItem(TOKEN_KEY);
-    setShopifyStatus('not_connected');
-    setShopifyShop(undefined);
-    setAccountsByChannel({});
-    setManageChannel(null);
-    setShowChangePwd(false);
-    window.location.href = '/login';
-  };
-
-  const handleChangePassword = () => {
-    setPwdMsg(null);
-    const auth: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-    fetch(apiUrl('/api/v1/auth/change-password'), {
-      method: 'POST',
-      headers: auth,
-      body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd }),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err?.error || 'Change password failed');
-        }
-        setPwdMsg('Password updated');
-        setOldPwd('');
-        setNewPwd('');
-      })
-      .catch((err: any) => setPwdMsg(err?.message || 'Change password failed'));
-  };
 
   const startOAuth = async (path: string, params: Record<string, string>) => {
     if (!token) {
@@ -363,50 +312,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? 'collapsed' : ''}`}>
-      <aside className="sidebar">
-        <div className="brand">
-          <Link href="/dashboard">UnieConnect</Link>
-        </div>
-        <button className="collapse" onClick={() => setSidebarCollapsed((v) => !v)}>
-          {sidebarCollapsed ? '›' : '‹'}
-        </button>
-        <nav className="nav">
-          <a className="active" href="#">
-            Integrations
-          </a>
-          <a href="#">Items / Inventory</a>
-          <a href="#">Orders</a>
-          <a href="#">Customers</a>
-          <a href="#">Activity</a>
-          <a href="#">Settings</a>
-        </nav>
-      </aside>
-      <div className="main">
-        <header className="topbar">
-          <div>
-            <div className="section-title" style={{ margin: 0 }}>
-              Integrations
-            </div>
-            <div className="muted">Connect and manage marketplaces</div>
-          </div>
-          <div className="actions">
-            <button className="icon-button" onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}>
-              <span suppressHydrationWarning>{mounted ? (theme === 'light' ? '🌙' : '☀️') : ' '}</span>
-            </button>
-            {token ? (
-              <>
-                <button className="icon-button" onClick={() => setShowChangePwd((v) => !v)}>🔒</button>
-                <button className="icon-button" onClick={handleLogout}>🚪</button>
-              </>
-            ) : (
-              <button className="icon-button" onClick={() => setShowChangePwd(false)}>👤</button>
-            )}
-          </div>
-        </header>
-        <div className="content">
-          {shopifyConnectOpen ? (
-            <div
+    <DashboardLayout title="Integrations" subtitle="Connect and manage marketplaces">
+      {shopifyConnectOpen ? (
+        <div
               className="panel-backdrop"
               role="dialog"
               aria-modal="true"
@@ -469,56 +377,27 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-          ) : null}
+      ) : null}
 
-          {showChangePwd && token ? (
-            <div className="card" style={{ marginBottom: 12 }}>
-              <div className="title">Change Password</div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <input
-                  type="password"
-                  value={oldPwd}
-                  onChange={(e) => setOldPwd(e.target.value)}
-                  placeholder="Old password"
-                  style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid var(--border)' }}
-                />
-                <input
-                  type="password"
-                  value={newPwd}
-                  onChange={(e) => setNewPwd(e.target.value)}
-                  placeholder="New password"
-                  style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid var(--border)' }}
-                />
-                <button className="button-primary" onClick={handleChangePassword}>
-                  Update
-                </button>
-              </div>
-              {pwdMsg ? (
-                <div className="muted" style={{ color: pwdMsg.includes('failed') ? 'red' : 'green', marginTop: 6 }}>
-                  {pwdMsg}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          {integrationMsg ? (
-            <div
-              className={`alert ${integrationMsgType === 'success' ? '' : 'error'}`}
-              style={{
-                marginBottom: 12,
-                ...(integrationMsgType === 'success'
-                  ? { backgroundColor: 'var(--success-bg, #d1fae5)', color: 'var(--success-fg, #065f46)', borderColor: 'var(--success-border, #10b981)' }
-                  : {}),
-              }}
-            >
-              {integrationMsg}
-            </div>
-          ) : null}
+      {integrationMsg ? (
+        <div
+          className={`alert ${integrationMsgType === 'success' ? '' : 'error'}`}
+          style={{
+            marginBottom: 12,
+            ...(integrationMsgType === 'success'
+              ? { backgroundColor: 'var(--success-bg, #d1fae5)', color: 'var(--success-fg, #065f46)', borderColor: 'var(--success-border, #10b981)' }
+              : {}),
+          }}
+        >
+          {integrationMsg}
+        </div>
+      ) : null}
 
-          <div className="card">
-            <div className="title">Available Integrations</div>
-            <div className="muted">Minimal, modern grid of marketplaces.</div>
-          </div>
-          <div className="card-grid" style={{ marginTop: 12 }}>
+      <div className="card">
+        <div className="title">Available Integrations</div>
+        <div className="muted">Minimal, modern grid of marketplaces.</div>
+      </div>
+      <div className="card-grid" style={{ marginTop: 12 }}>
             <div className="card">
               <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div className="title">Shopify {shopifyShop ? `(${shopifyShop})` : ''}</div>
@@ -636,10 +515,8 @@ export default function Dashboard() {
                 <span className="badge status paused">Coming soon</span>
               </div>
               <div className="muted">Amazon, eBay, TikTok, Elsy, Wayfair will appear here once enabled.</div>
-            </div>
-          </div>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

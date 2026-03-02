@@ -1,0 +1,152 @@
+/* Navigation and sidebar fixes for corporate icons and collapsed state */
+
+/* Update nav items to use nav-item class */
+.nav-item,
+.nav a.nav-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  position: relative;
+  white-space: nowrap;
+}
+
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.nav-icon-svg {
+  width: 100%;
+  height: 100%;
+  stroke-width: 2;
+}
+
+.nav-label {
+  transition: opacity 0.2s ease, width 0.2s ease;
+  overflow: hidden;
+}
+
+.nav-item.active,
+.nav-item:hover,
+.nav a.nav-item.active,
+.nav a.nav-item:hover {
+  background: var(--accent-weak);
+  color: var(--accent);
+}
+
+.nav-item.active .nav-icon-svg,
+.nav-item:hover .nav-icon-svg {
+  color: var(--accent);
+}
+
+/* Collapsed sidebar styles */
+.app-shell.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px;
+  gap: 0;
+}
+
+.app-shell.collapsed .nav-label {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+.app-shell.collapsed .nav-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.app-shell.collapsed .nav-item {
+  position: relative;
+}
+
+.app-shell.collapsed .nav-item::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + 12px);
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 1000;
+  font-size: 13px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.theme-dark .app-shell.collapsed .nav-item::after {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.app-shell.collapsed .nav-item:hover::after {
+  opacity: 1;
+}
+
+/* Brand collapse */
+.sidebar .brand {
+  transition: opacity 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.app-shell.collapsed .sidebar .brand {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Collapse button improvements */
+.sidebar button.collapse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.sidebar button.collapse:hover {
+  background: var(--accent-weak);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.app-shell.collapsed .sidebar button.collapse {
+  align-self: center;
+  margin: 0 auto;
+}
+
+/* Icon button improvements */
+.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.icon-button:hover {
+  background: var(--accent-weak);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.icon-button svg {
+  flex-shrink: 0;
+}
