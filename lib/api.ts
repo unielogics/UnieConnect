@@ -12,9 +12,10 @@ export function getApiOrigin(): string {
     process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_BACKEND_URL;
 
   if (typeof window !== 'undefined') {
+    // Env override so production can point to a different API (e.g. if api.unieconnect.com is not yet reachable)
+    if (env) return env.replace(/\/+$/, '');
     const host = window.location.hostname;
     if (host === 'user.unieconnect.com') return 'https://api.unieconnect.com';
-    if (env) return env;
     // Default to same-origin (enables Next.js rewrite proxy: /api/v1/*)
     return window.location.origin;
   }

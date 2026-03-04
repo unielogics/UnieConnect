@@ -57,9 +57,10 @@ export default function Login() {
     setLoginError(null);
     setStatusMessage(null);
     setLoading(true);
+    const loginUrl = apiUrl('/api/v1/auth/login');
     try {
-      console.info('[unieconnect][login] attempting', { email });
-      const res = await fetch(apiUrl('/api/v1/auth/login'), {
+      console.info('[unieconnect][login] attempting', { email, apiOrigin: getApiOrigin() });
+      const res = await fetch(loginUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -87,8 +88,24 @@ export default function Login() {
       console.info('[unieconnect][login] success', { email });
       window.location.href = '/dashboard';
     } catch (err: any) {
-      const message = err?.message || 'Login failed';
-      console.warn('[unieconnect][login] failed', { email, message });
+      const isNetworkError =
+        err?.name === 'TypeError' &&
+        (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
+      const isTimeout = err?.message?.toLowerCase?.().includes('timeout') || err?.message?.toLowerCase?.().includes('timed out');
+      let message = err?.message || 'Login failed';
+      if (isNetworkError || isTimeout) {
+        let origin = 'api.unieconnect.com';
+        try {
+          if (typeof loginUrl === 'string' && loginUrl.startsWith('http')) origin = new URL(loginUrl).origin;
+        } catch {
+          // ignore
+        }
+        message =
+          'Cannot reach the login server. The API at ' +
+          origin +
+          ' may be down or unreachable. Check your connection and try again, or contact support.';
+      }
+      console.warn('[unieconnect][login] failed', { email, message, err: err?.message });
       setLoginError(message);
     } finally {
       setLoading(false);
