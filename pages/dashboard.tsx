@@ -393,10 +393,6 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      <div className="card">
-        <div className="title">Available Integrations</div>
-        <div className="muted">Minimal, modern grid of marketplaces.</div>
-      </div>
       <div className="card-grid" style={{ marginTop: 12 }}>
             <div className="card">
               <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

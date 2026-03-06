@@ -103,42 +103,116 @@
   overflow: hidden;
 }
 
-.app-shell.collapsed .sidebar .brand {
+.app-shell.collapsed .sidebar .brand .brand-text {
   opacity: 0;
   width: 0;
-  height: 0;
   overflow: hidden;
 }
 
-/* Collapse button improvements */
-.sidebar button.collapse {
+.app-shell.collapsed .sidebar .brand .brand-logo {
+  width: 32px;
+  height: 32px;
+}
+
+/* Sidebar toggle - in line with brand */
+.sidebar-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 32px;
-  min-height: 32px;
 }
 
-.sidebar button.collapse:hover {
+.sidebar-toggle:hover {
   background: var(--accent-weak);
   color: var(--accent);
-  border-color: var(--accent);
 }
 
-.app-shell.collapsed .sidebar button.collapse {
-  align-self: center;
-  margin: 0 auto;
+.sidebar-toggle svg {
+  flex-shrink: 0;
 }
 
-/* Icon button improvements */
+.app-shell.collapsed .sidebar-toggle {
+  width: 40px;
+  height: 40px;
+}
+
+/* Sidebar theme toggle when collapsed */
+.app-shell.collapsed .sidebar-theme button {
+  justify-content: center;
+  padding: 10px;
+}
+
+.app-shell.collapsed .sidebar-theme .nav-label {
+  display: none;
+}
+
+.app-shell.collapsed .nav-admin-toggle {
+  flex-direction: column;
+  padding: 8px;
+  gap: 4px;
+}
+
+.app-shell.collapsed .nav-toggle-btn {
+  padding: 8px;
+  font-size: 0;
+  min-height: 36px;
+  position: relative;
+}
+
+.app-shell.collapsed .nav-toggle-btn::before {
+  content: attr(data-short);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.app-shell.collapsed .nav-toggle-btn::after {
+  content: attr(data-label);
+  position: absolute;
+  left: calc(100% + 12px);
+  white-space: nowrap;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 100;
+  box-shadow: var(--shadow-md);
+}
+
+.app-shell.collapsed .nav-toggle-btn:hover::after {
+  opacity: 1;
+}
+
+.app-shell.collapsed .nav-toggle-btn[data-label="Regular"]::after {
+  content: 'Regular';
+}
+
+.app-shell.collapsed .nav-toggle-btn[data-label="Admin"]::after {
+  content: 'Admin';
+}
+
+/* Icon button improvements - 44px touch target */
 .icon-button {
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 44px;
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .icon-button:hover {
@@ -149,4 +223,80 @@
 
 .icon-button svg {
   flex-shrink: 0;
+}
+
+/* Mobile & tablet: hamburger, drawer overlay */
+@media (max-width: 1023px) {
+  .hamburger {
+    display: flex;
+  }
+
+  .drawer-backdrop {
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .app-shell.drawer-open .drawer-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    width: min(280px, 85vw);
+    max-width: 280px;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .app-shell.drawer-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .sidebar-close {
+    display: flex;
+  }
+
+  .sidebar .collapse,
+  .sidebar .sidebar-toggle {
+    display: none;
+  }
+
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell.collapsed .sidebar {
+    width: min(280px, 85vw);
+  }
+}
+
+/* Desktop: fixed sidebar, no hamburger */
+@media (min-width: 1024px) {
+  .drawer-backdrop {
+    display: none !important;
+  }
+
+  .sidebar-close {
+    display: none !important;
+  }
+}
+
+/* Mobile: collapse profile to avatar-only */
+@media (max-width: 640px) {
+  .profile-label-full,
+  .profile-sublabel-full {
+    display: none !important;
+  }
+
+  .profile-header-link {
+    padding: var(--space-2);
+  }
 }

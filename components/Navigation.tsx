@@ -12,7 +12,14 @@ interface NavItem {
   category?: string;
 }
 
-export default function Navigation() {
+interface NavigationProps {
+  onNavigate?: () => void;
+  canManageUsers?: boolean;
+  adminMode?: 'administrative' | 'regular';
+  onAdminModeChange?: (mode: 'administrative' | 'regular') => void;
+}
+
+export default function Navigation({ onNavigate, canManageUsers, adminMode = 'regular', onAdminModeChange }: NavigationProps) {
   const router = useRouter();
   const [features, setFeatures] = useState<Feature[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,8 +61,8 @@ export default function Navigation() {
     grouped[category].push(item);
   });
 
-  // Standard navigation items (always shown)
-  const standardItems: NavItem[] = [
+  // Regular (core) navigation items
+  const coreItems: NavItem[] = [
     { label: 'Integrations', href: '/dashboard', icon: 'integrations', order: 0, category: 'core' },
     { label: 'Orders', href: '/orders', icon: 'orders', order: 1, category: 'core' },
     { label: 'Customers', href: '/customers', icon: 'customers', order: 2, category: 'core' },
@@ -64,7 +71,15 @@ export default function Navigation() {
     { label: 'Marketplace', href: '/marketplace', icon: 'marketplace', order: 99, category: 'core' },
   ];
 
-  const allItems = [...standardItems, ...navItems].sort((a, b) => a.order - b.order);
+  // Admin-only items
+  const adminItems: NavItem[] = canManageUsers
+    ? [{ label: 'Users', href: '/users', icon: 'users', order: 0, category: 'admin' }]
+    : [];
+
+  const allItems =
+    adminMode === 'administrative'
+      ? adminItems
+      : [...coreItems, ...navItems].sort((a, b) => a.order - b.order);
 
   if (loading) {
     return (
@@ -78,6 +93,28 @@ export default function Navigation() {
 
   return (
     <nav className="nav">
+      {canManageUsers && onAdminModeChange && (
+        <div className="nav-admin-toggle" role="group" aria-label="View mode">
+          <button
+            type="button"
+            className={`nav-toggle-btn ${adminMode === 'regular' ? 'active' : ''}`}
+            onClick={() => onAdminModeChange('regular')}
+            data-label="Regular"
+            data-short="R"
+          >
+            Regular
+          </button>
+          <button
+            type="button"
+            className={`nav-toggle-btn ${adminMode === 'administrative' ? 'active' : ''}`}
+            onClick={() => onAdminModeChange('administrative')}
+            data-label="Admin"
+            data-short="A"
+          >
+            Admin
+          </button>
+        </div>
+      )}
       {allItems.map((item) => {
         const isActive = router.pathname === item.href || router.pathname.startsWith(item.href + '/');
         return (
@@ -86,6 +123,7 @@ export default function Navigation() {
             href={item.href}
             className={`nav-item ${isActive ? 'active' : ''}`}
             title={item.label}
+            onClick={onNavigate}
           >
             <span className="nav-icon">{getIcon(item.icon, 'nav-icon-svg')}</span>
             <span className="nav-label">{item.label}</span>

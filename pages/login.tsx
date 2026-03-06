@@ -16,7 +16,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [mounted, setMounted] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -30,7 +30,7 @@ export default function Login() {
     }
     console.info('[unieconnect][config]', { apiOrigin: getApiOrigin(), host: window.location.host });
     const saved = localStorage.getItem('unie-theme');
-    const initial = saved === 'dark' || saved === 'light' ? saved : 'dark';
+    const initial = saved === 'dark' || saved === 'light' ? saved : 'light';
     setTheme(initial as 'light' | 'dark');
   }, []);
 
