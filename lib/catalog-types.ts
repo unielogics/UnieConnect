@@ -1,0 +1,22 @@
+export type CatalogItem = {
+  _id: string;
+  sku: string;
+  title: string;
+  description?: string;
+  image?: string;
+  images?: string[];
+  upc?: string;
+  ean?: string;
+  asin?: string;
+  category?: string;
+  subCategory?: string;
+  lob?: string;
+  weight?: number;
+  dimensions?: { length: number; width: number; height: number };
+  tags?: string[];
+  supplierId?: string;
+  channels?: string[];
+  mappings?: { channel: string; channelDisplay?: string }[];
+  createdAt?: string;
+  updatedAt?: string;
+};

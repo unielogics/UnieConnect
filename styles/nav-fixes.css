@@ -1,11 +1,17 @@
 /* Navigation and sidebar fixes for corporate icons and collapsed state */
 
-/* Update nav items to use nav-item class */
-.nav-item,
-.nav a.nav-item {
+/* Update nav items - dark sidebar, no horizontal overflow */
+.sidebar .nav,
+.sidebar .nav-section {
+  min-width: 0;
+}
+
+.sidebar .nav-item,
+.sidebar .nav a.nav-item,
+.sidebar a[class*="flex items-center"].nav-item {
   padding: 10px 12px;
   border-radius: 8px;
-  color: var(--text);
+  color: #d1d5db;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -13,6 +19,7 @@
   transition: all 0.2s ease;
   position: relative;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .nav-icon {
@@ -35,17 +42,26 @@
   overflow: hidden;
 }
 
-.nav-item.active,
-.nav-item:hover,
-.nav a.nav-item.active,
-.nav a.nav-item:hover {
-  background: var(--accent-weak);
-  color: var(--accent);
+/* Dark sidebar: active = blue highlight, hover = gray */
+.sidebar .nav-item.active,
+.sidebar .nav-item:hover,
+.sidebar .nav a.nav-item.active,
+.sidebar .nav a.nav-item:hover,
+.sidebar a.nav-item.bg-sidebar-active,
+.sidebar a.nav-item:hover {
+  background: #374151;
+  color: #fff;
 }
 
-.nav-item.active .nav-icon-svg,
-.nav-item:hover .nav-icon-svg {
-  color: var(--accent);
+.sidebar .nav-item.active,
+.sidebar a.bg-sidebar-active {
+  background: #3b82f6 !important;
+  color: #fff !important;
+}
+
+.sidebar .nav-item.active .nav-icon-svg,
+.sidebar .nav-item:hover .nav-icon-svg {
+  color: inherit;
 }
 
 /* Collapsed sidebar styles */
@@ -70,29 +86,27 @@
   position: relative;
 }
 
-.app-shell.collapsed .nav-item::after {
+.app-shell.collapsed .nav-item::after,
+.app-shell.collapsed .sidebar a[class*="flex items-center"]::after {
   content: attr(title);
   position: absolute;
   left: calc(100% + 12px);
-  background: var(--surface);
-  color: var(--text);
+  background: #1f2937;
+  color: #fff;
   padding: 8px 12px;
   border-radius: 6px;
-  border: 1px solid var(--border);
+  border: 1px solid #374151;
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
   z-index: 1000;
   font-size: 13px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-.theme-dark .app-shell.collapsed .nav-item::after {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.app-shell.collapsed .nav-item:hover::after {
+.app-shell.collapsed .nav-item:hover::after,
+.app-shell.collapsed .sidebar a[class*="flex items-center"]:hover::after {
   opacity: 1;
 }
 
@@ -110,38 +124,62 @@
 }
 
 .app-shell.collapsed .sidebar .brand .brand-logo {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
 }
 
-/* Sidebar toggle - in line with brand */
-.sidebar-toggle {
+/* Collapsed header: stack logo and toggle vertically, centered */
+.app-shell.collapsed .sidebar-header {
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.app-shell.collapsed .sidebar-header .brand {
+  justify-content: center;
+}
+
+.app-shell.collapsed .sidebar {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+/* Sidebar collapse toggle - dark theme, compact, fits within sidebar */
+.sidebar .sidebar-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   padding: 0;
   border: none;
-  border-radius: 10px;
-  background: var(--bg);
-  color: var(--muted);
+  border-radius: 8px;
+  background: #374151;
+  color: #9ca3af;
   cursor: pointer;
   transition: all 0.2s ease;
-}
-
-.sidebar-toggle:hover {
-  background: var(--accent-weak);
-  color: var(--accent);
-}
-
-.sidebar-toggle svg {
   flex-shrink: 0;
 }
 
-.app-shell.collapsed .sidebar-toggle {
-  width: 40px;
-  height: 40px;
+.sidebar .sidebar-toggle:hover {
+  background: #4b5563;
+  color: #fff;
+}
+
+.sidebar .sidebar-toggle svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.app-shell.collapsed .sidebar .sidebar-toggle {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
 }
 
 /* Sidebar theme toggle when collapsed */
@@ -156,14 +194,23 @@
 
 .app-shell.collapsed .nav-admin-toggle {
   flex-direction: column;
-  padding: 8px;
+  padding: 6px;
   gap: 4px;
 }
 
+/* Section headers - hide when collapsed */
+.app-shell.collapsed .nav-section-label {
+  opacity: 0;
+  height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
 .app-shell.collapsed .nav-toggle-btn {
-  padding: 8px;
+  padding: 6px;
   font-size: 0;
-  min-height: 36px;
+  min-height: 28px;
   position: relative;
 }
 
@@ -180,15 +227,16 @@
   left: calc(100% + 12px);
   white-space: nowrap;
   padding: 6px 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: #1f2937;
+  color: #fff;
+  border: 1px solid #374151;
   border-radius: 6px;
   font-size: 12px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s;
   z-index: 100;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .app-shell.collapsed .nav-toggle-btn:hover::after {
@@ -201,6 +249,43 @@
 
 .app-shell.collapsed .nav-toggle-btn[data-label="Admin"]::after {
   content: 'Admin';
+}
+
+/* Sidebar theme toggle - dark theme */
+
+/* Admin toggle - 25% smaller, dark sidebar colors */
+.sidebar .nav-admin-toggle {
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  gap: 4px;
+  border-bottom: 1px solid #374151;
+  background: rgba(55, 65, 81, 0.4);
+  border-radius: 8px;
+  margin-left: 8px;
+  margin-right: 8px;
+}
+
+.sidebar .nav-admin-toggle .nav-toggle-btn {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  min-height: 28px;
+  background: #374151;
+  color: #9ca3af;
+  border: 1px solid #4b5563;
+  border-radius: 6px;
+}
+
+.sidebar .nav-admin-toggle .nav-toggle-btn:hover {
+  background: #4b5563;
+  color: #fff;
+  border-color: #6b7280;
+}
+
+.sidebar .nav-admin-toggle .nav-toggle-btn.active {
+  background: #3b82f6 !important;
+  color: #fff !important;
+  border-color: #3b82f6 !important;
 }
 
 /* Icon button improvements - 44px touch target */
@@ -241,6 +326,7 @@
   .app-shell.drawer-open .drawer-backdrop {
     opacity: 1;
     pointer-events: auto;
+    cursor: pointer;
   }
 
   .sidebar {
@@ -252,8 +338,9 @@
     width: min(280px, 85vw);
     max-width: 280px;
     transform: translateX(-100%);
-    transition: transform 0.25s ease;
-    box-shadow: var(--shadow-lg);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    overflow-y: auto;
   }
 
   .app-shell.drawer-open .sidebar {

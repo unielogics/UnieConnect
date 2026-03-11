@@ -1,5 +1,4 @@
-import { apiUrl } from './api';
-import { TOKEN_KEY } from './api';
+import { apiUrl, TOKEN_KEY } from './api';
 
 export interface Feature {
   id: string;
@@ -128,8 +127,9 @@ export async function fetchUserFeatures(): Promise<{ features: Feature[] }> {
   const res = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${token.trim()}`,
     },
+    credentials: 'include',
   });
 
   if (!res.ok) {

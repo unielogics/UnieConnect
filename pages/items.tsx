@@ -1,14 +1,15 @@
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../components/DashboardLayout';
 
-export default function ItemsPage() {
+export default function ItemsRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/catalog');
+  }, [router]);
   return (
-    <DashboardLayout title="Items / Inventory" subtitle="Manage your product catalog and inventory">
-      <div className="card">
-        <div className="title">Items Overview</div>
-        <div className="muted" style={{ marginTop: 8 }}>
-          Items dashboard is coming soon. This will show all items and inventory across your channels.
-        </div>
-      </div>
+    <DashboardLayout title="Redirecting" subtitle="">
+      <div className="text-gray-500">Redirecting to Catalog...</div>
     </DashboardLayout>
   );
 }

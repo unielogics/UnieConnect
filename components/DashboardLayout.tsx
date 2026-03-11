@@ -83,6 +83,13 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
     setDrawerOpen(false);
   }, [router.pathname]);
 
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--sidebar-width',
+      sidebarCollapsed ? '68px' : '240px',
+    );
+  }, [sidebarCollapsed]);
+
   const handleLogout = () => {
     setToken(null);
     localStorage.removeItem(TOKEN_KEY);
@@ -103,9 +110,9 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
         onClick={() => setDrawerOpen(false)}
         onKeyDown={(e) => e.key === 'Escape' && setDrawerOpen(false)}
       />
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <Link href="/dashboard" onClick={() => setDrawerOpen(false)} className="brand">
+      <aside className="sidebar bg-sidebar text-white border-r border-gray-700">
+        <div className="sidebar-header h-16 flex items-center px-3 border-b border-gray-700 gap-2 shrink-0">
+          <Link href="/dashboard" onClick={() => setDrawerOpen(false)} className="brand text-white hover:text-white">
             <img src="/logo.svg" alt="" className="brand-logo" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
             <span className="brand-text">UnieConnect</span>
           </Link>
@@ -127,6 +134,7 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
         </div>
         <div className="sidebar-nav-wrap">
           <Navigation
+            sidebarCollapsed={sidebarCollapsed}
             onNavigate={() => setDrawerOpen(false)}
             canManageUsers={canManageUsers(currentUser?.role)}
             adminMode={adminMode}
@@ -144,9 +152,9 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
           </button>
         </div>
       </aside>
-      <div className="main">
-        <header className="topbar">
-          <div className="topbar-left">
+      <div className="main flex-1 flex flex-col min-h-0 min-w-0">
+        <header className="topbar h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
+          <div className="topbar-left flex items-center gap-4">
             <button
               className="hamburger"
               onClick={() => setDrawerOpen(true)}
@@ -156,22 +164,22 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
               <FiMenu size={22} />
             </button>
             <div className="topbar-title">
-              {title && <div className="section-title">{title}</div>}
-              {subtitle && <div className="muted">{subtitle}</div>}
+              {title && <h1 className="text-xl font-bold text-gray-900">{title}</h1>}
+              {subtitle && <div className="text-sm text-gray-500">{subtitle}</div>}
             </div>
           </div>
-          <div className="actions">
+          <div className="actions flex items-center gap-2">
             {token ? (
               <>
-                <Link href="/profile" className="profile-header-link" aria-label="Profile">
-                  <div className="profile-avatar">P</div>
-                  <div className="profile-header-text">
-                    <span className="profile-label profile-label-full">Profile</span>
-                    <span className="profile-sublabel profile-sublabel-full">Account settings</span>
+                <Link href="/profile" className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition-colors" aria-label="Profile">
+                  <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-semibold">P</div>
+                  <div className="hidden sm:block text-left">
+                    <span className="block text-sm font-medium text-gray-900">Profile</span>
+                    <span className="block text-xs text-gray-500">Account settings</span>
                   </div>
                 </Link>
                 <button
-                  className="icon-button"
+                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-red-600 transition-colors"
                   onClick={handleLogout}
                   aria-label="Logout"
                 >
@@ -186,7 +194,7 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
             )}
           </div>
         </header>
-        <div className="content">
+        <div className="content flex-1 overflow-y-auto p-6 bg-gray-50">
           {children}
         </div>
       </div>
