@@ -23,6 +23,13 @@ export type CatalogProduct = {
   source: 'item' | 'amazon';
   supplierId?: string;
   supplierName?: string;
+  wmsInventory?: {
+    inbound: number;
+    received: number;
+    available: number;
+    orders: number;
+    shippedToday: number;
+  };
 };
 
 async function fetchItems(
@@ -116,14 +123,14 @@ export default function CatalogPage() {
       typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
     if (!token) return;
     try {
-      const [itemsData, locs, supps] = await Promise.all([
+      const [itemsResult, locsResult, suppsResult] = await Promise.allSettled([
         fetchItems(token, channelFilter || undefined),
         fetchShipFromLocations(),
         fetchSuppliers(),
       ]);
-      setItems(itemsData);
-      setLocations(locs);
-      setSuppliers(supps);
+      setItems(itemsResult.status === 'fulfilled' ? itemsResult.value : []);
+      setLocations(locsResult.status === 'fulfilled' ? locsResult.value : []);
+      setSuppliers(suppsResult.status === 'fulfilled' ? suppsResult.value : []);
     } catch {
       setItems([]);
     } finally {
@@ -150,6 +157,7 @@ export default function CatalogPage() {
       source: 'item' as const,
       supplierId: i.supplierId,
       supplierName: i.supplierId ? supplierById.get(i.supplierId)?.name : undefined,
+      wmsInventory: (i as any).wmsInventory,
     }));
   }, [items, supplierById]);
 
@@ -175,6 +183,7 @@ export default function CatalogPage() {
   };
 
   const selectedList = Object.values(selected);
+  const hasWmsInventory = filtered.some((p) => p.wmsInventory);
   const createPlanInitialItems = selectedList.map((p) => ({
     sku: p.sku,
     title: p.title,
@@ -315,6 +324,15 @@ export default function CatalogPage() {
                     Channels
                   </th>
                   <th className="py-3 px-4 font-medium text-gray-900">Supplier</th>
+                  {hasWmsInventory && (
+                    <>
+                      <th className="py-3 px-4 w-20 font-medium text-gray-900 text-center">Inbound</th>
+                      <th className="py-3 px-4 w-20 font-medium text-gray-900 text-center">Received</th>
+                      <th className="py-3 px-4 w-20 font-medium text-gray-900 text-center">Available</th>
+                      <th className="py-3 px-4 w-24 font-medium text-gray-900 text-center">Open Orders</th>
+                      <th className="py-3 px-4 w-24 font-medium text-gray-900 text-center">Shipped Today</th>
+                    </>
+                  )}
                   <th className="py-3 px-4 w-32 font-medium text-gray-900">
                     Actions
                   </th>
@@ -378,6 +396,25 @@ export default function CatalogPage() {
                       <td className="py-3 px-4 text-gray-700">
                         {p.supplierName || '—'}
                       </td>
+                      {hasWmsInventory && (
+                        <>
+                          <td className="py-3 px-4 text-center text-gray-700">
+                            {p.wmsInventory ? p.wmsInventory.inbound : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-center text-gray-700">
+                            {p.wmsInventory ? p.wmsInventory.received : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-center text-gray-700">
+                            {p.wmsInventory ? p.wmsInventory.available : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-center text-gray-700">
+                            {p.wmsInventory ? p.wmsInventory.orders : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-center text-gray-700">
+                            {p.wmsInventory ? p.wmsInventory.shippedToday : '—'}
+                          </td>
+                        </>
+                      )}
                       <td className="py-3 px-4">
                         <div className="flex gap-2">
                           <Button

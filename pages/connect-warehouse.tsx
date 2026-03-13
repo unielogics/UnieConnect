@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { RefreshCw, Activity, Trash2, Check, Loader2, Plus } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { Modal } from '../components/Modal';
@@ -21,6 +22,7 @@ export default function ConnectWarehousePage() {
   const [connectSuccess, setConnectSuccess] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -66,6 +68,7 @@ export default function ConnectWarehousePage() {
     setLoading(true);
     setMessage(null);
     setError(false);
+    setProfileIncomplete(false);
     setConnectSuccess(false);
     setTestResult(null);
     try {
@@ -90,8 +93,11 @@ export default function ConnectWarehousePage() {
           setMessage(null);
         }, 1200);
       } else {
-        setMessage(data.error || data.message || 'Connection failed.');
+        const isProfileIncomplete = res.status === 400 && data.error === 'profile_incomplete';
+        setMessage(isProfileIncomplete ? (data.message || 'Complete your profile before connecting.') : (data.error || data.message || 'Connection failed.'));
         setError(true);
+        setProfileIncomplete(!!isProfileIncomplete);
+        if (isProfileIncomplete) setAddModalOpen(false);
       }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Connection failed.');
@@ -178,6 +184,28 @@ export default function ConnectWarehousePage() {
       title="My 3PLs"
       subtitle="Manage your third-party logistics partners"
     >
+      {profileIncomplete && message && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 16,
+            padding: 14,
+            borderRadius: 8,
+            background: 'var(--error-bg, #fef2f2)',
+            border: '1px solid var(--error, #b91c1c)',
+            color: 'var(--error, #b91c1c)',
+            fontSize: 14,
+          }}
+        >
+          {message}
+          {' '}
+          <Link href="/profile" style={{ fontWeight: 600, textDecoration: 'underline' }}>
+            Go to Profile
+          </Link>
+          {' '}
+          to complete your account and try again.
+        </div>
+      )}
       <section className="card users-table-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
           <button
@@ -208,7 +236,7 @@ export default function ConnectWarehousePage() {
         {warehousesLoading ? (
           <div className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 24 }}>
             <Loader2 size={18} className="animate-spin" />
-            Loading…
+            Loading?
           </div>
         ) : warehouses.length === 0 ? (
           <div className="muted" style={{ padding: 24, textAlign: 'center', fontSize: 14 }}>
@@ -237,7 +265,7 @@ export default function ConnectWarehousePage() {
                     </td>
                     <td>
                       <span className="muted" style={{ fontSize: 13 }}>
-                        {wh.address || '—'}
+                        {wh.address || '?'}
                       </span>
                     </td>
                     <td>
@@ -330,7 +358,7 @@ export default function ConnectWarehousePage() {
               {loading ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Loader2 className="animate-spin" size={18} strokeWidth={2} />
-                  Connecting…
+                  Connecting?
                 </span>
               ) : connectSuccess ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -375,7 +403,7 @@ export default function ConnectWarehousePage() {
               disabled={removeConfirming}
               style={{ background: 'var(--error, #b91c1c)' }}
             >
-              {removeConfirming ? 'Removing…' : 'Remove'}
+              {removeConfirming ? 'Removing?' : 'Remove'}
             </button>
           </>
         }

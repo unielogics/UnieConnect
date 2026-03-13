@@ -13,9 +13,10 @@ type Order = {
   channelDisplay?: string;
   status?: string;
   placedAt?: string;
-  totals?: { total?: number; currency?: string };
+  createdAt?: string;
+  totals?: { total?: number; subtotal?: number; tax?: number; shipping?: number; discounts?: number; currency?: string };
   currency?: string;
-  customer?: { id: string; email?: string; name?: { first?: string; last?: string } } | null;
+  customer?: { id: string; email?: string; phone?: string; name?: { first?: string; last?: string }; addresses?: any[] } | null;
 };
 
 type OrderLine = {
@@ -23,6 +24,7 @@ type OrderLine = {
   quantity: number;
   price?: number;
   fulfillmentStatus?: string;
+  itemId?: { _id: string; title?: string; image?: string; sku?: string } | null;
 };
 
 type OrderDetail = Order & {
@@ -56,6 +58,26 @@ function formatDate(s?: string): string {
   } catch {
     return '—';
   }
+}
+
+function formatDateTime(s?: string): string {
+  if (!s) return '—';
+  try {
+    const d = new Date(s);
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  } catch {
+    return '—';
+  }
+}
+
+function formatAddress(addr: { line1?: string; line2?: string; city?: string; region?: string; postalCode?: string; country?: string }): string {
+  const parts = [addr.line1, addr.line2, [addr.city, addr.region, addr.postalCode].filter(Boolean).join(' '), addr.country].filter(Boolean);
+  return parts.join(', ');
+}
+
+function StatusBadge({ label, variant = 'default' }: { label: string; variant?: 'success' | 'warning' | 'default' }) {
+  const colors = variant === 'success' ? 'bg-green-100 text-green-800' : variant === 'warning' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700';
+  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${colors}`}>{label}</span>;
 }
 
 function formatMoney(amount?: number, currency?: string): string {
@@ -178,62 +200,120 @@ export default function OrdersPage() {
         <ViewModal
           isOpen
           onClose={closeDetail}
-          title={detailLoading ? 'Order details' : `Order ${detailOrder?.externalOrderId || ''}`}
+          title={detailLoading ? 'Order details' : `Order #${detailOrder?.externalOrderId || ''}`}
         >
           {detailLoading ? (
             <div className="text-gray-500">Loading...</div>
           ) : detailOrder ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
-                <div>
-                  <div className="muted" style={{ fontSize: 12 }}>Channel</div>
-                  <div>{detailOrder.channel ? <ChannelBadge channel={detailOrder.channel} label={detailOrder.channelDisplay} /> : '—'}</div>
-                </div>
-                <div>
-                  <div className="muted" style={{ fontSize: 12 }}>Status</div>
-                  <div>{detailOrder.status || '—'}</div>
-                </div>
-                <div>
-                  <div className="muted" style={{ fontSize: 12 }}>Date</div>
-                  <div>{formatDate(detailOrder.placedAt)}</div>
-                </div>
-                <div>
-                  <div className="muted" style={{ fontSize: 12 }}>Total</div>
-                  <div>{formatMoney(detailOrder.totals?.total ?? undefined, detailOrder.currency)}</div>
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <div className="muted" style={{ fontSize: 12 }}>Customer</div>
-                  <div>{customerDisplay(detailOrder.customer)}</div>
-                  {detailOrder.customer?.email && (
-                    <div className="muted" style={{ fontSize: 13 }}>{detailOrder.customer.email}</div>
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Status row + date (Shopify-style) */}
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <StatusBadge label={detailOrder.status || 'Unknown'} variant={detailOrder.status === 'paid' || detailOrder.status === 'fulfilled' ? 'success' : 'warning'} />
+                <StatusBadge label={detailOrder.lines?.some((l) => l.fulfillmentStatus !== 'fulfilled') ? 'Unfulfilled' : 'Fulfilled'} variant={detailOrder.lines?.every((l) => l.fulfillmentStatus === 'fulfilled') ? 'success' : 'warning'} />
+                <span className="text-sm text-gray-500">{formatDateTime(detailOrder.placedAt)}</span>
+                {detailOrder.channel && (
+                  <span className="text-sm text-gray-500">from {detailOrder.channelDisplay || detailOrder.channel}</span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left: Products + Totals */}
+                <div className="lg:col-span-2 space-y-4">
+                  {/* Line items (product-style cards) */}
+                  {detailOrder.lines && detailOrder.lines.length > 0 ? (
+                    <div className="rounded-xl border border-gray-200 overflow-hidden">
+                      {detailOrder.lines.map((line, i) => {
+                        const item = line.itemId && typeof line.itemId === 'object' ? line.itemId : null;
+                        const title = item?.title || line.sku || `Item ${i + 1}`;
+                        const image = item?.image;
+                        return (
+                          <div key={i} className="flex items-center gap-4 p-4 border-b border-gray-100 last:border-0">
+                            <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
+                              {image ? (
+                                <img src={image} alt={title} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              ) : (
+                                <span className="text-gray-400 text-xs">Img</span>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-900">{title}</div>
+                              <div className="text-sm text-gray-500">{line.fulfillmentStatus || '—'}</div>
+                            </div>
+                            <div className="text-sm text-gray-600">× {line.quantity}</div>
+                            <div className="font-medium text-gray-900">{formatMoney((line.price ?? 0) * line.quantity, detailOrder.currency)}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-gray-200 p-4 text-gray-500 text-sm">No line items</div>
                   )}
+
+                  {/* Totals block */}
+                  <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-2">
+                    {detailOrder.totals?.subtotal != null && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Subtotal</span>
+                        <span>{formatMoney(detailOrder.totals.subtotal, detailOrder.currency)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm font-semibold">
+                      <span>Total</span>
+                      <span>{formatMoney(detailOrder.totals?.total ?? undefined, detailOrder.currency)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-green-700 font-medium">
+                      <span>Paid</span>
+                      <span>{formatMoney(detailOrder.totals?.total ?? undefined, detailOrder.currency)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Customer, addresses, timeline */}
+                <div className="space-y-4">
+                  {/* Timeline placeholder */}
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <div className="text-xs font-medium text-gray-500 mb-3">Timeline</div>
+                    <div className="space-y-2 text-sm">
+                      <div className="text-gray-700">
+                        {formatDateTime(detailOrder.placedAt)} — Order placed
+                      </div>
+                      {detailOrder.createdAt && (
+                        <div className="text-gray-500 text-xs">Synced {formatDateTime(detailOrder.createdAt)}</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Customer card */}
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <div className="text-xs font-medium text-gray-500 mb-2">Customer</div>
+                    <div className="font-semibold text-gray-900">{customerDisplay(detailOrder.customer)}</div>
+                    {detailOrder.customer?.email && <div className="text-sm text-gray-600 mt-0.5">{detailOrder.customer.email}</div>}
+                    {detailOrder.customer?.phone && <div className="text-sm text-gray-600">{detailOrder.customer.phone}</div>}
+                  </div>
+
+                  {/* Shipping address */}
+                  {detailOrder.customer?.addresses && detailOrder.customer.addresses.length > 0 && (
+                    <div className="rounded-xl border border-gray-200 p-4">
+                      <div className="text-xs font-medium text-gray-500 mb-2">Shipping address</div>
+                      <div className="text-sm text-gray-900 whitespace-pre-line">{formatAddress(detailOrder.customer.addresses[0])}</div>
+                    </div>
+                  )}
+
+                  {/* Billing - same as shipping for now */}
+                  {detailOrder.customer?.addresses && detailOrder.customer.addresses.length > 0 && (
+                    <div className="rounded-xl border border-gray-200 p-4">
+                      <div className="text-xs font-medium text-gray-500 mb-2">Billing address</div>
+                      <div className="text-sm text-gray-600">Same as shipping address</div>
+                    </div>
+                  )}
+
+                  {/* Notes placeholder */}
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Notes</div>
+                    <div className="text-sm text-gray-400">No notes from customer</div>
+                  </div>
                 </div>
               </div>
-              {detailOrder.lines && detailOrder.lines.length > 0 && (
-                <div>
-                  <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Line items</div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                        <th style={{ padding: '8px 0', textAlign: 'left' }}>SKU</th>
-                        <th style={{ padding: '8px 0', textAlign: 'right' }}>Qty</th>
-                        <th style={{ padding: '8px 0', textAlign: 'right' }}>Price</th>
-                        <th style={{ padding: '8px 0', textAlign: 'left' }}>Fulfillment</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detailOrder.lines.map((line, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                          <td style={{ padding: '8px 0' }}>{line.sku || '—'}</td>
-                          <td style={{ padding: '8px 0', textAlign: 'right' }}>{line.quantity}</td>
-                          <td style={{ padding: '8px 0', textAlign: 'right' }}>{formatMoney(line.price)}</td>
-                          <td style={{ padding: '8px 0' }}>{line.fulfillmentStatus || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
             </div>
           ) : null}
         </ViewModal>

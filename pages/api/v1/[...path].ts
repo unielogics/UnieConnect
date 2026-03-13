@@ -42,7 +42,17 @@ function forwardHeaders(req: NextApiRequest): Record<string, string> {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const rawPath = req.query.path;
   const pathSegments = Array.isArray(rawPath) ? rawPath : rawPath ? [rawPath] : [];
-  const url = buildBackendUrl(pathSegments);
+  let url = buildBackendUrl(pathSegments);
+  const queryParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(req.query)) {
+    if (key === 'path') continue;
+    if (value !== undefined && value !== null) {
+      const str = Array.isArray(value) ? value[0] ?? '' : String(value);
+      if (str) queryParams.set(key, str);
+    }
+  }
+  const queryString = queryParams.toString();
+  if (queryString) url += `?${queryString}`;
 
   const headers = forwardHeaders(req);
   const fetchHeaders = new Headers();
@@ -64,10 +74,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const backendRes = await fetch(url, opts);
-    const data = await backendRes.text();
+    const ct = backendRes.headers.get('content-type') || '';
+    const isBinary =
+      ct.includes('application/pdf') ||
+      ct.includes('application/octet-stream') ||
+      ct.includes('image/');
+    const data = isBinary
+      ? Buffer.from(await backendRes.arrayBuffer())
+      : await backendRes.text();
     res.status(backendRes.status);
-    // Forward important response headers (e.g. Set-Cookie for login)
-    const ct = backendRes.headers.get('content-type');
     if (ct) res.setHeader('content-type', ct);
     const setCookie = backendRes.headers.get('set-cookie');
     if (setCookie) res.setHeader('set-cookie', setCookie);

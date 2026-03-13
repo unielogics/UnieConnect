@@ -50,21 +50,21 @@ export function TransportationTemplatePopup({
   };
 
   const handleSave = async () => {
+    const len = form.length ? Number(form.length) : 0;
+    const wid = form.width ? Number(form.width) : 0;
+    const hgt = form.height ? Number(form.height) : 0;
     if (!form.name.trim() || form.unitsPerBox < 1 || form.weightPerBox < 0) {
       setError('Name, units per box (≥1), and weight per box (≥0) are required.');
+      return;
+    }
+    if (len <= 0 || wid <= 0 || hgt <= 0) {
+      setError('Length, width, and height (all in inches, > 0) are required.');
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const dimensions =
-        form.length || form.width || form.height
-          ? {
-              length: form.length ? Number(form.length) : undefined,
-              width: form.width ? Number(form.width) : undefined,
-              height: form.height ? Number(form.height) : undefined,
-            }
-          : undefined;
+      const dimensions = { length: len, width: wid, height: hgt };
       if (editing) {
         const updated = await updateTransportationTemplate(editing.id, {
           name: form.name.trim(),
@@ -84,6 +84,10 @@ export function TransportationTemplatePopup({
           dimensions,
         });
         setTemplates((prev) => [created, ...prev]);
+        if (onSelect) {
+          onSelect(created);
+          onClose();
+        }
       }
       resetForm();
     } catch (e: any) {
@@ -156,6 +160,42 @@ export function TransportationTemplatePopup({
               />
             </div>
             <div>
+              <label style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>Length (in) *</label>
+              <input
+                type="number"
+                min={0.1}
+                step={0.1}
+                value={form.length}
+                onChange={(e) => setForm((f) => ({ ...f, length: e.target.value ? Number(e.target.value) : '' }))}
+                placeholder="Required"
+                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>Width (in) *</label>
+              <input
+                type="number"
+                min={0.1}
+                step={0.1}
+                value={form.width}
+                onChange={(e) => setForm((f) => ({ ...f, width: e.target.value ? Number(e.target.value) : '' }))}
+                placeholder="Required"
+                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>Height (in) *</label>
+              <input
+                type="number"
+                min={0.1}
+                step={0.1}
+                value={form.height}
+                onChange={(e) => setForm((f) => ({ ...f, height: e.target.value ? Number(e.target.value) : '' }))}
+                placeholder="Required"
+                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}
+              />
+            </div>
+            <div>
               <label style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>Weight/box (lbs)</label>
               <input
                 type="number"
@@ -167,41 +207,17 @@ export function TransportationTemplatePopup({
               />
             </div>
           </div>
-          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <div style={{ marginTop: 12 }}>
             <div>
-              <label style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>Length (in)</label>
+              <label style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>Weight/unit (lbs)</label>
               <input
                 type="number"
                 min={0}
                 step={0.1}
-                value={form.length}
-                onChange={(e) => setForm((f) => ({ ...f, length: e.target.value === '' ? '' : Number(e.target.value) }))}
+                value={form.weightPerUnit}
+                onChange={(e) => setForm((f) => ({ ...f, weightPerUnit: e.target.value === '' ? 0 : Number(e.target.value) }))}
                 placeholder="Optional"
-                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>Width (in)</label>
-              <input
-                type="number"
-                min={0}
-                step={0.1}
-                value={form.width}
-                onChange={(e) => setForm((f) => ({ ...f, width: e.target.value === '' ? '' : Number(e.target.value) }))}
-                placeholder="Optional"
-                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>Height (in)</label>
-              <input
-                type="number"
-                min={0}
-                step={0.1}
-                value={form.height}
-                onChange={(e) => setForm((f) => ({ ...f, height: e.target.value === '' ? '' : Number(e.target.value) }))}
-                placeholder="Optional"
-                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}
+                style={{ width: '100%', maxWidth: 140, padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}
               />
             </div>
           </div>
@@ -249,7 +265,14 @@ export function TransportationTemplatePopup({
                     <button
                       className="button-secondary"
                       style={{ padding: '6px 12px', fontSize: 13 }}
-                      onClick={() => (onSelect ? onSelect(t) : handleEdit(t))}
+                      onClick={() => {
+                        if (onSelect) {
+                          onSelect(t);
+                          onClose();
+                        } else {
+                          handleEdit(t);
+                        }
+                      }}
                     >
                       {onSelect ? 'Select' : 'Edit'}
                     </button>

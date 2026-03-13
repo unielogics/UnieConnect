@@ -6,11 +6,22 @@ import { ViewModal } from '../components/ViewModal';
 import { Button } from '../components/Button';
 import { apiUrl, TOKEN_KEY } from '../lib/api';
 
+type CustomerAddress = {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  region?: string;
+  postalCode?: string;
+  country?: string;
+};
+
 type Customer = {
   _id: string;
   email?: string;
   phone?: string;
   name?: { first?: string; last?: string };
+  addresses?: CustomerAddress[];
+  tags?: string[];
   channels?: string[];
   mappings?: { channel: string; channelDisplay?: string }[];
 };
@@ -39,6 +50,11 @@ function nameDisplay(n?: { first?: string; last?: string } | null): string {
   if (!n) return '—';
   const parts = [n.first, n.last].filter(Boolean);
   return parts.length ? parts.join(' ') : '—';
+}
+
+function formatAddress(addr: CustomerAddress): string {
+  const parts = [addr.line1, addr.line2, [addr.city, addr.region, addr.postalCode].filter(Boolean).join(' '), addr.country].filter(Boolean);
+  return parts.join('\n');
 }
 
 export default function CustomersPage() {
@@ -146,30 +162,81 @@ export default function CustomersPage() {
           {detailLoading ? (
             <div className="text-gray-500">Loading...</div>
           ) : detailCustomer ? (
-            <div className="flex flex-col gap-4 text-sm">
-              <div className="grid gap-3">
-                <div>
-                  <div className="text-xs text-gray-500">Name</div>
-                  <div>{nameDisplay(detailCustomer.name)}</div>
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Shopify-style layout: stats row + two columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+                  <div className="text-xs text-gray-500 font-medium mb-0.5">Orders</div>
+                  <div className="text-sm font-semibold text-gray-900">—</div>
                 </div>
-                <div>
-                  <div className="text-xs text-gray-500">Email</div>
-                  <div>{detailCustomer.email || '—'}</div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+                  <div className="text-xs text-gray-500 font-medium mb-0.5">Amount spent</div>
+                  <div className="text-sm font-semibold text-gray-900">—</div>
                 </div>
-                <div>
-                  <div className="text-xs text-gray-500">Phone</div>
-                  <div>{detailCustomer.phone || '—'}</div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+                  <div className="text-xs text-gray-500 font-medium mb-0.5">Customer since</div>
+                  <div className="text-sm text-gray-900">—</div>
                 </div>
-                {detailCustomer.mappings && detailCustomer.mappings.length > 0 && (
-                  <div>
-                    <div className="text-xs text-gray-500 mb-2">Channels</div>
-                    <div className="flex gap-2 flex-wrap">
-                      {detailCustomer.mappings.map((m, i) => (
-                        <ChannelBadge key={i} channel={m.channel} label={m.channelDisplay} />
-                      ))}
+                <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+                  <div className="text-xs text-gray-500 font-medium mb-0.5">Channels</div>
+                  <div className="flex gap-1 flex-wrap">
+                    {detailCustomer.mappings && detailCustomer.mappings.length > 0
+                      ? detailCustomer.mappings.map((m, i) => <ChannelBadge key={i} channel={m.channel} label={m.channelDisplay} />)
+                      : '—'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left: Timeline placeholder, Contact */}
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <div className="text-xs font-medium text-gray-500 mb-3">Timeline</div>
+                    <div className="text-sm text-gray-500">No activity yet</div>
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <div className="text-xs font-medium text-gray-500 mb-2">Contact information</div>
+                    <div className="space-y-1 text-sm">
+                      {detailCustomer.email && <div className="text-gray-900">{detailCustomer.email}</div>}
+                      {detailCustomer.phone && <div className="text-gray-900">{detailCustomer.phone}</div>}
+                      {!detailCustomer.email && !detailCustomer.phone && <div className="text-gray-400">—</div>}
                     </div>
                   </div>
-                )}
+                </div>
+
+                {/* Right: Default address, Tags, Notes */}
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <div className="text-xs font-medium text-gray-500 mb-2">Default address</div>
+                    {detailCustomer.addresses && detailCustomer.addresses.length > 0 ? (
+                      <div className="text-sm text-gray-900 whitespace-pre-line">{formatAddress(detailCustomer.addresses[0])}</div>
+                    ) : (
+                      <div className="text-sm text-gray-400">No address</div>
+                    )}
+                  </div>
+
+                  {detailCustomer.mappings && detailCustomer.mappings.length > 0 && (
+                    <div className="rounded-xl border border-gray-200 p-4">
+                      <div className="text-xs font-medium text-gray-500 mb-2">Channel mappings</div>
+                      <div className="flex gap-2 flex-wrap">
+                        {detailCustomer.mappings.map((m, i) => (
+                          <ChannelBadge key={i} channel={m.channel} label={m.channelDisplay} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Tags</div>
+                    <div className="text-sm text-gray-400">{detailCustomer.tags && detailCustomer.tags.length > 0 ? detailCustomer.tags.join(', ') : 'None'}</div>
+                  </div>
+
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Notes</div>
+                    <div className="text-sm text-gray-400">None</div>
+                  </div>
+                </div>
               </div>
             </div>
           ) : null}

@@ -17,6 +17,13 @@ export type CatalogItem = {
   supplierId?: string;
   channels?: string[];
   mappings?: { channel: string; channelDisplay?: string }[];
+  wmsInventory?: {
+    inbound: number;
+    received: number;
+    available: number;
+    orders: number;
+    shippedToday: number;
+  };
   createdAt?: string;
   updatedAt?: string;
 };

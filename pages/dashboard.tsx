@@ -287,15 +287,25 @@ export default function Dashboard() {
         throw new Error(err?.error || 'Refresh failed');
       }
       const data = await res.json().catch(() => ({}));
+      let msg = 'Connection refreshed.';
       if (channel === 'shopify' && data?.syncResult && acc?.id) {
         const resStatus = await fetch(apiUrl(`/api/v1/channel-accounts/${acc.id}/sync-status`), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (resStatus.ok) setShopifySyncStatus(await resStatus.json());
+        const r = data.syncResult as Record<string, number> | undefined;
+        if (r) {
+          const parts = [];
+          if (r.products != null) parts.push(`${r.products} products`);
+          if (r.orders != null) parts.push(`${r.orders} orders`);
+          if (r.inventory != null) parts.push(`${r.inventory} inventory`);
+          if (r.customers != null) parts.push(`${r.customers} customers`);
+          if (parts.length) msg = `Synced: ${parts.join(', ')}. Check Orders, Catalog, and Customers pages.`;
+        }
       }
       await loadAccounts(token);
       setIntegrationMsgType('success');
-      setIntegrationMsg('Connection refreshed.');
+      setIntegrationMsg(msg);
     } catch (err: any) {
       setIntegrationMsgType('error');
       setIntegrationMsg(err?.message || 'Refresh failed');
@@ -482,6 +492,32 @@ export default function Dashboard() {
                 <span className="muted">Last sync</span>
                 <span>{shopifySyncStatus?.entities?.orders?.lastSyncedAt ? new Date(shopifySyncStatus.entities.orders.lastSyncedAt).toLocaleString() : '—'}</span>
               </div>
+              {ch === 'shopify' && shopifyAccountId && (
+                <button
+                  type="button"
+                  className="integration-activity-item"
+                  style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}
+                  onClick={async () => {
+                    if (!token) return;
+                    try {
+                      const r = await fetch(apiUrl(`/api/v1/channel-accounts/${shopifyAccountId}/debug`), { headers: { Authorization: `Bearer ${token}` } });
+                      const d = await r.json();
+                      const msg = [
+                        `Orders (by userId): ${d.orderCountByUserId ?? '?'}`,
+                        `Orders (by channel): ${d.orderCountByChannelAccountId ?? '?'}`,
+                        `Items: ${d.itemCount ?? '?'}`,
+                        `Customers: ${d.customerCount ?? '?'}`,
+                        d.syncStatus?.entities ? `Sync: ${JSON.stringify(d.syncStatus.entities)}` : '',
+                      ].filter(Boolean).join('\n');
+                      window.alert(msg);
+                    } catch (e) {
+                      window.alert('Debug failed: ' + (e as Error)?.message);
+                    }
+                  }}
+                >
+                  Run sync debug →
+                </button>
+              )}
               {ch === 'amazon' && (
                 <Link href="/shipment-plans" className="integration-activity-item" style={{ textDecoration: 'none', color: 'inherit' }}>
                   Shipment plans →
