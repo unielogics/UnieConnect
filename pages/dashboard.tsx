@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { apiUrl, getApiOrigin, TOKEN_KEY } from '../lib/api';
+import { apiUrl, getApiOrigin, oauthApiUrl, TOKEN_KEY } from '../lib/api';
 import DashboardLayout from '../components/DashboardLayout';
 
 type Account = { id: string; channel: string; shopDomain?: string; status: string };
@@ -96,6 +96,7 @@ export default function Dashboard() {
   const [accountsByChannel, setAccountsByChannel] = useState<Partial<Record<Channel, Account>>>({});
   const [panelChannel, setPanelChannel] = useState<Channel | 'more' | null>(null);
   const [manageBusy, setManageBusy] = useState<null | 'refresh' | 'disconnect'>(null);
+  const [connectBusy, setConnectBusy] = useState(false);
   const [shopifyConnectOpen, setShopifyConnectOpen] = useState(false);
   const [shopifyShopInput, setShopifyShopInput] = useState('');
   const [shopifyShopError, setShopifyShopError] = useState<string | null>(null);
@@ -218,18 +219,19 @@ export default function Dashboard() {
     }
     setIntegrationMsg(null);
     setIntegrationMsgType(null);
+    setConnectBusy(true);
     try {
-      const url = new URL(apiUrl(path));
+      const url = new URL(oauthApiUrl(path));
       Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
       url.searchParams.set('format', 'json');
 
-      // Always fetch JSON first, then redirect the browser to the provider's OAuth URL.
       const res = await fetch(url.toString(), {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
         },
+        credentials: 'include',
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -241,6 +243,8 @@ export default function Dashboard() {
     } catch (err: any) {
       setIntegrationMsgType('error');
       setIntegrationMsg(err?.message || 'Connect failed');
+    } finally {
+      setConnectBusy(false);
     }
   };
 
@@ -314,7 +318,7 @@ export default function Dashboard() {
     }
   };
 
-  const disconnectChannel = async (channel: Channel) => {
+  const disconnectChannel = async (channel: Channel, keepPanelOpenForReconnect = false) => {
     if (!token) return;
     const acc = accountsByChannel[channel];
     if (!acc?.id) return;
@@ -328,15 +332,16 @@ export default function Dashboard() {
       const res = await fetch(apiUrl(`/api/v1/channel-accounts/${acc.id}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || 'Disconnect failed');
       }
-      setPanelChannel(null);
+      if (!keepPanelOpenForReconnect) setPanelChannel(null);
       await loadAccounts(token);
       setIntegrationMsgType('success');
-      setIntegrationMsg('Disconnected.');
+      setIntegrationMsg(keepPanelOpenForReconnect ? 'Disconnected. You can connect again below.' : 'Disconnected.');
     } catch (err: any) {
       setIntegrationMsgType('error');
       setIntegrationMsg(err?.message || 'Disconnect failed');
@@ -444,12 +449,13 @@ export default function Dashboard() {
               </div>
             )}
             <div className="panel-actions" style={{ marginTop: 'auto', paddingTop: 16 }}>
-              <button className="button-secondary" onClick={closePanel}>Cancel</button>
+              <button className="button-secondary" onClick={closePanel} disabled={connectBusy}>Cancel</button>
               <button
                 className="button-primary"
+                disabled={connectBusy}
                 onClick={ch === 'shopify' ? submitShopifyConnect : ch === 'amazon' ? handleConnectAmazon : handleConnectEbay}
               >
-                Connect {label}
+                {connectBusy ? 'Redirecting…' : `Connect ${label}`}
               </button>
             </div>
           </>
@@ -528,8 +534,8 @@ export default function Dashboard() {
               <button className="button-primary" disabled={manageBusy !== null} onClick={() => void refreshChannel(ch)}>
                 {manageBusy === 'refresh' ? 'Syncing…' : 'Sync now'}
               </button>
-              <button className="button-secondary" disabled={manageBusy !== null} onClick={() => void disconnectChannel(ch)}>
-                {manageBusy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+              <button className="button-secondary" disabled={manageBusy !== null} onClick={() => void disconnectChannel(ch, true)}>
+                {manageBusy === 'disconnect' ? 'Disconnecting…' : 'Reconnect'}
               </button>
             </div>
           </>
