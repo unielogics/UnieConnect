@@ -3785,11 +3785,18 @@ textarea:focus {
   border-left: 1px solid var(--border);
 }
 
-.supplier-form-with-notes .modal-form-layout {
+.supplier-form-with-notes .modal-form-layout,
+.modal-content-with-notes {
   display: flex;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.modal-content-with-notes .modal-form-main {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
 }
 
 .modal-form-main {

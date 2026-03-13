@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../components/DashboardLayout';
 import { Modal } from '../components/Modal';
 import { ViewModal } from '../components/ViewModal';
@@ -29,8 +30,18 @@ export type CatalogProduct = {
     available: number;
     orders: number;
     shippedToday: number;
+    openAsnsCount?: number;
+    receiving?: number;
   };
 };
+
+type SortField =
+  | 'inbound'
+  | 'openAsnsCount'
+  | 'receiving'
+  | 'available'
+  | 'shippedToday'
+  | 'orders';
 
 async function fetchItems(
   token: string,
@@ -100,6 +111,7 @@ async function updateItem(
 }
 
 export default function CatalogPage() {
+  const router = useRouter();
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [locations, setLocations] = useState<ShipFromLocation[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -117,6 +129,8 @@ export default function CatalogPage() {
     text: string;
   } | null>(null);
   const [createPlanModalOpen, setCreatePlanModalOpen] = useState(false);
+  const [sortField, setSortField] = useState<SortField>('available');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   const loadData = async () => {
     const token =
@@ -172,6 +186,67 @@ export default function CatalogPage() {
     );
   }, [products, search]);
 
+  const sorted = useMemo(() => {
+    const list = [...filtered];
+    const getVal = (p: CatalogProduct) => {
+      const w = p.wmsInventory;
+      if (!w) return 0;
+      switch (sortField) {
+        case 'inbound': return w.inbound ?? 0;
+        case 'openAsnsCount': return w.openAsnsCount ?? 0;
+        case 'receiving': return w.receiving ?? 0;
+        case 'available': return w.available ?? 0;
+        case 'shippedToday': return w.shippedToday ?? 0;
+        case 'orders': return w.orders ?? 0;
+        default: return 0;
+      }
+    };
+    list.sort((a, b) => {
+      const va = getVal(a);
+      const vb = getVal(b);
+      if (sortDir === 'asc') return va - vb;
+      return vb - va;
+    });
+    return list;
+  }, [filtered, sortField, sortDir]);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+  };
+
+  const SortHeader = ({
+    field,
+    label,
+  }: {
+    field: SortField;
+    label: string;
+  }) => (
+    <th
+      className="py-3 px-4 w-20 font-medium text-gray-900 text-center cursor-pointer select-none hover:bg-gray-50"
+      onClick={() => handleSort(field)}
+      role="columnheader"
+      aria-sort={sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {sortField === field ? (
+          sortDir === 'asc' ? (
+            <span className="text-gray-500">↑</span>
+          ) : (
+            <span className="text-gray-500">↓</span>
+          )
+        ) : (
+          <span className="text-gray-300">↕</span>
+        )}
+      </span>
+    </th>
+  );
+
   const toggleSelect = (p: CatalogProduct) => {
     setSelected((prev) => {
       const next = { ...prev };
@@ -183,7 +258,6 @@ export default function CatalogPage() {
   };
 
   const selectedList = Object.values(selected);
-  const hasWmsInventory = filtered.some((p) => p.wmsInventory);
   const createPlanInitialItems = selectedList.map((p) => ({
     sku: p.sku,
     title: p.title,
@@ -212,6 +286,7 @@ export default function CatalogPage() {
     if (!token) return;
     setDetailLoading(true);
     setDetailItem(null);
+    router.replace(`/catalog?id=${id}`, undefined, { shallow: true });
     try {
       const item = await fetchItemDetail(token, id);
       setDetailItem(item || null);
@@ -222,7 +297,13 @@ export default function CatalogPage() {
 
   const closeDetail = () => {
     setDetailItem(null);
+    if (router.query.id) router.replace('/catalog', undefined, { shallow: true });
   };
+
+  useEffect(() => {
+    const id = typeof router.query.id === 'string' ? router.query.id : null;
+    if (id && !detailLoading && detailItem?._id !== id) void openDetail(id);
+  }, [router.query.id]);
 
   const handleSubmit = async (data: Record<string, unknown>) => {
     const token =
@@ -324,22 +405,19 @@ export default function CatalogPage() {
                     Channels
                   </th>
                   <th className="py-3 px-4 font-medium text-gray-900">Supplier</th>
-                  {hasWmsInventory && (
-                    <>
-                      <th className="py-3 px-4 w-20 font-medium text-gray-900 text-center">Inbound</th>
-                      <th className="py-3 px-4 w-20 font-medium text-gray-900 text-center">Received</th>
-                      <th className="py-3 px-4 w-20 font-medium text-gray-900 text-center">Available</th>
-                      <th className="py-3 px-4 w-24 font-medium text-gray-900 text-center">Open Orders</th>
-                      <th className="py-3 px-4 w-24 font-medium text-gray-900 text-center">Shipped Today</th>
-                    </>
-                  )}
+                  <SortHeader field="inbound" label="Inbound" />
+                  <SortHeader field="openAsnsCount" label="Open ASNs" />
+                  <SortHeader field="receiving" label="Receiving" />
+                  <SortHeader field="available" label="In Stock" />
+                  <SortHeader field="shippedToday" label="Shipped Today" />
+                  <SortHeader field="orders" label="Open Orders" />
                   <th className="py-3 px-4 w-32 font-medium text-gray-900">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => {
+                {sorted.map((p) => {
                   const item = items.find((i) => i._id === p.id);
                   const key = p.sku || p.id;
                   const isSel = Boolean(selected[key]);
@@ -396,25 +474,24 @@ export default function CatalogPage() {
                       <td className="py-3 px-4 text-gray-700">
                         {p.supplierName || '—'}
                       </td>
-                      {hasWmsInventory && (
-                        <>
-                          <td className="py-3 px-4 text-center text-gray-700">
-                            {p.wmsInventory ? p.wmsInventory.inbound : '—'}
-                          </td>
-                          <td className="py-3 px-4 text-center text-gray-700">
-                            {p.wmsInventory ? p.wmsInventory.received : '—'}
-                          </td>
-                          <td className="py-3 px-4 text-center text-gray-700">
-                            {p.wmsInventory ? p.wmsInventory.available : '—'}
-                          </td>
-                          <td className="py-3 px-4 text-center text-gray-700">
-                            {p.wmsInventory ? p.wmsInventory.orders : '—'}
-                          </td>
-                          <td className="py-3 px-4 text-center text-gray-700">
-                            {p.wmsInventory ? p.wmsInventory.shippedToday : '—'}
-                          </td>
-                        </>
-                      )}
+                      <td className="py-3 px-4 text-center text-gray-700">
+                        {p.wmsInventory ? p.wmsInventory.inbound : '—'}
+                      </td>
+                      <td className="py-3 px-4 text-center text-gray-700">
+                        {p.wmsInventory ? (p.wmsInventory.openAsnsCount ?? '—') : '—'}
+                      </td>
+                      <td className="py-3 px-4 text-center text-gray-700">
+                        {p.wmsInventory ? (p.wmsInventory.receiving ?? '—') : '—'}
+                      </td>
+                      <td className="py-3 px-4 text-center text-gray-700">
+                        {p.wmsInventory ? p.wmsInventory.available : '—'}
+                      </td>
+                      <td className="py-3 px-4 text-center text-gray-700">
+                        {p.wmsInventory ? p.wmsInventory.shippedToday : '—'}
+                      </td>
+                      <td className="py-3 px-4 text-center text-gray-700">
+                        {p.wmsInventory ? p.wmsInventory.orders : '—'}
+                      </td>
                       <td className="py-3 px-4">
                         <div className="flex gap-2">
                           <Button

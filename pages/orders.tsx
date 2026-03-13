@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../components/DashboardLayout';
 import ChannelBadge from '../components/ChannelBadge';
 import ChannelFilter from '../components/ChannelFilter';
 import { ViewModal } from '../components/ViewModal';
 import { Button } from '../components/Button';
+import { NotesPanel } from '../components/NotesPanel';
 import { apiUrl, TOKEN_KEY } from '../lib/api';
 
 type Order = {
@@ -12,6 +15,8 @@ type Order = {
   channel?: string;
   channelDisplay?: string;
   status?: string;
+  trackingNumber?: string | null;
+  shippedAt?: string | null;
   placedAt?: string;
   createdAt?: string;
   totals?: { total?: number; subtotal?: number; tax?: number; shipping?: number; discounts?: number; currency?: string };
@@ -95,6 +100,7 @@ function customerDisplay(c?: { email?: string; name?: { first?: string; last?: s
 }
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [channelFilter, setChannelFilter] = useState('');
@@ -119,11 +125,17 @@ export default function OrdersPage() {
     void loadOrders();
   }, [channelFilter]);
 
+  useEffect(() => {
+    const id = typeof router.query.id === 'string' ? router.query.id : null;
+    if (id && !detailLoading && detailOrder?._id !== id) void openDetail(id);
+  }, [router.query.id]);
+
   const openDetail = async (id: string) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
     if (!token) return;
     setDetailLoading(true);
     setDetailOrder(null);
+    router.replace(`/orders?id=${id}`, undefined, { shallow: true });
     try {
       const order = await fetchOrderDetail(token, id);
       setDetailOrder(order || null);
@@ -134,6 +146,7 @@ export default function OrdersPage() {
 
   const closeDetail = () => {
     setDetailOrder(null);
+    if (router.query.id) router.replace('/orders', undefined, { shallow: true });
   };
 
   return (
@@ -175,7 +188,15 @@ export default function OrdersPage() {
                       )}
                     </td>
                     <td style={{ padding: '10px 12px' }}>{order.status || '—'}</td>
-                    <td style={{ padding: '10px 12px' }}>{customerDisplay(order.customer)}</td>
+                    <td style={{ padding: '10px 12px' }}>
+                      {order.customer?.id ? (
+                        <Link href={`/customers?id=${order.customer.id}`} className="text-blue-600 hover:underline font-medium">
+                          {customerDisplay(order.customer)}
+                        </Link>
+                      ) : (
+                        customerDisplay(order.customer)
+                      )}
+                    </td>
                     <td style={{ padding: '10px 12px' }}>
                       {formatMoney(order.totals?.total ?? undefined, order.currency)}
                     </td>
@@ -205,16 +226,29 @@ export default function OrdersPage() {
           {detailLoading ? (
             <div className="text-gray-500">Loading...</div>
           ) : detailOrder ? (
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto">
-              {/* Status row + date (Shopify-style) */}
+            <div className="modal-content-with-notes" style={{ height: '100%' }}>
+              <div className="modal-form-main">
+            <div className="space-y-6">
+              {/* Status row - WMS-driven when available */}
               <div className="flex flex-wrap items-center gap-2 mb-2">
-                <StatusBadge label={detailOrder.status || 'Unknown'} variant={detailOrder.status === 'paid' || detailOrder.status === 'fulfilled' ? 'success' : 'warning'} />
-                <StatusBadge label={detailOrder.lines?.some((l) => l.fulfillmentStatus !== 'fulfilled') ? 'Unfulfilled' : 'Fulfilled'} variant={detailOrder.lines?.every((l) => l.fulfillmentStatus === 'fulfilled') ? 'success' : 'warning'} />
+                <StatusBadge
+                  label={(detailOrder.status || 'Unknown').replace(/_/g, ' ')}
+                  variant={detailOrder.status === 'shipped' || detailOrder.status === 'completed' ? 'success' : 'warning'}
+                />
                 <span className="text-sm text-gray-500">{formatDateTime(detailOrder.placedAt)}</span>
                 {detailOrder.channel && (
                   <span className="text-sm text-gray-500">from {detailOrder.channelDisplay || detailOrder.channel}</span>
                 )}
               </div>
+              {detailOrder.trackingNumber && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 mb-2">
+                  <div className="text-xs font-medium text-gray-500 mb-1">Tracking</div>
+                  <div className="text-sm font-mono text-gray-900">{detailOrder.trackingNumber}</div>
+                  {detailOrder.shippedAt && (
+                    <div className="text-xs text-gray-500 mt-1">Shipped {formatDateTime(detailOrder.shippedAt)}</div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left: Products + Totals */}
@@ -236,8 +270,27 @@ export default function OrdersPage() {
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium text-gray-900">{title}</div>
-                              <div className="text-sm text-gray-500">{line.fulfillmentStatus || '—'}</div>
+                              {(item as any)?._id ? (
+                                <Link href={`/catalog?id=${(item as any)._id}`} className="font-medium text-blue-600 hover:underline">
+                                  {title}
+                                </Link>
+                              ) : (
+                                <div className="font-medium text-gray-900">{title}</div>
+                              )}
+                              <div className="text-sm text-gray-500">
+                                {line.sku ? (
+                                  (item as any)?._id ? (
+                                    <Link href={`/catalog?id=${(item as any)._id}`} className="text-blue-600 hover:underline">
+                                      {line.sku}
+                                    </Link>
+                                  ) : (
+                                    <span>{line.sku}</span>
+                                  )
+                                ) : null}
+                                {line.sku && line.fulfillmentStatus ? ' • ' : ''}
+                                {line.fulfillmentStatus || ''}
+                                {!line.sku && !line.fulfillmentStatus ? '—' : ''}
+                              </div>
                             </div>
                             <div className="text-sm text-gray-600">× {line.quantity}</div>
                             <div className="font-medium text-gray-900">{formatMoney((line.price ?? 0) * line.quantity, detailOrder.currency)}</div>
@@ -286,7 +339,13 @@ export default function OrdersPage() {
                   {/* Customer card */}
                   <div className="rounded-xl border border-gray-200 p-4">
                     <div className="text-xs font-medium text-gray-500 mb-2">Customer</div>
-                    <div className="font-semibold text-gray-900">{customerDisplay(detailOrder.customer)}</div>
+                    {(detailOrder.customer as any)?.id || (detailOrder.customer as any)?._id ? (
+                      <Link href={`/customers?id=${(detailOrder.customer as any)?.id || (detailOrder.customer as any)?._id}`} className="font-semibold text-blue-600 hover:underline">
+                        {customerDisplay(detailOrder.customer)}
+                      </Link>
+                    ) : (
+                      <div className="font-semibold text-gray-900">{customerDisplay(detailOrder.customer)}</div>
+                    )}
                     {detailOrder.customer?.email && <div className="text-sm text-gray-600 mt-0.5">{detailOrder.customer.email}</div>}
                     {detailOrder.customer?.phone && <div className="text-sm text-gray-600">{detailOrder.customer.phone}</div>}
                   </div>
@@ -306,14 +365,11 @@ export default function OrdersPage() {
                       <div className="text-sm text-gray-600">Same as shipping address</div>
                     </div>
                   )}
-
-                  {/* Notes placeholder */}
-                  <div className="rounded-xl border border-gray-200 p-4">
-                    <div className="text-xs font-medium text-gray-500 mb-1">Notes</div>
-                    <div className="text-sm text-gray-400">No notes from customer</div>
-                  </div>
                 </div>
               </div>
+            </div>
+              </div>
+              <NotesPanel entityType="order" entityId={detailOrder._id} />
             </div>
           ) : null}
         </ViewModal>

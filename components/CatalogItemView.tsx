@@ -2,13 +2,33 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Package, Hash, Tag, Ruler, Box, Activity, ShoppingCart } from 'lucide-react';
 import ChannelBadge from './ChannelBadge';
+import { CatalogInventorySnapshot } from './catalog/CatalogInventorySnapshot';
+import { CatalogInventoryByWarehouse } from './catalog/CatalogInventoryByWarehouse';
+import { CatalogRecentOrdersTable } from './catalog/CatalogRecentOrdersTable';
+import { CatalogOrdersTable } from './catalog/CatalogOrdersTable';
+import { CatalogAsnsTable } from './catalog/CatalogAsnsTable';
+import { CatalogActivityFeed } from './catalog/CatalogActivityFeed';
 import { apiUrl, TOKEN_KEY } from '../lib/api';
 import type { CatalogItem } from '../lib/catalog-types';
+
+interface WmsInventory {
+  inbound: number;
+  received: number;
+  available: number;
+  orders: number;
+  shippedToday: number;
+  openAsnsCount?: number;
+  receiving?: number;
+}
 
 interface WmsActivities {
   summary?: { inbound: number; active: number; processing: number; shipped: number; ordersToday: number; ordersLast7Days: number };
   activityLogs?: Array<{ id: string; timestamp: string; action: string; userName: string; details?: unknown; entityType?: string }>;
-  orders?: Array<{ id: string; orderNumber: string; status: string; createdAt?: string; actualShipDate?: string; quantity: number; quantityShipped: number }>;
+  orders?: Array<{ id: string; orderNumber?: string; status: string; createdAt?: string; actualShipDate?: string; quantity?: number; quantityShipped?: number; customerName?: string; total?: number | null }>;
+  asns?: Array<{ id: string; asnNumber: string; status: string; receivedQuantity?: number; createdAt?: string }>;
+  tasks?: Array<{ id: string; type: string; status: string; priority?: string; createdAt?: string; completedAt?: string }>;
+  wmsInventory?: WmsInventory;
+  inventoryByWarehouse?: Array<{ warehouseCode: string; warehouseName?: string; inventory: WmsInventory }>;
 }
 
 interface CatalogItemViewProps {
@@ -75,6 +95,27 @@ export function CatalogItemView({ item, supplierName }: CatalogItemViewProps) {
 
   return (
     <div className="space-y-6">
+      {/* Inventory by warehouse - top */}
+      <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">
+          <Activity className="w-4 h-4 text-gray-500" />
+          Inventory
+        </h3>
+        {wmsLoading ? (
+          <div className="text-sm text-gray-500">Loading inventory...</div>
+        ) : wmsActivities?.inventoryByWarehouse && wmsActivities.inventoryByWarehouse.length > 0 ? (
+          <CatalogInventoryByWarehouse
+            inventoryByWarehouse={wmsActivities.inventoryByWarehouse}
+          />
+        ) : wmsActivities?.wmsInventory ? (
+          <CatalogInventorySnapshot wmsInventory={wmsActivities.wmsInventory} />
+        ) : (
+          <div className="text-sm text-gray-500 py-4">
+            Connect a warehouse to see inventory. Go to Settings to link your OMS account to a WMS warehouse.
+          </div>
+        )}
+      </div>
+
       {/* Hero: large image + core info (Shopify-style) */}
       <div className="flex flex-col sm:flex-row gap-6">
         <div className="flex-shrink-0 flex flex-col gap-2">
@@ -151,7 +192,7 @@ export function CatalogItemView({ item, supplierName }: CatalogItemViewProps) {
           </div>
         </DetailSection>
 
-        <DetailSection title="Physical Properties" icon={Ruler}>
+        <DetailSection title="Product Details" icon={Ruler}>
           <div className="grid grid-cols-2 gap-3">
             <DetailField label="Weight (lbs)" value={item.weight} />
             <DetailField label="Length (in)" value={item.dimensions?.length} />
@@ -159,19 +200,21 @@ export function CatalogItemView({ item, supplierName }: CatalogItemViewProps) {
             <DetailField label="Height (in)" value={item.dimensions?.height} />
           </div>
         </DetailSection>
+
+        <DetailSection title="Recent Orders" icon={ShoppingCart}>
+          <CatalogRecentOrdersTable
+            orders={wmsActivities?.orders}
+            pageSize={25}
+            maxTotal={75}
+          />
+        </DetailSection>
       </div>
 
-      {/* WMS Warehouse Activity (when connected) */}
-      {(wmsLoading || wmsActivities) && (
-        <div className="space-y-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 uppercase tracking-wide">
-            <Activity className="w-4 h-4" />
-            Warehouse Activity
-          </h3>
-          {wmsLoading ? (
-            <div className="text-sm text-gray-500">Loading warehouse activity...</div>
-          ) : wmsActivities?.summary ? (
-            <>
+      {/* Warehouse Activity, Orders, ASNs */}
+      <div className="space-y-6">
+        {/* Warehouse Activity Summary (mirror WMS) */}
+        {wmsActivities?.summary && (
+            <DetailSection title="Warehouse Activity" icon={Activity}>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                 <div className="rounded-lg border border-gray-200 bg-white p-3">
                   <div className="text-xs text-gray-500 uppercase">Inbound</div>
@@ -198,58 +241,37 @@ export function CatalogItemView({ item, supplierName }: CatalogItemViewProps) {
                   <div className="text-lg font-semibold">{wmsActivities.summary.ordersLast7Days ?? '—'}</div>
                 </div>
               </div>
-              {wmsActivities.activityLogs && wmsActivities.activityLogs.length > 0 && (
-                <DetailSection title="Activity Log" icon={Activity}>
-                  <div className="max-h-48 overflow-y-auto space-y-2">
-                    {wmsActivities.activityLogs.slice(0, 20).map((log) => (
-                      <div key={log.id} className="flex justify-between text-xs border-b border-gray-100 pb-1">
-                        <span className="text-gray-700">{log.action}</span>
-                        <span className="text-gray-500">
-                          {log.userName} · {log.timestamp ? new Date(log.timestamp).toLocaleString() : ''}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </DetailSection>
-              )}
-              {wmsActivities.orders && wmsActivities.orders.length > 0 && (
-                <DetailSection title="Recent Orders" icon={ShoppingCart}>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-xs text-gray-500 border-b">
-                          <th className="py-2 pr-4">Order</th>
-                          <th className="py-2 pr-4">Status</th>
-                          <th className="py-2 pr-4">Qty</th>
-                          <th className="py-2 pr-4">Shipped</th>
-                          <th className="py-2">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {wmsActivities.orders.slice(0, 15).map((o) => (
-                          <tr key={o.id} className="border-b border-gray-50">
-                            <td className="py-2 pr-4 font-mono">{o.orderNumber}</td>
-                            <td className="py-2 pr-4 capitalize">{o.status}</td>
-                            <td className="py-2 pr-4">{o.quantity}</td>
-                            <td className="py-2 pr-4">{o.quantityShipped ?? 0}</td>
-                            <td className="py-2 text-gray-500">
-                              {o.actualShipDate
-                                ? new Date(o.actualShipDate).toLocaleDateString()
-                                : o.createdAt
-                                  ? new Date(o.createdAt).toLocaleDateString()
-                                  : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </DetailSection>
-              )}
-            </>
-          ) : null}
-        </div>
-      )}
+            </DetailSection>
+          )}
+
+          {/* Orders table */}
+          {wmsActivities?.orders && (
+            <DetailSection title="Recent Orders" icon={ShoppingCart}>
+              <CatalogOrdersTable
+                orders={wmsActivities.orders.map((o) => ({
+                  ...o,
+                  orderNumber: o.orderNumber ?? o.id ?? '',
+                  quantity: o.quantity ?? 0,
+                  quantityShipped: o.quantityShipped ?? 0,
+                }))}
+              />
+            </DetailSection>
+          )}
+
+          {/* ASNs table */}
+          {wmsActivities?.asns && (
+            <DetailSection title="Inbound ASNs" icon={Package}>
+              <CatalogAsnsTable asns={wmsActivities.asns} />
+            </DetailSection>
+          )}
+
+          {/* Activity log */}
+          {wmsActivities?.activityLogs && wmsActivities.activityLogs.length > 0 && (
+            <DetailSection title="Activity Log" icon={Activity}>
+              <CatalogActivityFeed activityLogs={wmsActivities.activityLogs} />
+            </DetailSection>
+          )}
+      </div>
 
       <div>
         <Link

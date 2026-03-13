@@ -242,7 +242,13 @@ export default function Dashboard() {
       window.location.href = String(data.url);
     } catch (err: any) {
       setIntegrationMsgType('error');
-      setIntegrationMsg(err?.message || 'Connect failed');
+      const msg = err?.message || 'Connect failed';
+      setIntegrationMsg(
+        msg.includes('401') || msg.toLowerCase().includes('unauthorized')
+          ? 'Session expired. Please refresh the page and sign in again, then try Connect.'
+          : msg
+      );
+      console.error('[Connect] startOAuth failed', err);
     } finally {
       setConnectBusy(false);
     }

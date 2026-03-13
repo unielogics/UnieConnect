@@ -23,6 +23,8 @@ export type CatalogItem = {
     available: number;
     orders: number;
     shippedToday: number;
+    openAsnsCount?: number;
+    receiving?: number;
   };
   createdAt?: string;
   updatedAt?: string;

@@ -4,9 +4,8 @@ export const TOKEN_KEY = 'unie-token';
  * Resolve the API origin for browser requests.
  *
  * - In production, `user.unieconnect.com` should talk to `api.unieconnect.com`
- * - On localhost: use production API so OAuth, channel-accounts, disconnect all hit the same backend.
- *   Otherwise OAuth state is in production DB but channel-accounts comes from local DB ( stale / wrong ).
- * - Override with NEXT_PUBLIC_API_BASE or NEXT_PUBLIC_BACKEND_URL to force a specific backend.
+ * - On localhost: use http://localhost:4001 for the local backend. Override with
+ *   NEXT_PUBLIC_API_BASE or NEXT_PUBLIC_BACKEND_URL if needed.
  */
 export function getApiOrigin(): string {
   const env =
@@ -16,8 +15,8 @@ export function getApiOrigin(): string {
     if (env) return env.replace(/\/+$/, '');
     const host = window.location.hostname;
     if (host === 'user.unieconnect.com') return 'https://api.unieconnect.com';
-    // On localhost, use production API so Connect/Disconnect/OAuth share one DB
-    if (host === 'localhost' || host === '127.0.0.1') return 'https://api.unieconnect.com';
+    // On localhost, use local backend
+    if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:4001';
     return window.location.origin;
   }
 
