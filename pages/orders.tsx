@@ -15,6 +15,7 @@ type Order = {
   channel?: string;
   channelDisplay?: string;
   status?: string;
+  paid?: string | null;
   trackingNumber?: string | null;
   shippedAt?: string | null;
   placedAt?: string;
@@ -170,6 +171,7 @@ export default function OrdersPage() {
                   <th style={{ padding: '10px 12px' }}>Date</th>
                   <th style={{ padding: '10px 12px' }}>Channel</th>
                   <th style={{ padding: '10px 12px' }}>Status</th>
+                  <th style={{ padding: '10px 12px' }}>Paid</th>
                   <th style={{ padding: '10px 12px' }}>Customer</th>
                   <th style={{ padding: '10px 12px' }}>Total</th>
                   <th style={{ padding: '10px 12px', width: 80 }}></th>
@@ -187,7 +189,8 @@ export default function OrdersPage() {
                         '—'
                       )}
                     </td>
-                    <td style={{ padding: '10px 12px' }}>{order.status || '—'}</td>
+                    <td style={{ padding: '10px 12px' }}>{(order.status || '—').replace(/_/g, ' ')}</td>
+                    <td style={{ padding: '10px 12px' }}>{(order.paid || '—').replace(/_/g, ' ')}</td>
                     <td style={{ padding: '10px 12px' }}>
                       {order.customer?.id ? (
                         <Link href={`/customers?id=${order.customer.id}`} className="text-blue-600 hover:underline font-medium">
@@ -229,12 +232,18 @@ export default function OrdersPage() {
             <div className="modal-content-with-notes" style={{ height: '100%' }}>
               <div className="modal-form-main">
             <div className="space-y-6">
-              {/* Status row - WMS-driven when available */}
+              {/* Status and Paid row */}
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <StatusBadge
                   label={(detailOrder.status || 'Unknown').replace(/_/g, ' ')}
                   variant={detailOrder.status === 'shipped' || detailOrder.status === 'completed' ? 'success' : 'warning'}
                 />
+                {detailOrder.paid && (
+                  <StatusBadge
+                    label={`Payment: ${(detailOrder.paid || '—').replace(/_/g, ' ')}`}
+                    variant={detailOrder.paid === 'paid' ? 'success' : detailOrder.paid === 'refunded' || detailOrder.paid === 'voided' ? 'default' : 'warning'}
+                  />
+                )}
                 <span className="text-sm text-gray-500">{formatDateTime(detailOrder.placedAt)}</span>
                 {detailOrder.channel && (
                   <span className="text-sm text-gray-500">from {detailOrder.channelDisplay || detailOrder.channel}</span>
@@ -314,10 +323,12 @@ export default function OrdersPage() {
                       <span>Total</span>
                       <span>{formatMoney(detailOrder.totals?.total ?? undefined, detailOrder.currency)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-green-700 font-medium">
-                      <span>Paid</span>
-                      <span>{formatMoney(detailOrder.totals?.total ?? undefined, detailOrder.currency)}</span>
-                    </div>
+                    {detailOrder.paid && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Payment</span>
+                        <span className="capitalize">{(detailOrder.paid || '').replace(/_/g, ' ')}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
