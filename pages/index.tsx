@@ -11,7 +11,7 @@ export default function Home() {
     console.info('[unieconnect][config]', { apiOrigin: getApiOrigin(), host: window.location.host });
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) {
-      window.location.href = '/dashboard';
+      window.location.href = '/oms';
     } else {
       window.location.href = '/login';
     }

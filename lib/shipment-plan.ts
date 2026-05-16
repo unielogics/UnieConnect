@@ -28,6 +28,7 @@ export type ShipmentPlanItem = {
   sku: string;
   asin?: string;
   title?: string;
+  itemId?: string;
   quantity?: number;
   boxCount?: number;
   unitsPerBox?: number;

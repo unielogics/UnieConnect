@@ -44,7 +44,7 @@ export default function Login() {
     if (typeof window === 'undefined') return;
     const existing = localStorage.getItem(TOKEN_KEY);
     if (existing) {
-      window.location.href = '/dashboard';
+      window.location.href = '/oms';
     }
   }, []);
 
@@ -86,7 +86,7 @@ export default function Login() {
       localStorage.setItem(TOKEN_KEY, data.token);
       setStatusMessage('Signed in. Redirecting…');
       console.info('[unieconnect][login] success', { email });
-      window.location.href = '/dashboard';
+      window.location.href = '/oms';
     } catch (err: any) {
       const isNetworkError =
         err?.name === 'TypeError' &&

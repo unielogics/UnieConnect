@@ -26,6 +26,7 @@ export type CreateShipmentPlanInitialItem = {
   title?: string;
   asin?: string;
   imageUrl?: string;
+  itemId?: string;
 };
 
 type Section = 1 | 2 | 3 | 4 | 4.5 | 5 | 6 | 7 | 8 | 9 | 10; // 1-4 workflow, 4.5=acknowledgement, 5=ASN/PDFs
@@ -74,13 +75,14 @@ export function CreateShipmentPlanModal({
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<ShipFromLocation[]>([]);
   const [supplierId, setSupplierId] = useState('');
-  const [items, setItems] = useState<(ShipmentPlanItem & { imageUrl?: string })[]>(() =>
+  const [items, setItems] = useState<(ShipmentPlanItem & { imageUrl?: string; itemId?: string })[]>(() =>
     initialItems.length > 0
       ? initialItems.map((p) => ({
           sku: p.sku,
           title: p.title,
           asin: p.asin,
           imageUrl: p.imageUrl,
+          itemId: p.itemId,
         }))
       : []
   );
@@ -131,6 +133,7 @@ export function CreateShipmentPlanModal({
           title: p.title,
           asin: p.asin,
           imageUrl: p.imageUrl,
+          itemId: p.itemId,
         }))
       );
     }

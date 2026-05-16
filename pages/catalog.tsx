@@ -263,6 +263,7 @@ export default function CatalogPage() {
     title: p.title,
     asin: p.asin,
     imageUrl: p.imageUrl,
+    itemId: p.id,
   }));
 
   const openAddModal = () => {
