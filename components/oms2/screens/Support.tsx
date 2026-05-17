@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, StatusChip, Avatar, Loading, EmptyState } from '../ui';
-import { fetchTickets, fetchLedger, LedgerResponse } from '../../../lib/oms';
+import { fetchTickets, fetchLedger, updateTicketStatus, LedgerResponse } from '../../../lib/oms';
 import type { ScreenProps } from '../UnieConnectApp';
 
 type Ticket = { id: string; subject: string; entity: string; channel: string; priority: string; status: string; owner: string; opened: string };
@@ -21,8 +21,10 @@ const ActionRow = ({ label, detail, done }: { label: string; detail?: string; do
 export const Support = ({ onNewTicket }: ScreenProps) => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
     fetchTickets()
       .then((d) => {
         setTickets(
@@ -61,7 +63,20 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
           .catch(() => setTickets([]))
       )
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(load, []);
+
+  const changeStatus = async (ticket: Ticket, status: string) => {
+    if (ticket.id.startsWith('T-')) return;
+    setUpdating(ticket.id);
+    try {
+      await updateTicketStatus(ticket.id, status);
+      await load();
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   const featured = tickets[0];
 
@@ -107,6 +122,7 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
                     <th>Status</th>
                     <th>Owner</th>
                     <th>Opened</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -125,6 +141,25 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
                         </div>
                       </td>
                       <td className="muted">{t.opened}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {t.status !== 'in-progress' && (
+                            <button className="btn ghost sm" disabled={updating === t.id || t.id.startsWith('T-')} onClick={() => changeStatus(t, 'in-progress')}>
+                              Start
+                            </button>
+                          )}
+                          {t.status !== 'resolved' && (
+                            <button className="btn ghost sm" disabled={updating === t.id || t.id.startsWith('T-')} onClick={() => changeStatus(t, 'resolved')}>
+                              Resolve
+                            </button>
+                          )}
+                          {t.status !== 'open' && (
+                            <button className="btn ghost sm" disabled={updating === t.id || t.id.startsWith('T-')} onClick={() => changeStatus(t, 'open')}>
+                              Reopen
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -170,7 +205,9 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button className="btn">Customer response history</button>
-                    <button className="btn ghost">Reopen / escalate</button>
+                    <button className="btn ghost" disabled={featured.id.startsWith('T-')} onClick={() => changeStatus(featured, 'open')}>Reopen</button>
+                    <button className="btn ghost" disabled={featured.id.startsWith('T-')} onClick={() => changeStatus(featured, 'escalated')}>Escalate</button>
+                    <button className="btn primary" disabled={featured.id.startsWith('T-')} onClick={() => changeStatus(featured, 'resolved')}>Mark resolved</button>
                   </div>
                 </>
               )}

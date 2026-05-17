@@ -25,7 +25,7 @@ const ChannelTag = ({ ch }: { ch: string }) => (
   </span>
 );
 
-export const Orders = ({ onOpenOrder, onNavigate, onNewOrder }: ScreenProps) => {
+export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: ScreenProps) => {
   const [orders, setOrders] = useState<OmsOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -80,6 +80,9 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder }: ScreenProps) => 
         </div>
         <div className="page-actions">
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Sync</button>
+          <button className="btn" onClick={() => onImportCsv?.('orders')}>
+            <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
+          </button>
           <button className="btn"><Icon name="download" size={13} /> Export CSV</button>
           <button className="btn primary" onClick={onNewOrder}><Icon name="plus" size={13} /> Manual order</button>
         </div>

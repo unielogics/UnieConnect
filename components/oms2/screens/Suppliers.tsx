@@ -16,7 +16,7 @@ const DetailKv2 = ({ label, value, tone }: { label: string; value: React.ReactNo
   </div>
 );
 
-export const Suppliers = ({ onCreateShipmentWithSupplier, onNewSupplier }: ScreenProps) => {
+export const Suppliers = ({ onCreateShipmentWithSupplier, onNewSupplier, onImportCsv }: ScreenProps) => {
   const [suppliers, setSuppliers] = useState<OmsSupplier[]>([]);
   const [skus, setSkus] = useState<OmsSku[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -50,6 +50,9 @@ export const Suppliers = ({ onCreateShipmentWithSupplier, onNewSupplier }: Scree
           <p className="page-subtitle">Vendor relationships, lead times, terms, quality, and shipment plans. AI flags terms negotiation opportunities.</p>
         </div>
         <div className="page-actions">
+          <button className="btn" onClick={() => onImportCsv?.('suppliers')}>
+            <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
+          </button>
           <button className="btn"><Icon name="download" size={13} /> Export</button>
           <button className="btn primary" onClick={onNewSupplier}><Icon name="plus" size={13} /> Add supplier</button>
         </div>

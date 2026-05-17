@@ -38,7 +38,7 @@ const segChip = (seg?: string) => {
   }
 };
 
-export const Customers = ({ onNavigate, onNewCustomer }: ScreenProps) => {
+export const Customers = ({ onNavigate, onNewCustomer, onImportCsv }: ScreenProps) => {
   const [rows, setRows] = useState<OmsCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -83,6 +83,9 @@ export const Customers = ({ onNavigate, onNewCustomer }: ScreenProps) => {
           <p className="page-subtitle">Buyers who've ordered across your channels. Unified by email + address fingerprint.</p>
         </div>
         <div className="page-actions">
+          <button className="btn" onClick={() => onImportCsv?.('customers')}>
+            <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
+          </button>
           <button className="btn"><Icon name="download" size={13} /> Export</button>
           <button className="btn" onClick={onNewCustomer}><Icon name="plus" size={13} /> Add customer</button>
           <button className="btn primary"><Icon name="sparkle" size={13} /> Generate segments</button>

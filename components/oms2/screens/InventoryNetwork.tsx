@@ -33,7 +33,7 @@ const FillScore = ({ value }: { value: number }) => {
   );
 };
 
-export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewProduct }: ScreenProps) => {
+export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewProduct, onImportCsv }: ScreenProps) => {
   const [view, setView] = useState<'table' | 'heatmap' | 'treemap'>('table');
   const [search, setSearch] = useState('');
   const [skus, setSkus] = useState<OmsSku[]>([]);
@@ -87,6 +87,9 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
               <Icon name="layers" size={12} /> Margin
             </button>
           </div>
+          <button className="btn" onClick={() => onImportCsv?.('skus')}>
+            <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
+          </button>
           <button className="btn"><Icon name="download" size={13} /> Export</button>
           <button className="btn primary" onClick={onNewProduct}><Icon name="plus" size={13} /> New product</button>
         </div>

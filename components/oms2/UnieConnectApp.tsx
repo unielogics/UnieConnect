@@ -31,6 +31,7 @@ import { NewSupplierModal } from './modals/NewSupplierModal';
 import { NewCustomerModal } from './modals/NewCustomerModal';
 import { NewOrderModal } from './modals/NewOrderModal';
 import { NewTicketModal } from './modals/NewTicketModal';
+import { CsvImportModal, CsvImportEntity } from './modals/CsvImportModal';
 import { StateDetailModal } from './modals/StateDetailModal';
 import type { OmsOrder, OmsSku } from '../../lib/oms';
 import { fetchCurrentUser } from '../../lib/user';
@@ -53,6 +54,7 @@ export interface ScreenProps {
   onNewCustomer?: () => void;
   onNewOrder?: () => void;
   onNewTicket?: () => void;
+  onImportCsv?: (entity: CsvImportEntity) => void;
   onSelectState?: (state: string) => void;
   skuId?: string | null;
   cortexAvailable?: boolean;
@@ -101,6 +103,7 @@ export default function UnieConnectApp() {
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
+  const [csvImport, setCsvImport] = useState<CsvImportEntity | null>(null);
   const [stateDetail, setStateDetail] = useState<string | null>(null);
   const [screenKey, setScreenKey] = useState(0);
   const bumpScreen = useCallback(() => setScreenKey((k) => k + 1), []);
@@ -207,6 +210,7 @@ export default function UnieConnectApp() {
     onNewCustomer: () => setNewCustomerOpen(true),
     onNewOrder: () => setNewOrderOpen(true),
     onNewTicket: () => setNewTicketOpen(true),
+    onImportCsv: (entity) => setCsvImport(entity),
     onSelectState: (s: string) => setStateDetail(s),
     cortexAvailable: tweaks.cortexAvailable,
   };
@@ -328,6 +332,17 @@ export default function UnieConnectApp() {
               onClose={() => setNewTicketOpen(false)}
               onSuccess={() => {
                 setNewTicketOpen(false);
+                bumpScreen();
+              }}
+            />
+          )}
+
+          {csvImport && (
+            <CsvImportModal
+              entity={csvImport}
+              onClose={() => setCsvImport(null)}
+              onSuccess={() => {
+                setCsvImport(null);
                 bumpScreen();
               }}
             />
