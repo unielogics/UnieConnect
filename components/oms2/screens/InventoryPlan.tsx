@@ -49,10 +49,13 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
     fetchOmsSkuDetail(selectedSku).then(setDetail).catch(() => setDetail(null));
   }, [selectedSku]);
 
-  const sku = useMemo(() => plan?.skus.find((s) => s.id === selectedSku) || plan?.skus[0], [plan, selectedSku]);
+  const sku = useMemo(
+    () => plan?.skus?.find((s) => s.id === selectedSku) ?? plan?.skus?.[0],
+    [plan, selectedSku]
+  );
 
   if (err) return <div className="page fade-in"><div className="card"><ErrorState message={err} onRetry={load} /></div></div>;
-  if (loading || !plan || !sku) return <div className="page fade-in"><div className="card"><Loading rows={6} /></div></div>;
+  if (loading || !plan) return <div className="page fade-in"><div className="card"><Loading rows={6} /></div></div>;
 
   const cur = plan.current || {};
   const prop = plan.proposed || {};
@@ -60,7 +63,7 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
     { label: 'Stockout-risk SKUs', current: num(cur.stockoutRiskSkus), proposed: num(prop.stockoutRiskSkus), money: false },
     { label: 'Warehouse nodes', current: num(cur.warehouseCount), proposed: num(prop.warehouseCount), money: false, betterHigher: true },
     { label: 'Monthly cost', current: num(cur.estimatedMonthlyCost), proposed: num(prop.estimatedMonthlyCost), money: true },
-    { label: 'SKUs in plan', current: num(cur.skuCount), proposed: num(cur.skuCount), money: false, neutral: true },
+    { label: 'SKUs in plan', current: num(cur.skuCount), proposed: num((prop as any).skuCount ?? cur.skuCount), money: false, neutral: true },
     { label: 'Shared pallets', current: 0, proposed: num(prop.sharedPalletCandidates), money: false, betterHigher: true },
     {
       label: 'Plan savings / mo',
@@ -160,6 +163,11 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
         </div>
       </div>
 
+      {!sku ? (
+        <div className="card" style={{ marginTop: 16 }}>
+          <EmptyState>No SKUs in the current plan yet. Add products to build a 6-month plan.</EmptyState>
+        </div>
+      ) : (
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 360px) 1fr', gap: 16, alignItems: 'flex-start', marginTop: 16 }}>
         <div className="card" style={{ position: 'sticky', top: 70 }}>
           <div className="card-header">
@@ -283,6 +291,7 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

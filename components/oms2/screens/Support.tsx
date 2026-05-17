@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, StatusChip, Avatar, Loading, EmptyState } from '../ui';
-import { fetchLedger, LedgerResponse } from '../../../lib/oms';
+import { fetchTickets, fetchLedger, LedgerResponse } from '../../../lib/oms';
 import type { ScreenProps } from '../UnieConnectApp';
 
 type Ticket = { id: string; subject: string; entity: string; channel: string; priority: string; status: string; owner: string; opened: string };
@@ -18,31 +18,48 @@ const ActionRow = ({ label, detail, done }: { label: string; detail?: string; do
   </div>
 );
 
-export const Support = (_: ScreenProps) => {
+export const Support = ({ onNewTicket }: ScreenProps) => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // No dedicated support endpoint yet — derive entity-linked tickets from the
-    // execution ledger so every ticket still attaches to a real entity.
-    fetchLedger()
-      .then((lg: LedgerResponse) => {
-        const t = (lg.events || [])
-          .filter((e) => /exception|dispute|short|mis-?pick|claim|return/i.test(`${e.subject} ${e.summary} ${e.event_type}`))
-          .slice(0, 12)
-          .map((e, i) => ({
-            id: `T-${1000 + i}`,
-            subject: e.subject || e.summary || 'Operational exception',
-            entity: e.entity_id || e.entity_type || e.source_system || '—',
-            channel: e.source_system || 'system',
-            priority: /short|exception|fraud/i.test(`${e.subject}`) ? 'high' : 'med',
-            status: e.status === 'approved' ? 'on-track' : 'open',
-            owner: e.actor || 'Cortex',
-            opened: e.created_at || e.ts || '—',
-          }));
-        setTickets(t);
+    fetchTickets()
+      .then((d) => {
+        setTickets(
+          (d.tickets || []).map((t) => ({
+            id: t.id,
+            subject: t.subject,
+            entity: t.entityId || t.entityType || '—',
+            channel: t.channel || 'internal',
+            priority: t.priority || 'med',
+            status: t.status || 'open',
+            owner: t.owner || 'Cortex',
+            opened: t.createdAt || '—',
+          }))
+        );
       })
-      .catch(() => setTickets([]))
+      .catch(() =>
+        // Fallback while the tickets service is unavailable: derive entity-linked
+        // tickets from the execution ledger so the screen still renders.
+        fetchLedger()
+          .then((lg: LedgerResponse) => {
+            const t = (lg.events || [])
+              .filter((e) => /exception|dispute|short|mis-?pick|claim|return/i.test(`${e.subject} ${e.summary} ${e.event_type}`))
+              .slice(0, 12)
+              .map((e, i) => ({
+                id: `T-${1000 + i}`,
+                subject: e.subject || e.summary || 'Operational exception',
+                entity: e.entity_id || e.entity_type || e.source_system || '—',
+                channel: e.source_system || 'system',
+                priority: /short|exception|fraud/i.test(`${e.subject}`) ? 'high' : 'med',
+                status: e.status === 'approved' ? 'on-track' : 'open',
+                owner: e.actor || 'Cortex',
+                opened: e.created_at || e.ts || '—',
+              }));
+            setTickets(t);
+          })
+          .catch(() => setTickets([]))
+      )
       .finally(() => setLoading(false));
   }, []);
 
@@ -57,7 +74,7 @@ export const Support = (_: ScreenProps) => {
         </div>
         <div className="page-actions">
           <button className="btn"><Icon name="download" size={13} /> Export</button>
-          <button className="btn primary"><Icon name="plus" size={13} /> New ticket</button>
+          <button className="btn primary" onClick={onNewTicket}><Icon name="plus" size={13} /> New ticket</button>
         </div>
       </div>
 

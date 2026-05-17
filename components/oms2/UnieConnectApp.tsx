@@ -26,6 +26,12 @@ import { Marketplace } from './screens/Marketplace';
 import { Support } from './screens/Support';
 import { Connections } from './screens/Connections';
 import { Ledger } from './screens/Ledger';
+import { NewProductModal } from './modals/NewProductModal';
+import { NewSupplierModal } from './modals/NewSupplierModal';
+import { NewCustomerModal } from './modals/NewCustomerModal';
+import { NewOrderModal } from './modals/NewOrderModal';
+import { NewTicketModal } from './modals/NewTicketModal';
+import { StateDetailModal } from './modals/StateDetailModal';
 import type { OmsOrder, OmsSku } from '../../lib/oms';
 import { fetchCurrentUser } from '../../lib/user';
 
@@ -42,6 +48,12 @@ export interface ScreenProps {
   isSelected: (id: string) => boolean;
   onOpenOrder?: (o: OmsOrder) => void;
   onCreateShipmentWithSupplier?: (supplierId: string, skus: SelSku[]) => void;
+  onNewProduct?: () => void;
+  onNewSupplier?: () => void;
+  onNewCustomer?: () => void;
+  onNewOrder?: () => void;
+  onNewTicket?: () => void;
+  onSelectState?: (state: string) => void;
   skuId?: string | null;
   cortexAvailable?: boolean;
 }
@@ -84,6 +96,14 @@ export default function UnieConnectApp() {
   const [orderModal, setOrderModal] = useState<OmsOrder | null>(null);
   const [forcedSupplierId, setForcedSupplierId] = useState<string | null>(null);
   const [userName, setUserName] = useState('Jordan Martinelli');
+  const [newProductOpen, setNewProductOpen] = useState(false);
+  const [newSupplierOpen, setNewSupplierOpen] = useState(false);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [newOrderOpen, setNewOrderOpen] = useState(false);
+  const [newTicketOpen, setNewTicketOpen] = useState(false);
+  const [stateDetail, setStateDetail] = useState<string | null>(null);
+  const [screenKey, setScreenKey] = useState(0);
+  const bumpScreen = useCallback(() => setScreenKey((k) => k + 1), []);
 
   // Load tweaks from storage
   useEffect(() => {
@@ -182,6 +202,12 @@ export default function UnieConnectApp() {
     isSelected,
     onOpenOrder: setOrderModal,
     onCreateShipmentWithSupplier: createShipmentForSupplier,
+    onNewProduct: () => setNewProductOpen(true),
+    onNewSupplier: () => setNewSupplierOpen(true),
+    onNewCustomer: () => setNewCustomerOpen(true),
+    onNewOrder: () => setNewOrderOpen(true),
+    onNewTicket: () => setNewTicketOpen(true),
+    onSelectState: (s: string) => setStateDetail(s),
     cortexAvailable: tweaks.cortexAvailable,
   };
 
@@ -218,7 +244,9 @@ export default function UnieConnectApp() {
               theme={tweaks.theme}
               onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
             />
-            {screens[section] || <CommandCenter {...sp} />}
+            <React.Fragment key={`${section}-${screenKey}`}>
+              {screens[section] || <CommandCenter {...sp} />}
+            </React.Fragment>
           </div>
           {copilotOpen && (
             <AICopilot
@@ -257,6 +285,55 @@ export default function UnieConnectApp() {
 
           {orderModal && (
             <OrderModal order={orderModal} onClose={() => setOrderModal(null)} onNavigate={navigate} />
+          )}
+
+          {newProductOpen && (
+            <NewProductModal
+              onClose={() => setNewProductOpen(false)}
+              onSuccess={() => {
+                setNewProductOpen(false);
+                bumpScreen();
+              }}
+            />
+          )}
+          {newSupplierOpen && (
+            <NewSupplierModal
+              onClose={() => setNewSupplierOpen(false)}
+              onSuccess={() => {
+                setNewSupplierOpen(false);
+                bumpScreen();
+              }}
+            />
+          )}
+          {newCustomerOpen && (
+            <NewCustomerModal
+              onClose={() => setNewCustomerOpen(false)}
+              onSuccess={() => {
+                setNewCustomerOpen(false);
+                bumpScreen();
+              }}
+            />
+          )}
+          {newOrderOpen && (
+            <NewOrderModal
+              onClose={() => setNewOrderOpen(false)}
+              onSuccess={() => {
+                setNewOrderOpen(false);
+                bumpScreen();
+              }}
+            />
+          )}
+          {newTicketOpen && (
+            <NewTicketModal
+              onClose={() => setNewTicketOpen(false)}
+              onSuccess={() => {
+                setNewTicketOpen(false);
+                bumpScreen();
+              }}
+            />
+          )}
+          {stateDetail && (
+            <StateDetailModal stateCode={stateDetail} onClose={() => setStateDetail(null)} />
           )}
 
           <TweaksPanel tweaks={tweaks} setTweak={setTweak} />

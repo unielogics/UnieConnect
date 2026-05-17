@@ -2,6 +2,24 @@ import { apiUrl, TOKEN_KEY } from './api';
 
 export type OmsRange = 'today' | '7d' | '30d';
 
+export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+  const res = await fetch(apiUrl(`/api/v1${path}`), {
+    ...options,
+    headers: {
+      Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || err?.message || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function omsFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
   const res = await fetch(apiUrl(`/api/v1/oms${path}`), {
@@ -311,4 +329,107 @@ export const confirmShipmentDraft = (draftId: string, body: unknown) =>
   omsFetch<Record<string, unknown>>(`/shipment-wizard/drafts/${encodeURIComponent(draftId)}/confirm`, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+
+/* ============================ Create / ticket fetchers ============================ */
+
+export type CreateCatalogItemBody = {
+  sku: string;
+  title: string;
+  description?: string;
+  image?: string;
+  upc?: string;
+  ean?: string;
+  asin?: string;
+  category?: string;
+  subCategory?: string;
+  lob?: string;
+  weight?: number;
+  dimensions?: { length?: number; width?: number; height?: number };
+  supplierId?: string;
+  tags?: string[];
+};
+
+export const createCatalogItem = (body: CreateCatalogItemBody) =>
+  apiFetch<{ item: Record<string, unknown> }>('/items', { method: 'POST', body: JSON.stringify(body) });
+
+export type CreateCustomerBody = {
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  channel?: string;
+  externalCustomerId?: string;
+  addresses?: Array<Record<string, unknown>>;
+  metadata?: Record<string, unknown>;
+};
+
+export const createCustomer = (body: CreateCustomerBody) =>
+  apiFetch<{ customer: { id: string } & Record<string, unknown> }>('/customers', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export type CreateOrderLine = {
+  itemId?: string;
+  sku?: string;
+  title?: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+export type CreateOrderBody = {
+  customerId: string;
+  lines: CreateOrderLine[];
+  channel?: string;
+  externalOrderId?: string;
+  orderNumber?: string;
+  status?: string;
+  paid?: boolean;
+  total?: number;
+  currency?: string;
+  shippingAddress?: Record<string, unknown>;
+  billingAddress?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+export const createManualOrder = (body: CreateOrderBody) =>
+  apiFetch<{ order: { id: string } & Record<string, unknown> }>('/orders', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export type SupportTicket = {
+  id: string;
+  subject: string;
+  body?: string;
+  entityType?: string;
+  entityId?: string;
+  channel?: string;
+  priority: string;
+  status: string;
+  owner?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateTicketBody = {
+  subject: string;
+  body?: string;
+  entityType?: string;
+  entityId?: string;
+  channel?: string;
+  priority?: string;
+};
+
+export const fetchTickets = () =>
+  apiFetch<{ tickets: SupportTicket[] }>('/support/tickets');
+
+export const createTicket = (body: CreateTicketBody) =>
+  apiFetch<{ ticket: SupportTicket }>('/support/tickets', { method: 'POST', body: JSON.stringify(body) });
+
+export const updateTicketStatus = (id: string, status: string) =>
+  apiFetch<{ ticket: SupportTicket }>(`/support/tickets/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
   });

@@ -25,7 +25,7 @@ const ChannelTag = ({ ch }: { ch: string }) => (
   </span>
 );
 
-export const Orders = ({ onOpenOrder, onNavigate }: ScreenProps) => {
+export const Orders = ({ onOpenOrder, onNavigate, onNewOrder }: ScreenProps) => {
   const [orders, setOrders] = useState<OmsOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export const Orders = ({ onOpenOrder, onNavigate }: ScreenProps) => {
         <div className="page-actions">
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Sync</button>
           <button className="btn"><Icon name="download" size={13} /> Export CSV</button>
-          <button className="btn primary"><Icon name="plus" size={13} /> Manual order</button>
+          <button className="btn primary" onClick={onNewOrder}><Icon name="plus" size={13} /> Manual order</button>
         </div>
       </div>
 

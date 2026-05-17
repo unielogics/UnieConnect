@@ -33,7 +33,7 @@ const FillScore = ({ value }: { value: number }) => {
   );
 };
 
-export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected }: ScreenProps) => {
+export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewProduct }: ScreenProps) => {
   const [view, setView] = useState<'table' | 'heatmap' | 'treemap'>('table');
   const [search, setSearch] = useState('');
   const [skus, setSkus] = useState<OmsSku[]>([]);
@@ -88,7 +88,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected }: Scree
             </button>
           </div>
           <button className="btn"><Icon name="download" size={13} /> Export</button>
-          <button className="btn primary"><Icon name="plus" size={13} /> New product</button>
+          <button className="btn primary" onClick={onNewProduct}><Icon name="plus" size={13} /> New product</button>
         </div>
       </div>
 

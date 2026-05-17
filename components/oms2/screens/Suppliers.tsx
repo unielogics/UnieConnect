@@ -16,7 +16,7 @@ const DetailKv2 = ({ label, value, tone }: { label: string; value: React.ReactNo
   </div>
 );
 
-export const Suppliers = ({ onCreateShipmentWithSupplier }: ScreenProps) => {
+export const Suppliers = ({ onCreateShipmentWithSupplier, onNewSupplier }: ScreenProps) => {
   const [suppliers, setSuppliers] = useState<OmsSupplier[]>([]);
   const [skus, setSkus] = useState<OmsSku[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export const Suppliers = ({ onCreateShipmentWithSupplier }: ScreenProps) => {
         </div>
         <div className="page-actions">
           <button className="btn"><Icon name="download" size={13} /> Export</button>
-          <button className="btn primary"><Icon name="plus" size={13} /> Add supplier</button>
+          <button className="btn primary" onClick={onNewSupplier}><Icon name="plus" size={13} /> Add supplier</button>
         </div>
       </div>
 

@@ -38,7 +38,7 @@ const segChip = (seg?: string) => {
   }
 };
 
-export const Customers = ({ onNavigate }: ScreenProps) => {
+export const Customers = ({ onNavigate, onNewCustomer }: ScreenProps) => {
   const [rows, setRows] = useState<OmsCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -84,6 +84,7 @@ export const Customers = ({ onNavigate }: ScreenProps) => {
         </div>
         <div className="page-actions">
           <button className="btn"><Icon name="download" size={13} /> Export</button>
+          <button className="btn" onClick={onNewCustomer}><Icon name="plus" size={13} /> Add customer</button>
           <button className="btn primary"><Icon name="sparkle" size={13} /> Generate segments</button>
         </div>
       </div>
