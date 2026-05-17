@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ClipboardList,
   DollarSign,
+  FileUp,
   ExternalLink,
   FileText,
   Gauge,
@@ -25,7 +26,8 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { CommandCenter, InventoryPlan, OmsRange, OmsSku, omsFetch, BusinessDoubleResponse } from '../lib/oms';
-import { fetchShipmentPlans } from '../lib/shipment-plan';
+import { createShipmentPlan, fetchShipmentPlans } from '../lib/shipment-plan';
+import { apiUrl, TOKEN_KEY } from '../lib/api';
 
 type ViewKey =
   | 'command'
@@ -61,6 +63,60 @@ const viewTitles: Record<ViewKey, { title: string; subtitle: string }> = {
 const fmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const money = (n?: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n || 0));
 const pct = (n?: number) => `${Number(n || 0) > 0 ? '+' : ''}${Number(n || 0).toFixed(1)}%`;
+
+type EntityKind = 'order' | 'customer' | 'supplier' | 'sku' | 'shipment';
+type EntityMode = 'manual' | 'csv';
+type EntityModalState = { entity: EntityKind; mode: EntityMode } | null;
+
+async function appFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+  const res = await fetch(apiUrl(path), {
+    ...options,
+    headers: {
+      Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || err?.message || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
+function parseCsv(text: string): Record<string, string>[] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (ch === '"' && quoted && next === '"') {
+      cell += '"';
+      i += 1;
+    } else if (ch === '"') {
+      quoted = !quoted;
+    } else if (ch === ',' && !quoted) {
+      row.push(cell.trim());
+      cell = '';
+    } else if ((ch === '\n' || ch === '\r') && !quoted) {
+      if (ch === '\r' && next === '\n') i += 1;
+      row.push(cell.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += ch;
+    }
+  }
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+  const headers = (rows.shift() || []).map((header) => header.trim());
+  return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] || ''])));
+}
 
 function getView(raw: unknown): ViewKey {
   const value = typeof raw === 'string' ? raw : 'command';
@@ -344,9 +400,9 @@ function SkuTable({ skus, selected, toggleSku, openSku, actions }: { skus: OmsSk
   const setSortKey = (key: keyof OmsSku) => setSort((current) => ({ key, dir: current.key === key && current.dir === 'asc' ? 'desc' : 'asc' }));
   return (
     <div className="oms-panel">
-      <div className="oms-toolbar" style={{ marginBottom: 14 }}>
+      <div className="oms-table-panel-head">
         <div><div className="oms-eyebrow">SKU Intelligence</div><h2>Warehouse truth and placement readiness</h2></div>
-        <div className="oms-toolbar">
+        <div className="oms-table-controls">
           <label className="oms-local-search">
             <Search size={15} />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SKU, title, recommendation" />
@@ -358,7 +414,6 @@ function SkuTable({ skus, selected, toggleSku, openSku, actions }: { skus: OmsSk
         <EmptyState
           label="No SKUs found in the OMS database"
           detail="Create catalog items or connect a marketplace feed before Cortex can forecast demand, pallet footprint, and placement."
-          action={{ label: 'Create SKU', href: '/catalog', icon: <Plus size={16} /> }}
         />
       ) : null}
       <div className="oms-table-wrap">
@@ -621,14 +676,14 @@ function GenericTableScreen({
   rows,
   actions,
   emptyDetail,
-  emptyAction,
+  relationNotes,
   onRowClick,
 }: {
   type: string;
   rows: any[];
   actions?: PageAction[];
   emptyDetail?: string;
-  emptyAction?: PageAction;
+  relationNotes?: Array<{ label: string; detail: string; status?: 'ready' | 'blocked' | 'info' }>;
   onRowClick?: (row: any) => void;
 }) {
   const [query, setQuery] = useState('');
@@ -650,9 +705,12 @@ function GenericTableScreen({
   const setSortKey = (key: string) => setSort((current) => ({ key, dir: current?.key === key && current.dir === 'asc' ? 'desc' : 'asc' }));
   return (
     <div className="oms-panel">
-      <div className="oms-toolbar" style={{ marginBottom: 14 }}>
-        <div><div className="oms-eyebrow">{type}</div><h2>Database-backed records</h2></div>
-        <div className="oms-toolbar">
+      <div className="oms-table-panel-head">
+        <div>
+          <div className="oms-eyebrow">{type}</div>
+          <h2>Database-backed records</h2>
+        </div>
+        <div className="oms-table-controls">
           <label className="oms-local-search">
             <Search size={15} />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${type.toLowerCase()}`} />
@@ -660,8 +718,18 @@ function GenericTableScreen({
           <PageActions actions={actions} />
         </div>
       </div>
+      {relationNotes?.length ? (
+        <div className="oms-relation-strip">
+          {relationNotes.map((note) => (
+            <div key={note.label} className={`oms-relation-note ${note.status || 'info'}`}>
+              <strong>{note.label}</strong>
+              <span>{note.detail}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {!rows?.length ? (
-        <EmptyState label={`No ${type} available yet`} detail={emptyDetail} action={emptyAction} />
+        <EmptyState label={`No ${type} available yet`} detail={emptyDetail} />
       ) : null}
       <div className="oms-table-wrap">
         <table className="oms-table">
@@ -748,6 +816,252 @@ function OrderModal({ order, onClose }: { order: any; onClose: () => void }) {
   );
 }
 
+function EntityCreateModal({
+  state,
+  customers,
+  skus,
+  suppliers,
+  locations,
+  onClose,
+  onSwitch,
+  onCreated,
+  openShipmentWizard,
+}: {
+  state: Exclude<EntityModalState, null>;
+  customers: any[];
+  skus: OmsSku[];
+  suppliers: any[];
+  locations: any[];
+  onClose: () => void;
+  onSwitch: (entity: EntityKind, mode: EntityMode) => void;
+  onCreated: () => Promise<void>;
+  openShipmentWizard: () => void;
+}) {
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [csv, setCsv] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const title = {
+    order: 'Order',
+    customer: 'Customer',
+    supplier: 'Supplier',
+    sku: 'SKU',
+    shipment: 'Shipment plan',
+  }[state.entity];
+  const templates: Record<EntityKind, string> = {
+    customer: 'name,email,company,phone',
+    supplier: 'name,email,phone,status',
+    sku: 'sku,title,asin,weight,category',
+    order: 'orderNumber,customerEmail,sku,quantity,unitPrice,status,channel',
+    shipment: 'shipmentTitle,supplierName,shipFromLocationName,sku,quantity,estimatedArrivalDate',
+  };
+  const missing = useMemo(() => {
+    const items: Array<{ label: string; detail: string; action: () => void }> = [];
+    if (state.entity === 'order') {
+      if (!customers.length) items.push({ label: 'Customer required', detail: 'Create or import a customer before a manual or CSV order can be accepted.', action: () => onSwitch('customer', 'manual') });
+      if (!skus.length) items.push({ label: 'SKU required', detail: 'Create or import at least one catalog item so order lines can map to inventory.', action: () => onSwitch('sku', 'manual') });
+    }
+    if (state.entity === 'shipment') {
+      if (!suppliers.length) items.push({ label: 'Supplier required', detail: 'Create or import a supplier before shipment plans can be built.', action: () => onSwitch('supplier', 'manual') });
+      if (!locations.length) items.push({ label: 'Ship-from location required', detail: 'Add a supplier ship-from location in the shipment planner before CSV shipment import.', action: () => window.location.assign('/shipment-plans') });
+      if (!skus.length) items.push({ label: 'SKU required', detail: 'Create or import at least one SKU before building an ASN or shipment plan.', action: () => onSwitch('sku', 'manual') });
+    }
+    return items;
+  }, [customers.length, locations.length, onSwitch, skus.length, state.entity, suppliers.length]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    setForm({});
+    setCsv('');
+    setMessage(null);
+  }, [state.entity, state.mode]);
+
+  const update = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const skuById = (id?: string) => (id ? skus.find((sku) => sku.id === id) : undefined);
+  const customerByEmail = (email?: string) => customers.find((customer) => String(customer.email || '').toLowerCase() === String(email || '').toLowerCase());
+  const skuByCode = (code?: string) => skus.find((sku) => String(sku.sku || '').toLowerCase() === String(code || '').toLowerCase());
+  const supplierByName = (name?: string) => suppliers.find((supplier) => supplier.id === name || String(supplier.name || '').toLowerCase() === String(name || '').toLowerCase());
+  const locationByName = (name?: string) => locations.find((location) => location.id === name || String(location.name || '').toLowerCase() === String(name || '').toLowerCase());
+
+  const createOne = async (row: Record<string, string>) => {
+    if (state.entity === 'customer') {
+      return appFetch('/api/v1/customers', {
+        method: 'POST',
+        body: JSON.stringify({ name: row.name, email: row.email, company: row.company, phone: row.phone, channel: row.channel || 'manual' }),
+      });
+    }
+    if (state.entity === 'supplier') {
+      return appFetch('/api/v1/suppliers', {
+        method: 'POST',
+        body: JSON.stringify({ name: row.name, email: row.email, phone: row.phone, status: row.status || 'active' }),
+      });
+    }
+    if (state.entity === 'sku') {
+      return appFetch('/api/v1/items', {
+        method: 'POST',
+        body: JSON.stringify({ sku: row.sku, title: row.title || row.name || row.sku, asin: row.asin, weight: row.weight, category: row.category }),
+      });
+    }
+    if (state.entity === 'order') {
+      const customer = row.customerId ? customers.find((item) => item.id === row.customerId) : customerByEmail(row.customerEmail || row.email);
+      const item = row.itemId ? skuById(row.itemId) : skuByCode(row.sku);
+      if (!customer) throw new Error(`Customer not found for order ${row.orderNumber || row.externalOrderId || ''}`.trim());
+      if (!item) throw new Error(`SKU not found for order ${row.orderNumber || row.externalOrderId || ''}`.trim());
+      const quantity = Math.max(1, Number(row.quantity || 1));
+      const unitPrice = Number(row.unitPrice || row.unit_price || 0);
+      return appFetch('/api/v1/orders', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: customer.id,
+          orderNumber: row.orderNumber || row.externalOrderId,
+          externalOrderId: row.externalOrderId || row.orderNumber,
+          status: row.status || 'open',
+          channel: row.channel || 'manual',
+          total: row.total ? Number(row.total) : quantity * unitPrice,
+          source: state.mode === 'csv' ? 'oms_csv_import' : 'oms_manual',
+          lines: [{ itemId: item.id, sku: item.sku, title: item.title, quantity, unitPrice }],
+        }),
+      });
+    }
+    const supplier = supplierByName(row.supplierId || row.supplierName);
+    const location = locationByName(row.shipFromLocationId || row.shipFromLocationName);
+    const item = skuByCode(row.sku) || skuById(row.itemId);
+    if (!supplier || !location || !item) throw new Error('Shipment plans require supplier, ship-from location, and SKU.');
+    return createShipmentPlan({
+      supplierId: supplier.id,
+      shipFromLocationId: location.id,
+      prepServicesOnly: false,
+      shipmentTitle: row.shipmentTitle || `OMS shipment ${new Date().toLocaleDateString()}`,
+      estimatedArrivalDate: row.estimatedArrivalDate || undefined,
+      items: [{ sku: item.sku, itemId: item.id, title: item.title, quantity: Math.max(1, Number(row.quantity || 1)) }],
+    });
+  };
+
+  const submit = async (event: any) => {
+    event.preventDefault();
+    if (missing.length) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const rows = state.mode === 'csv' ? parseCsv(csv) : [form];
+      if (!rows.length) throw new Error('No records provided.');
+      for (const row of rows) await createOne(row);
+      setMessage(`${rows.length} ${title.toLowerCase()} record${rows.length === 1 ? '' : 's'} created.`);
+      await onCreated();
+      onClose();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Create failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="oms-full-modal" role="dialog" aria-modal="true">
+      <div className="oms-full-modal-head">
+        <div>
+          <div className="oms-eyebrow">{state.mode === 'csv' ? 'CSV Import' : 'Manual Create'}</div>
+          <h2 style={{ margin: 0 }}>{title}</h2>
+        </div>
+        <button className="oms-action-secondary" onClick={onClose}><X size={16} /> Close</button>
+      </div>
+      <div className="oms-full-modal-body">
+        <form className="oms-page" onSubmit={submit}>
+          {missing.length ? (
+            <div className="oms-panel oms-dependency-panel">
+              <div>
+                <div className="oms-eyebrow">Relationship Rules</div>
+                <h2>Finish required setup first</h2>
+                <p className="oms-muted">The OMS now enforces real operating relationships instead of creating orphan records.</p>
+              </div>
+              <div className="oms-three-grid">
+                {missing.map((item) => (
+                  <div key={item.label} className="oms-card">
+                    <strong>{item.label}</strong>
+                    <p className="oms-muted">{item.detail}</p>
+                    <button className="oms-action-secondary" type="button" onClick={item.action}>Resolve</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : state.mode === 'csv' ? (
+            <div className="oms-panel">
+              <div className="oms-eyebrow">Import Template</div>
+              <h2>{templates[state.entity]}</h2>
+              <p className="oms-muted">Paste CSV rows using the headers above. Orders must reference an existing customer email and SKU. Shipment plans must reference existing supplier, ship-from location, and SKU records.</p>
+              <textarea className="oms-textarea" value={csv} onChange={(event) => setCsv(event.target.value)} placeholder={`${templates[state.entity]}\n`} rows={10} />
+            </div>
+          ) : (
+            <div className="oms-panel">
+              <div className="oms-eyebrow">Manual Intake</div>
+              <h2>Create {title.toLowerCase()}</h2>
+              {state.entity === 'customer' && (
+                <div className="oms-form-grid compact">
+                  <label>Name<input value={form.name || ''} onChange={(event) => update('name', event.target.value)} required /></label>
+                  <label>Email<input type="email" value={form.email || ''} onChange={(event) => update('email', event.target.value)} /></label>
+                  <label>Company<input value={form.company || ''} onChange={(event) => update('company', event.target.value)} /></label>
+                  <label>Phone<input value={form.phone || ''} onChange={(event) => update('phone', event.target.value)} /></label>
+                </div>
+              )}
+              {state.entity === 'supplier' && (
+                <div className="oms-form-grid compact">
+                  <label>Name<input value={form.name || ''} onChange={(event) => update('name', event.target.value)} required /></label>
+                  <label>Email<input type="email" value={form.email || ''} onChange={(event) => update('email', event.target.value)} /></label>
+                  <label>Phone<input value={form.phone || ''} onChange={(event) => update('phone', event.target.value)} /></label>
+                  <label>Status<select value={form.status || 'active'} onChange={(event) => update('status', event.target.value)}><option value="active">Active</option><option value="paused">Paused</option></select></label>
+                </div>
+              )}
+              {state.entity === 'sku' && (
+                <div className="oms-form-grid compact">
+                  <label>SKU<input value={form.sku || ''} onChange={(event) => update('sku', event.target.value)} required /></label>
+                  <label>Title<input value={form.title || ''} onChange={(event) => update('title', event.target.value)} required /></label>
+                  <label>ASIN<input value={form.asin || ''} onChange={(event) => update('asin', event.target.value)} /></label>
+                  <label>Weight<input type="number" min={0} step="0.01" value={form.weight || ''} onChange={(event) => update('weight', event.target.value)} /></label>
+                  <label>Category<input value={form.category || ''} onChange={(event) => update('category', event.target.value)} /></label>
+                </div>
+              )}
+              {state.entity === 'order' && (
+                <div className="oms-form-grid compact">
+                  <label>Customer<select value={form.customerId || ''} onChange={(event) => update('customerId', event.target.value)} required><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name || customer.email || customer.id}</option>)}</select></label>
+                  <label>SKU<select value={form.itemId || ''} onChange={(event) => update('itemId', event.target.value)} required><option value="">Select SKU</option>{skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku} - {sku.title || 'Untitled'}</option>)}</select></label>
+                  <label>Order #<input value={form.orderNumber || ''} onChange={(event) => update('orderNumber', event.target.value)} required /></label>
+                  <label>Quantity<input type="number" min={1} value={form.quantity || '1'} onChange={(event) => update('quantity', event.target.value)} /></label>
+                  <label>Unit price<input type="number" min={0} step="0.01" value={form.unitPrice || '0'} onChange={(event) => update('unitPrice', event.target.value)} /></label>
+                  <label>Status<select value={form.status || 'open'} onChange={(event) => update('status', event.target.value)}><option value="open">Open</option><option value="paid">Paid</option><option value="fulfilled">Fulfilled</option><option value="cancelled">Cancelled</option></select></label>
+                </div>
+              )}
+              {state.entity === 'shipment' && (
+                <div className="oms-form-grid compact">
+                  <label>Supplier<select value={form.supplierId || ''} onChange={(event) => update('supplierId', event.target.value)} required><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+                  <label>Ship-from<select value={form.shipFromLocationId || ''} onChange={(event) => update('shipFromLocationId', event.target.value)} required><option value="">Select location</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+                  <label>SKU<select value={form.itemId || ''} onChange={(event) => update('itemId', event.target.value)} required><option value="">Select SKU</option>{skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku} - {sku.title || 'Untitled'}</option>)}</select></label>
+                  <label>Quantity<input type="number" min={1} value={form.quantity || '1'} onChange={(event) => update('quantity', event.target.value)} /></label>
+                  <label>Shipment title<input value={form.shipmentTitle || ''} onChange={(event) => update('shipmentTitle', event.target.value)} /></label>
+                  <label>ETA<input type="date" value={form.estimatedArrivalDate || ''} onChange={(event) => update('estimatedArrivalDate', event.target.value)} /></label>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="oms-modal-actions">
+            {state.entity === 'shipment' && state.mode === 'manual' ? <button className="oms-action-secondary" type="button" onClick={openShipmentWizard}><Truck size={16} /> Use auto-routed wizard</button> : null}
+            <button className="oms-action-secondary" type="button" onClick={() => onSwitch(state.entity, state.mode === 'csv' ? 'manual' : 'csv')}>
+              {state.mode === 'csv' ? <Plus size={16} /> : <FileUp size={16} />}
+              {state.mode === 'csv' ? 'Manual create' : 'Import CSV'}
+            </button>
+            <button className="oms-action" disabled={busy || Boolean(missing.length)}>{busy ? 'Saving...' : `Save ${title}`}</button>
+          </div>
+          {message && <div className="oms-error-banner">{message}</div>}
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function HeatmapScreen({ data }: { data: any }) {
   if (!data) return <Loading />;
   return (
@@ -823,6 +1137,7 @@ export default function OmsPage() {
   const [selected, setSelected] = useState<Record<string, OmsSku>>({});
   const [detail, setDetail] = useState<any | null>(null);
   const [orderDetail, setOrderDetail] = useState<any | null>(null);
+  const [entityModal, setEntityModal] = useState<EntityModalState>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [approving, setApproving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -871,14 +1186,29 @@ export default function OmsPage() {
   async function loadView(next: ViewKey) {
     try {
       setLoadError(null);
-      if (next === 'orders') setOrders((await omsFetch<any>('/orders')).orders || []);
+      if (next === 'orders') {
+        const [orderResponse, customerResponse] = await Promise.all([
+          omsFetch<any>('/orders'),
+          omsFetch<any>('/customers'),
+        ]);
+        setOrders(orderResponse.orders || []);
+        setCustomers(customerResponse.customers || []);
+      }
       if (next === 'customers') setCustomers((await omsFetch<any>('/customers')).customers || []);
       if (next === 'suppliers') {
         const response = await omsFetch<any>('/suppliers');
         setSuppliers(response.suppliers || []);
         setSupplierLocations(response.locations || []);
       }
-      if (next === 'shipments') setShipments((await fetchShipmentPlans({ limit: 200 })).plans || []);
+      if (next === 'shipments') {
+        const [plansResponse, supplierResponse] = await Promise.all([
+          fetchShipmentPlans({ limit: 200 }),
+          omsFetch<any>('/suppliers'),
+        ]);
+        setShipments(plansResponse.plans || []);
+        setSuppliers(supplierResponse.suppliers || []);
+        setSupplierLocations(supplierResponse.locations || []);
+      }
       if (next === 'heatmap') setHeatmap(await omsFetch('/heatmap'));
       if (next === 'labels') setLabels(await omsFetch('/label-audit'));
       if (next === 'billing') setBilling(await omsFetch('/billing-profit'));
@@ -919,6 +1249,20 @@ export default function OmsPage() {
     }
   };
 
+  const openEntityModal = (entity: EntityKind, mode: EntityMode = 'manual') => {
+    setEntityModal({ entity, mode });
+  };
+
+  const reloadAfterEntityMutation = async () => {
+    await loadCore();
+    if (view === 'skus' || entityModal?.entity === 'sku') await loadCore();
+    if (view === 'orders' || entityModal?.entity === 'order') await loadView('orders');
+    if (view === 'customers' || entityModal?.entity === 'customer') await loadView('customers');
+    if (view === 'suppliers' || entityModal?.entity === 'supplier') await loadView('suppliers');
+    if (view === 'shipments' || entityModal?.entity === 'shipment') await loadView('shipments');
+    await loadView('ledger');
+  };
+
   const approveBusiness = async () => {
     if (!business?.plan?.id) return;
     setApproving(true);
@@ -936,26 +1280,40 @@ export default function OmsPage() {
 
   const primaryActions: Record<string, PageAction[]> = {
     command: [
-      { label: 'Create SKU', href: '/catalog', icon: <Plus size={16} /> },
+      { label: 'Create SKU', onClick: () => openEntityModal('sku', 'manual'), icon: <Plus size={16} /> },
       { label: 'Create shipment', onClick: () => setWizardOpen(true), icon: <Truck size={16} /> },
       { label: 'Connect marketplace', href: '/dashboard', icon: <ExternalLink size={16} />, variant: 'secondary' },
     ],
     inventory: [
-      { label: 'Create SKU', href: '/catalog', icon: <Plus size={16} /> },
+      { label: 'Create SKU', onClick: () => openEntityModal('sku', 'manual'), icon: <Plus size={16} /> },
+      { label: 'Import SKUs', onClick: () => openEntityModal('sku', 'csv'), icon: <Upload size={16} />, variant: 'secondary' },
       { label: 'Create shipment', onClick: () => setWizardOpen(true), icon: <Truck size={16} /> },
       { label: 'Connect WMS', href: '/connect-warehouse', icon: <Building2 size={16} />, variant: 'secondary' },
     ],
     skus: [
-      { label: 'Create SKU', href: '/catalog', icon: <Plus size={16} /> },
+      { label: 'Create SKU', onClick: () => openEntityModal('sku', 'manual'), icon: <Plus size={16} /> },
+      { label: 'Import CSV', onClick: () => openEntityModal('sku', 'csv'), icon: <Upload size={16} />, variant: 'secondary' },
       { label: 'Create shipment', onClick: () => setWizardOpen(true), icon: <Truck size={16} /> },
     ],
     orders: [
-      { label: 'Connect marketplace', href: '/dashboard', icon: <ExternalLink size={16} /> },
-      { label: 'Create shipment', onClick: () => setWizardOpen(true), icon: <Truck size={16} />, variant: 'secondary' },
+      { label: 'Create order', onClick: () => openEntityModal('order', 'manual'), icon: <Plus size={16} /> },
+      { label: 'Import CSV', onClick: () => openEntityModal('order', 'csv'), icon: <Upload size={16} />, variant: 'secondary' },
+      { label: 'Connect marketplace', href: '/dashboard', icon: <ExternalLink size={16} />, variant: 'secondary' },
     ],
-    customers: [{ label: 'Create customer', href: '/customers', icon: <Plus size={16} /> }],
-    suppliers: [{ label: 'Create supplier', href: '/suppliers', icon: <Plus size={16} /> }],
-    shipments: [{ label: 'Create shipment plan', href: '/shipment-plans', icon: <Plus size={16} /> }],
+    customers: [
+      { label: 'Create customer', onClick: () => openEntityModal('customer', 'manual'), icon: <Plus size={16} /> },
+      { label: 'Import CSV', onClick: () => openEntityModal('customer', 'csv'), icon: <Upload size={16} />, variant: 'secondary' },
+      { label: 'Connect marketplace', href: '/dashboard', icon: <ExternalLink size={16} />, variant: 'secondary' },
+    ],
+    suppliers: [
+      { label: 'Create supplier', onClick: () => openEntityModal('supplier', 'manual'), icon: <Plus size={16} /> },
+      { label: 'Import CSV', onClick: () => openEntityModal('supplier', 'csv'), icon: <Upload size={16} />, variant: 'secondary' },
+    ],
+    shipments: [
+      { label: 'Create shipment plan', onClick: () => openEntityModal('shipment', 'manual'), icon: <Plus size={16} /> },
+      { label: 'Import CSV', onClick: () => openEntityModal('shipment', 'csv'), icon: <Upload size={16} />, variant: 'secondary' },
+      { label: 'Auto-routed wizard', onClick: () => setWizardOpen(true), icon: <Truck size={16} />, variant: 'secondary' },
+    ],
     heatmap: [{ label: 'Connect warehouse', href: '/connect-warehouse', icon: <Building2 size={16} /> }],
     labels: [{ label: 'Upload carrier file', href: '/oms?view=labels', icon: <Upload size={16} /> }],
     ledger: [{ label: 'Refresh ledger', onClick: () => void loadView('ledger'), icon: <RefreshCcw size={16} />, variant: 'secondary' }],
@@ -965,10 +1323,17 @@ export default function OmsPage() {
     view === 'business' ? <BusinessScreen data={business} onApprove={approveBusiness} approving={approving} /> :
     view === 'inventory' ? <InventoryScreen plan={plan} selected={selected} toggleSku={toggleSku} openSku={openSku} actions={primaryActions.inventory} /> :
     view === 'skus' ? <div className="oms-page"><SkuTable skus={plan?.skus || []} selected={selected} toggleSku={toggleSku} openSku={openSku} actions={primaryActions.skus} /></div> :
-    view === 'orders' ? <GenericTableScreen type="Orders" rows={orders} actions={primaryActions.orders} onRowClick={setOrderDetail} emptyDetail="Connect Amazon, Shopify, eBay, or a custom OMS order API before this page can show order activity." emptyAction={primaryActions.orders[0]} /> :
-    view === 'customers' ? <GenericTableScreen type="Customers" rows={customers} actions={primaryActions.customers} emptyDetail="Create customers directly or sync them from connected marketplace/order channels." emptyAction={primaryActions.customers[0]} /> :
-    view === 'suppliers' ? <GenericTableScreen type="Suppliers" rows={suppliers} actions={primaryActions.suppliers} emptyDetail="Suppliers and ship-from locations are required before shipments can be built from inventory." emptyAction={primaryActions.suppliers[0]} /> :
-    view === 'shipments' ? <GenericTableScreen type="Shipment plans" rows={shipments} actions={primaryActions.shipments} emptyDetail="Create a shipment plan or select SKUs to start the auto-routed OMS shipment wizard." emptyAction={primaryActions.shipments[0]} /> :
+    view === 'orders' ? <GenericTableScreen type="Orders" rows={orders} actions={primaryActions.orders} onRowClick={setOrderDetail} emptyDetail="Create orders manually, import CSV orders, connect marketplaces, or use the public API. Orders require an existing customer and SKU before they can trigger inventory logic." relationNotes={[
+      { label: 'Customer dependency', detail: customers.length ? `${customers.length} customer records available` : 'Create or import customers before creating orders', status: customers.length ? 'ready' : 'blocked' },
+      { label: 'Item dependency', detail: plan?.skus?.length ? `${plan.skus.length} SKUs available for order lines` : 'Create or import SKUs before creating orders', status: plan?.skus?.length ? 'ready' : 'blocked' },
+    ]} /> :
+    view === 'customers' ? <GenericTableScreen type="Customers" rows={customers} actions={primaryActions.customers} emptyDetail="Create customers directly, import a CSV, sync marketplace channels, or use the customer API." /> :
+    view === 'suppliers' ? <GenericTableScreen type="Suppliers" rows={suppliers} actions={primaryActions.suppliers} emptyDetail="Create suppliers manually or by CSV before shipments and ASN planning can be built." /> :
+    view === 'shipments' ? <GenericTableScreen type="Shipment plans" rows={shipments} actions={primaryActions.shipments} emptyDetail="Create shipment plans manually, import shipment CSV rows, or select SKUs to start the auto-routed OMS shipment wizard." relationNotes={[
+      { label: 'Supplier dependency', detail: suppliers.length ? `${suppliers.length} suppliers available` : 'Create or import suppliers first', status: suppliers.length ? 'ready' : 'blocked' },
+      { label: 'Ship-from dependency', detail: supplierLocations.length ? `${supplierLocations.length} ship-from locations available` : 'Add ship-from locations before shipment import', status: supplierLocations.length ? 'ready' : 'blocked' },
+      { label: 'Item dependency', detail: plan?.skus?.length ? `${plan.skus.length} SKUs available` : 'Create SKUs before shipment planning', status: plan?.skus?.length ? 'ready' : 'blocked' },
+    ]} /> :
     view === 'heatmap' ? <HeatmapScreen data={heatmap} /> :
     view === 'labels' ? <LabelAuditScreen data={labels} /> :
     view === 'billing' ? <BillingScreen data={billing} /> :
@@ -990,6 +1355,22 @@ export default function OmsPage() {
       )}
       {detail && <DetailModal sku={detail} onClose={() => setDetail(null)} />}
       {orderDetail && <OrderModal order={orderDetail} onClose={() => setOrderDetail(null)} />}
+      {entityModal && (
+        <EntityCreateModal
+          state={entityModal}
+          customers={customers}
+          skus={plan?.skus || []}
+          suppliers={suppliers}
+          locations={supplierLocations}
+          onClose={() => setEntityModal(null)}
+          onSwitch={(entity, mode) => setEntityModal({ entity, mode })}
+          onCreated={reloadAfterEntityMutation}
+          openShipmentWizard={() => {
+            setEntityModal(null);
+            setWizardOpen(true);
+          }}
+        />
+      )}
       {wizardOpen && <ShipmentWizard selected={selectedList} suppliers={suppliers} locations={supplierLocations} onClose={() => setWizardOpen(false)} />}
     </DashboardLayout>
   );
