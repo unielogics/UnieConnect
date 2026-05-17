@@ -202,7 +202,7 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
   if (!mounted) return null;
 
   return (
-    <div className={`oms-shell ${copilotOpen ? 'copilot-open' : ''}`}>
+    <div className={`oms-shell ${activeSectionId ? 'menu-open' : ''} ${copilotOpen ? 'copilot-open' : ''}`}>
       <aside className="oms-rail" aria-label="Primary">
         <Link href="/oms" className="oms-mark" title="UnieConnect OMS">
           <span>UC</span>

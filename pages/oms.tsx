@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   ArrowRight,
+  ArrowUpDown,
   Brain,
+  Building2,
   CheckCircle2,
   ClipboardList,
   DollarSign,
@@ -12,14 +14,18 @@ import {
   Layers3,
   PackageCheck,
   PackageSearch,
+  Plus,
   RefreshCcw,
+  Search,
   ShieldAlert,
   Sparkles,
   Truck,
+  Upload,
   X,
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { CommandCenter, InventoryPlan, OmsRange, OmsSku, omsFetch, BusinessDoubleResponse } from '../lib/oms';
+import { fetchShipmentPlans } from '../lib/shipment-plan';
 
 type ViewKey =
   | 'command'
@@ -56,68 +62,6 @@ const fmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const money = (n?: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n || 0));
 const pct = (n?: number) => `${Number(n || 0) > 0 ? '+' : ''}${Number(n || 0).toFixed(1)}%`;
 
-function fallbackSkus(): OmsSku[] {
-  return [
-    { id: 'demo-1', sku: 'SKU-ATL-001', title: 'Multipack kitchen organizer', available: 84, inbound: 260, velocity30d: 132, daysOfCover: 19, risk: 'medium', currentWarehouseCount: 1, proposedWarehouseCount: 3, proposedUnits: 420, minViableUnits: 160, palletCubeFt: 52, palletWeightLbs: 930, fillPercent: 87, serviceTier: 'standard', recommendation: 'Split across NJ, GA, and TX to reduce zone cost' },
-    { id: 'demo-2', sku: 'SKU-FL-204', title: 'Premium pet travel mat', available: 18, inbound: 0, velocity30d: 96, daysOfCover: 6, risk: 'high', currentWarehouseCount: 1, proposedWarehouseCount: 2, proposedUnits: 300, minViableUnits: 120, palletCubeFt: 44, palletWeightLbs: 520, fillPercent: 72, serviceTier: 'priority', recommendation: 'Priority replenishment required before service miss' },
-    { id: 'demo-3', sku: 'SKU-NJ-778', title: 'Compact storage bin set', available: 340, inbound: 140, velocity30d: 88, daysOfCover: 116, risk: 'low', currentWarehouseCount: 2, proposedWarehouseCount: 2, proposedUnits: 180, minViableUnits: 80, palletCubeFt: 36, palletWeightLbs: 690, fillPercent: 60, serviceTier: 'economy', recommendation: 'Pool with compatible seller inventory for pallet efficiency' },
-  ];
-}
-
-function fallbackCommand(range: OmsRange): CommandCenter {
-  return {
-    range,
-    metrics: { revenue: 184200, revenueDeltaPct: 12.4, orders: 1268, ordersDeltaPct: 8.1, aov: 145, grossProfit: 66312, refunds: 1480, units: 3910, unitsDeltaPct: 10.2 },
-    warnings: [
-      { severity: 'high', title: 'Priority replenishment window', detail: '7 SKUs will fall below 10 days of cover before the next planned inbound.' },
-      { severity: 'medium', title: 'Pallet fill opportunity', detail: 'Cortex found compatible seller volume to complete two LTL pallets.' },
-    ],
-    autonomousActivity: [
-      { system: 'OMS', action: 'Six-month demand plan refreshed from marketplace trends', status: 'complete', confidence: 0.92, at: new Date().toISOString() },
-      { system: 'WMS', action: 'Inbound truth gate checked against ASN and staged inventory', status: 'complete', confidence: 0.86, at: new Date().toISOString() },
-      { system: 'Cortex', action: 'TMS consolidation plan prepared for approval threshold', status: 'ready', confidence: 0.89, at: new Date().toISOString() },
-    ],
-    counts: { items: 238, orders: 1268, customers: 812, suppliers: 34, channels: 3, shipmentPlans: 18, facilities: 4 },
-  };
-}
-
-function fallbackPlan(): InventoryPlan {
-  const skus = fallbackSkus();
-  return {
-    current: { skuCount: 238, warehouseCount: 1, stockoutRiskSkus: 17, estimatedMonthlyCost: 42600 },
-    proposed: { warehouseCount: 4, stockoutRiskSkus: 6, estimatedMonthlyCost: 34900, sharedPalletCandidates: 42 },
-    months: ['Jun 2026', 'Jul 2026', 'Aug 2026', 'Sep 2026', 'Oct 2026', 'Nov 2026'].map((month, index) => ({
-      month,
-      projectedUnits: 8600 + index * 720,
-      proposedReplenishment: 3100 + index * 260,
-      savings: 4200 + index * 310,
-    })),
-    skus,
-    warehouses: [
-      { id: 'w-nj', code: 'NJ', name: 'New Jersey Cross-Dock', city: 'Newark', state: 'NJ' },
-      { id: 'w-fl', code: 'FL', name: 'Florida Fulfillment', city: 'Miami', state: 'FL' },
-      { id: 'w-tx', code: 'TX', name: 'Texas Regional Node', city: 'Dallas', state: 'TX' },
-    ],
-  };
-}
-
-function fallbackBusiness(): BusinessDoubleResponse {
-  return {
-    persistence: 'frontend_fallback',
-    plan: {
-      id: 'fallback-business-double',
-      status: 'draft',
-      title: 'Six-month multi-warehouse operating plan',
-      summary: 'A production UI fallback is active until the local OMS backend is reachable. The same UI consumes the real OMS API when it is online.',
-      currentMetrics: { monthlyRevenue: 184200, monthlyCost: 42600, averageDeliveryDays: 5.2, warehouseNodes: 1, stockoutRiskPct: 18 },
-      optimizedMetrics: { monthlyRevenue: 198936, monthlyCost: 34900, averageDeliveryDays: 2.8, warehouseNodes: 4, stockoutRiskPct: 7 },
-      savings: { monthly: 7700, annualized: 92400, freightPct: 14, storagePct: 7, handlingPct: 5 },
-      autonomousAfterApproval: ['WMS work prioritization', 'ASN routing', 'TMS consolidation', 'label audit claims', 'seller inventory nudges'],
-      approvalRequiredFor: ['Business Double operating model changes', 'low-confidence cross-system dispatch', 'policy/compliance exceptions'],
-    },
-  };
-}
-
 function getView(raw: unknown): ViewKey {
   const value = typeof raw === 'string' ? raw : 'command';
   return (Object.keys(viewTitles).includes(value) ? value : 'command') as ViewKey;
@@ -142,15 +86,62 @@ function MetricCard({ label, value, delta, icon }: { label: string; value: strin
   );
 }
 
-function EmptyState({ label }: { label: string }) {
-  return <div className="oms-panel oms-muted">{label}</div>;
+type PageAction = {
+  label: string;
+  icon?: React.ReactNode;
+  onClick?: () => void;
+  href?: string;
+  variant?: 'primary' | 'secondary';
+};
+
+function EmptyState({ label, detail, action }: { label: string; detail?: string; action?: PageAction }) {
+  const content = (
+    <div className="oms-panel oms-empty">
+      <div>
+        <div className="oms-eyebrow">Setup Required</div>
+        <h2>{label}</h2>
+        {detail && <p className="oms-muted">{detail}</p>}
+      </div>
+      {action && <ActionButton action={action} />}
+    </div>
+  );
+  return content;
 }
 
 function Loading() {
   return <div className="oms-panel oms-muted">Loading OMS intelligence...</div>;
 }
 
-function CommandScreen({ data, range, setRange }: { data: CommandCenter | null; range: OmsRange; setRange: (range: OmsRange) => void }) {
+function ActionButton({ action }: { action: PageAction }) {
+  const className = action.variant === 'secondary' ? 'oms-action-secondary' : 'oms-action';
+  const inner = <>{action.icon}{action.label}</>;
+  if (action.href) {
+    const href = action.href;
+    return <button className={className} onClick={() => window.location.assign(href)}>{inner}</button>;
+  }
+  return <button className={className} onClick={action.onClick}>{inner}</button>;
+}
+
+function PageActions({ actions }: { actions?: PageAction[] }) {
+  if (!actions?.length) return null;
+  return (
+    <div className="oms-page-actions">
+      {actions.map((action) => <ActionButton key={action.label} action={action} />)}
+    </div>
+  );
+}
+
+function humanize(key: string) {
+  return key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+}
+
+function cellText(value: any): string {
+  if (value == null) return '';
+  if (typeof value === 'object') return Array.isArray(value) ? `${value.length} records` : JSON.stringify(value);
+  return String(value);
+}
+
+function CommandScreen({ data, range, setRange, actions }: { data: CommandCenter | null; range: OmsRange; setRange: (range: OmsRange) => void; actions?: PageAction[] }) {
   if (!data) return <Loading />;
   return (
     <div className="oms-page">
@@ -159,10 +150,13 @@ function CommandScreen({ data, range, setRange }: { data: CommandCenter | null; 
           <div className="oms-eyebrow">Sales Overview</div>
           <h2 style={{ margin: '4px 0 0' }}>Today / 7 day / 30 day operating picture</h2>
         </div>
-        <div className="oms-segments">
-          {(['today', '7d', '30d'] as OmsRange[]).map((r) => (
-            <button key={r} className={range === r ? 'active' : ''} onClick={() => setRange(r)}>{r === 'today' ? 'Today' : r}</button>
-          ))}
+        <div className="oms-toolbar">
+          <PageActions actions={actions} />
+          <div className="oms-segments">
+            {(['today', '7d', '30d'] as OmsRange[]).map((r) => (
+              <button key={r} className={range === r ? 'active' : ''} onClick={() => setRange(r)}>{r === 'today' ? 'Today' : r}</button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="oms-card-grid">
@@ -279,10 +273,17 @@ function MetricRows({ data }: { data: Record<string, number> }) {
   );
 }
 
-function InventoryScreen({ plan, selected, toggleSku, openSku }: { plan: InventoryPlan | null; selected: Record<string, OmsSku>; toggleSku: (sku: OmsSku) => void; openSku: (sku: OmsSku) => void }) {
+function InventoryScreen({ plan, selected, toggleSku, openSku, actions }: { plan: InventoryPlan | null; selected: Record<string, OmsSku>; toggleSku: (sku: OmsSku) => void; openSku: (sku: OmsSku) => void; actions?: PageAction[] }) {
   if (!plan) return <Loading />;
   return (
     <div className="oms-page">
+      <div className="oms-toolbar">
+        <div>
+          <div className="oms-eyebrow">Inventory Operating Plan</div>
+          <h2 style={{ margin: '4px 0 0' }}>Current truth, proposed placement, and shipment execution</h2>
+        </div>
+        <PageActions actions={actions} />
+      </div>
       <div className="oms-two-grid">
         <div className="oms-panel">
           <div className="oms-eyebrow">Current Business</div>
@@ -317,28 +318,74 @@ function InventoryScreen({ plan, selected, toggleSku, openSku }: { plan: Invento
   );
 }
 
-function SkuTable({ skus, selected, toggleSku, openSku }: { skus: OmsSku[]; selected: Record<string, OmsSku>; toggleSku: (sku: OmsSku) => void; openSku: (sku: OmsSku) => void }) {
+function SkuTable({ skus, selected, toggleSku, openSku, actions }: { skus: OmsSku[]; selected: Record<string, OmsSku>; toggleSku: (sku: OmsSku) => void; openSku: (sku: OmsSku) => void; actions?: PageAction[] }) {
   const [menu, setMenu] = useState<{ x: number; y: number; sku: OmsSku } | null>(null);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<{ key: keyof OmsSku; dir: 'asc' | 'desc' }>({ key: 'risk', dir: 'desc' });
   useEffect(() => {
     const close = () => setMenu(null);
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
   }, []);
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    const rows = term
+      ? skus.filter((sku) => [sku.sku, sku.title, sku.recommendation, sku.risk, sku.serviceTier].some((value) => String(value || '').toLowerCase().includes(term)))
+      : skus;
+    return [...rows].sort((a, b) => {
+      const av = a[sort.key];
+      const bv = b[sort.key];
+      const an = Number(av);
+      const bn = Number(bv);
+      const result = Number.isFinite(an) && Number.isFinite(bn) ? an - bn : String(av || '').localeCompare(String(bv || ''));
+      return sort.dir === 'asc' ? result : -result;
+    });
+  }, [skus, query, sort]);
+  const setSortKey = (key: keyof OmsSku) => setSort((current) => ({ key, dir: current.key === key && current.dir === 'asc' ? 'desc' : 'asc' }));
   return (
     <div className="oms-panel">
       <div className="oms-toolbar" style={{ marginBottom: 14 }}>
         <div><div className="oms-eyebrow">SKU Intelligence</div><h2>Warehouse truth and placement readiness</h2></div>
-        <span className="oms-muted">Right-click a row for actions</span>
+        <div className="oms-toolbar">
+          <label className="oms-local-search">
+            <Search size={15} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SKU, title, recommendation" />
+          </label>
+          <PageActions actions={actions} />
+        </div>
       </div>
+      {!skus.length ? (
+        <EmptyState
+          label="No SKUs found in the OMS database"
+          detail="Create catalog items or connect a marketplace feed before Cortex can forecast demand, pallet footprint, and placement."
+          action={{ label: 'Create SKU', href: '/catalog', icon: <Plus size={16} /> }}
+        />
+      ) : null}
       <div className="oms-table-wrap">
         <table className="oms-table">
           <thead>
             <tr>
-              <th></th><th>SKU</th><th>Title</th><th>Available</th><th>Days</th><th>Risk</th><th>Service</th><th>Pallet Fill</th><th>Recommendation</th>
+              <th></th>
+              {[
+                ['sku', 'SKU'],
+                ['title', 'Title'],
+                ['available', 'Available'],
+                ['daysOfCover', 'Days'],
+                ['risk', 'Risk'],
+                ['serviceTier', 'Service'],
+                ['fillPercent', 'Pallet Fill'],
+                ['recommendation', 'Recommendation'],
+              ].map(([key, label]) => (
+                <th key={key}>
+                  <button className="oms-sort-button" type="button" onClick={() => setSortKey(key as keyof OmsSku)}>
+                    {label}<ArrowUpDown size={13} />
+                  </button>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {skus.map((sku) => (
+            {filtered.map((sku) => (
               <tr
                 key={sku.id}
                 onClick={() => openSku(sku)}
@@ -363,6 +410,7 @@ function SkuTable({ skus, selected, toggleSku, openSku }: { skus: OmsSku[]; sele
           </tbody>
         </table>
       </div>
+      {skus.length > 0 && filtered.length === 0 && <p className="oms-muted">No SKUs match that search.</p>}
       {menu && (
         <div className="oms-context-menu" style={{ left: menu.x, top: menu.y }}>
           <button onClick={() => openSku(menu.sku)}>Open SKU intelligence</button>
@@ -415,7 +463,14 @@ function DetailModal({ sku, onClose }: { sku: any; onClose: () => void }) {
   );
 }
 
-function ShipmentWizard({ selected, onClose }: { selected: OmsSku[]; onClose: () => void }) {
+function ShipmentWizard({ selected, suppliers, locations, onClose }: { selected: OmsSku[]; suppliers: any[]; locations: any[]; onClose: () => void }) {
+  const [supplierId, setSupplierId] = useState(selected[0]?.supplierId || '');
+  const [shipFromLocationId, setShipFromLocationId] = useState('');
+  const [shipmentTitle, setShipmentTitle] = useState('');
+  const [estimatedArrivalDate, setEstimatedArrivalDate] = useState('');
+  const [boxCount, setBoxCount] = useState(1);
+  const [unitsPerBox, setUnitsPerBox] = useState(1);
+  const [palletCount, setPalletCount] = useState(1);
   const [requiresBol, setRequiresBol] = useState(true);
   const [requiresLabels, setRequiresLabels] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -426,28 +481,56 @@ function ShipmentWizard({ selected, onClose }: { selected: OmsSku[]; onClose: ()
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
   const confirm = async () => {
+    if (!supplierId) {
+      setResult('Select a supplier before creating the OMS shipment. This ties the shipment to a real ship-from source.');
+      return;
+    }
     setBusy(true);
     setResult(null);
+    const selectedItems = selected.map((item) => ({
+      id: item.id,
+      itemId: item.id,
+      sku: item.sku,
+      title: item.title,
+      quantity: Math.max(1, item.proposedUnits || item.available || 1),
+      boxCount,
+      unitsPerBox,
+      palletCount,
+    }));
     try {
       const draft = await omsFetch<any>('/shipment-wizard/drafts', {
         method: 'POST',
         body: JSON.stringify({
+          supplierId,
           requiresBol,
           requiresLabels,
-          selectedItems: selected.map((item) => ({
-            id: item.id,
-            itemId: item.id,
-            sku: item.sku,
-            title: item.title,
-            quantity: Math.max(1, item.proposedUnits),
-            boxCount: 1,
-            unitsPerBox: Math.max(1, item.proposedUnits),
-          })),
+          selectedItems,
+          packagePlan: { boxCount, unitsPerBox, palletCount },
         }),
       });
-      setResult(`Draft ${draft?.draft?.id || draft?.draft?.id || 'created'} created. ASN will be generated after supplier ship-from selection is present.`);
+      const draftId = draft?.draft?.id;
+      if (!draftId) {
+        setResult('Draft created, but the backend did not return a draft id.');
+        return;
+      }
+      const confirmed = await omsFetch<any>(`/shipment-wizard/drafts/${encodeURIComponent(draftId)}/confirm`, {
+        method: 'POST',
+        body: JSON.stringify({
+          supplierId,
+          shipFromLocationId: shipFromLocationId || null,
+          shipmentTitle,
+          estimatedArrivalDate,
+          requiresBol,
+          requiresLabels,
+          selectedItems,
+          packagePlan: { boxCount, unitsPerBox, palletCount },
+        }),
+      });
+      setResult(confirmed?.status === 'needs_setup'
+        ? confirmed.message
+        : `Shipment ${confirmed?.plan?.internal_shipment_id || confirmed?.plan?.internalShipmentId || draftId} created. ASN is projected and waiting for WMS truth.`);
     } catch (err: any) {
-      setResult(err?.message ? `Local draft prepared; API is offline (${err.message}).` : 'Local draft prepared; API is offline.');
+      setResult(err?.message || 'Shipment draft could not be created.');
     } finally {
       setBusy(false);
     }
@@ -462,19 +545,63 @@ function ShipmentWizard({ selected, onClose }: { selected: OmsSku[]; onClose: ()
         <div className="oms-page">
           <div className="oms-panel">
             <div className="oms-eyebrow">Selected SKUs</div>
-            <div className="oms-table-wrap" style={{ marginTop: 12 }}>
-              <table className="oms-table">
-                <thead><tr><th>SKU</th><th>Units</th><th>Pallet fill</th><th>Service</th><th>Routing</th></tr></thead>
-                <tbody>{selected.map((s) => <tr key={s.id}><td>{s.sku}</td><td>{fmt.format(s.proposedUnits)}</td><td>{s.fillPercent}%</td><td><Badge value={s.serviceTier} /></td><td>Cortex auto-routed</td></tr>)}</tbody>
-              </table>
-            </div>
+            {selected.length ? (
+              <div className="oms-table-wrap" style={{ marginTop: 12 }}>
+                <table className="oms-table">
+                  <thead><tr><th>SKU</th><th>Units</th><th>Pallet fill</th><th>Service</th><th>Routing</th></tr></thead>
+                  <tbody>{selected.map((s) => <tr key={s.id}><td>{s.sku}</td><td>{fmt.format(s.proposedUnits)}</td><td>{s.fillPercent}%</td><td><Badge value={s.serviceTier} /></td><td>Cortex auto-routed</td></tr>)}</tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState label="Select SKUs before creating a shipment" detail="The wizard can only create ASN intent after at least one real catalog item is selected from the inventory or SKU screen." action={{ label: 'Go to SKUs', href: '/oms?view=skus', icon: <PackageSearch size={16} /> }} />
+            )}
           </div>
           <div className="oms-two-grid">
+            <div className="oms-panel">
+              <div className="oms-eyebrow">Supplier Source</div>
+              <div className="oms-form-grid">
+                <label>
+                  Supplier
+                  <select value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
+                    <option value="">Select supplier</option>
+                    {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name || supplier.company_name || supplier.email || supplier.id}</option>)}
+                  </select>
+                </label>
+                <label>
+                  Ship-from location
+                  <select value={shipFromLocationId} onChange={(event) => setShipFromLocationId(event.target.value)}>
+                    <option value="">Use supplier default / add later</option>
+                    {locations.filter((location) => !supplierId || location.supplier_id === supplierId || location.supplierId === supplierId).map((location) => (
+                      <option key={location.id} value={location.id}>{location.name || location.label || location.address?.city || location.id}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Shipment title
+                  <input value={shipmentTitle} onChange={(event) => setShipmentTitle(event.target.value)} placeholder="Spring replenishment / FBA inbound / LTL pool" />
+                </label>
+                <label>
+                  Estimated arrival
+                  <input type="date" value={estimatedArrivalDate} onChange={(event) => setEstimatedArrivalDate(event.target.value)} />
+                </label>
+              </div>
+            </div>
             <div className="oms-panel">
               <div className="oms-eyebrow">Documents</div>
               <label style={{ display: 'flex', gap: 10, marginTop: 14 }}><input type="checkbox" checked={requiresBol} onChange={(e) => setRequiresBol(e.target.checked)} /> Generate BOL</label>
               <label style={{ display: 'flex', gap: 10, marginTop: 14 }}><input type="checkbox" checked={requiresLabels} onChange={(e) => setRequiresLabels(e.target.checked)} /> Generate shipping labels</label>
               <p className="oms-muted">ASN is mandatory and generated after confirmation. The client does not choose the warehouse.</p>
+            </div>
+          </div>
+          <div className="oms-two-grid">
+            <div className="oms-panel">
+              <div className="oms-eyebrow">Package Plan</div>
+              <div className="oms-form-grid compact">
+                <label>Boxes<input type="number" min={1} value={boxCount} onChange={(event) => setBoxCount(Math.max(1, Number(event.target.value) || 1))} /></label>
+                <label>Units / box<input type="number" min={1} value={unitsPerBox} onChange={(event) => setUnitsPerBox(Math.max(1, Number(event.target.value) || 1))} /></label>
+                <label>Pallets<input type="number" min={1} value={palletCount} onChange={(event) => setPalletCount(Math.max(1, Number(event.target.value) || 1))} /></label>
+              </div>
+              <p className="oms-muted">Cortex uses this package plan with SKU dimensions and WMS truth to determine pallet footprint and final routing.</p>
             </div>
             <div className="oms-panel">
               <div className="oms-eyebrow">Execution Rules</div>
@@ -489,18 +616,74 @@ function ShipmentWizard({ selected, onClose }: { selected: OmsSku[]; onClose: ()
   );
 }
 
-function GenericTableScreen({ type, rows }: { type: string; rows: any[] }) {
-  if (!rows?.length) return <EmptyState label={`No ${type} available yet.`} />;
-  const keys = Object.keys(rows[0] || {}).filter((k) => !['_id', 'id', '__v'].includes(k)).slice(0, 7);
+function GenericTableScreen({
+  type,
+  rows,
+  actions,
+  emptyDetail,
+  emptyAction,
+  onRowClick,
+}: {
+  type: string;
+  rows: any[];
+  actions?: PageAction[];
+  emptyDetail?: string;
+  emptyAction?: PageAction;
+  onRowClick?: (row: any) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
+  const keys = Object.keys(rows?.[0] || {}).filter((k) => !['_id', 'id', '__v', 'password', 'token'].includes(k)).slice(0, 8);
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    const base = term ? rows.filter((row) => cellText(row).toLowerCase().includes(term)) : rows;
+    if (!sort) return base;
+    return [...base].sort((a, b) => {
+      const av = a?.[sort.key];
+      const bv = b?.[sort.key];
+      const an = Number(av);
+      const bn = Number(bv);
+      const result = Number.isFinite(an) && Number.isFinite(bn) ? an - bn : renderCell(av).localeCompare(renderCell(bv));
+      return sort.dir === 'asc' ? result : -result;
+    });
+  }, [rows, query, sort]);
+  const setSortKey = (key: string) => setSort((current) => ({ key, dir: current?.key === key && current.dir === 'asc' ? 'desc' : 'asc' }));
   return (
     <div className="oms-panel">
-      <div className="oms-toolbar" style={{ marginBottom: 14 }}><div><div className="oms-eyebrow">{type}</div><h2>Production data projection</h2></div><RefreshCcw size={18} /></div>
+      <div className="oms-toolbar" style={{ marginBottom: 14 }}>
+        <div><div className="oms-eyebrow">{type}</div><h2>Database-backed records</h2></div>
+        <div className="oms-toolbar">
+          <label className="oms-local-search">
+            <Search size={15} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${type.toLowerCase()}`} />
+          </label>
+          <PageActions actions={actions} />
+        </div>
+      </div>
+      {!rows?.length ? (
+        <EmptyState label={`No ${type} available yet`} detail={emptyDetail} action={emptyAction} />
+      ) : null}
       <div className="oms-table-wrap">
         <table className="oms-table">
-          <thead><tr>{keys.map((k) => <th key={k}>{k}</th>)}</tr></thead>
-          <tbody>{rows.map((row, i) => <tr key={row._id || row.id || i}>{keys.map((k) => <td key={k}>{renderCell(row[k])}</td>)}</tr>)}</tbody>
+          <thead>
+            <tr>{keys.map((k) => (
+              <th key={k}>
+                <button className="oms-sort-button" type="button" onClick={() => setSortKey(k)}>
+                  {humanize(k)}<ArrowUpDown size={13} />
+                </button>
+              </th>
+            ))}</tr>
+          </thead>
+          <tbody>
+            {filtered.map((row, i) => (
+              <tr key={row._id || row.id || i} onClick={() => onRowClick?.(row)}>
+                {keys.map((k) => <td key={k}>{renderCell(row[k])}</td>)}
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
+      {rows.length > 0 && filtered.length === 0 && <p className="oms-muted">No records match that search.</p>}
     </div>
   );
 }
@@ -512,17 +695,78 @@ function renderCell(value: any) {
   return String(value);
 }
 
+function OrderModal({ order, onClose }: { order: any; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const customer = order?.customer_name || order?.customerName || order?.customer_email || order?.customerEmail || 'Customer not mapped';
+  const totals = order?.totals || {};
+  const shipping = order?.shipping_address || order?.shippingAddress || {};
+  return (
+    <div className="oms-full-modal" role="dialog" aria-modal="true">
+      <div className="oms-full-modal-head">
+        <div><div className="oms-eyebrow">Order Detail</div><h2 style={{ margin: 0 }}>{order?.external_order_id || order?.externalOrderId || order?.orderNo || order?.id}</h2></div>
+        <button className="oms-action-secondary" onClick={onClose}><X size={16} /> Close</button>
+      </div>
+      <div className="oms-full-modal-body">
+        <div className="oms-page">
+          <div className="oms-card-grid">
+            <MetricCard label="Customer" value={String(customer)} />
+            <MetricCard label="Total" value={money(totals.total || order?.total || 0)} />
+            <MetricCard label="Status" value={String(order?.status || 'unknown')} />
+            <MetricCard label="Channel" value={String(order?.account_channel || order?.channel || 'not connected')} />
+          </div>
+          <div className="oms-two-grid">
+            <div className="oms-panel">
+              <div className="oms-eyebrow">Shipping Destination</div>
+              <p className="oms-muted">{[shipping.name, shipping.address1, shipping.city, shipping.state || shipping.stateOrProvinceCode, shipping.postalCode || shipping.zip].filter(Boolean).join(', ') || 'No shipping address stored.'}</p>
+              <div className="oms-toolbar">
+                <button className="oms-action-secondary" onClick={() => window.location.assign('/customers')}>Open customers</button>
+                <button className="oms-action" onClick={() => window.location.assign('/shipment-plans')}>Create shipment plan</button>
+              </div>
+            </div>
+            <div className="oms-panel">
+              <div className="oms-eyebrow">OMS / WMS Execution</div>
+              <p className="oms-muted">Orders remain OMS demand signals until inventory and warehouse execution states are confirmed by the WMS integration.</p>
+              <MetricRows data={{
+                lineCount: Array.isArray(order?.lines) ? order.lines.length : 0,
+                paid: order?.paid === true ? 1 : 0,
+                fulfillmentRisk: order?.status === 'late' ? 1 : 0,
+              }} />
+            </div>
+          </div>
+          <GenericTableScreen
+            type="Order lines"
+            rows={Array.isArray(order?.lines) ? order.lines : []}
+            emptyDetail="No order lines are stored for this order yet. Connect marketplace line-item ingestion to enable SKU-level WMS allocation."
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HeatmapScreen({ data }: { data: any }) {
   if (!data) return <Loading />;
   return (
     <div className="oms-hero-grid">
       <div className="oms-panel">
         <div className="oms-eyebrow">United States Demand</div>
-        <div className="oms-map-grid" style={{ marginTop: 16 }}>{data.states?.map((s: any) => <div key={s.state} className={`oms-state-cell ${s.risk}`} title={`${s.state}: ${fmt.format(s.demand)} demand units`}>{s.state}</div>)}</div>
+        {data.states?.length ? (
+          <div className="oms-map-grid" style={{ marginTop: 16 }}>{data.states?.map((s: any) => <div key={s.state} className={`oms-state-cell ${s.risk}`} title={`${s.state}: ${fmt.format(s.demand)} demand units`}>{s.state}</div>)}</div>
+        ) : (
+          <EmptyState label="No regional demand data yet" detail="Connect marketplace orders or a custom order API so the heatmap can calculate state-level demand from real customer destinations." action={{ label: 'Connect marketplace', href: '/dashboard', icon: <ExternalLink size={16} /> }} />
+        )}
       </div>
       <div className="oms-panel">
         <div className="oms-eyebrow">Warehouses</div>
-        <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>{data.warehouses?.map((w: any) => <div key={w.id} className="oms-card"><strong>{w.name || w.code}</strong><p className="oms-muted">{w.state} · {fmt.format(w.inventoryUnits)} units · {w.activeSkus} SKUs</p></div>)}</div>
+        {data.warehouses?.length ? (
+          <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>{data.warehouses?.map((w: any) => <div key={w.id} className="oms-card"><strong>{w.name || w.code}</strong><p className="oms-muted">{w.state || 'state pending'} · {fmt.format(w.inventoryUnits)} units · {w.activeSkus} SKUs</p></div>)}</div>
+        ) : (
+          <EmptyState label="No WMS warehouse connection" detail="Connect WMS warehouses before the OMS can compare inventory placement against regional demand." action={{ label: 'Connect WMS', href: '/connect-warehouse', icon: <Building2 size={16} /> }} />
+        )}
       </div>
     </div>
   );
@@ -538,7 +782,12 @@ function LabelAuditScreen({ data }: { data: any }) {
         <MetricCard label="Service savings" value={money(data.summary?.optimizedServiceSavings || 0)} />
         <MetricCard label="Audit posture" value="Active" />
       </div>
-      <GenericTableScreen type="Carrier findings" rows={data.findings || []} />
+      <GenericTableScreen
+        type="Carrier findings"
+        rows={data.findings || []}
+        actions={[{ label: 'Upload carrier file', href: '/oms?view=labels', icon: <Upload size={16} /> }]}
+        emptyDetail="Carrier audit findings appear after carrier account enrichment or file uploads create evidence-backed refund opportunities."
+      />
     </div>
   );
 }
@@ -565,6 +814,7 @@ export default function OmsPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [supplierLocations, setSupplierLocations] = useState<any[]>([]);
   const [shipments, setShipments] = useState<any[]>([]);
   const [heatmap, setHeatmap] = useState<any>(null);
   const [labels, setLabels] = useState<any>(null);
@@ -572,8 +822,10 @@ export default function OmsPage() {
   const [ledger, setLedger] = useState<any[]>([]);
   const [selected, setSelected] = useState<Record<string, OmsSku>>({});
   const [detail, setDetail] = useState<any | null>(null);
+  const [orderDetail, setOrderDetail] = useState<any | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     void loadCore();
@@ -583,8 +835,22 @@ export default function OmsPage() {
     void loadView(view);
   }, [view]);
 
+  useEffect(() => {
+    if (!wizardOpen || suppliers.length || supplierLocations.length) return;
+    void omsFetch<any>('/suppliers')
+      .then((response) => {
+        setSuppliers(response.suppliers || []);
+        setSupplierLocations(response.locations || []);
+      })
+      .catch((error) => {
+        console.error('[OMS] supplier load for wizard failed', error);
+        setLoadError(error instanceof Error ? error.message : 'Unable to load suppliers for shipment wizard.');
+      });
+  }, [wizardOpen, suppliers.length, supplierLocations.length]);
+
   async function loadCore() {
     try {
+      setLoadError(null);
       const [cmd, bd, inv] = await Promise.all([
         omsFetch<CommandCenter>(`/command-center?range=${range}`),
         omsFetch<BusinessDoubleResponse>('/business-double'),
@@ -595,32 +861,42 @@ export default function OmsPage() {
       setPlan(inv);
     } catch (error) {
       console.error('[OMS] core load failed', error);
-      setCommand(fallbackCommand(range));
-      setBusiness(fallbackBusiness());
-      setPlan(fallbackPlan());
+      setLoadError(error instanceof Error ? error.message : 'OMS API is not reachable.');
+      setCommand(null);
+      setBusiness(null);
+      setPlan(null);
     }
   }
 
   async function loadView(next: ViewKey) {
     try {
+      setLoadError(null);
       if (next === 'orders') setOrders((await omsFetch<any>('/orders')).orders || []);
       if (next === 'customers') setCustomers((await omsFetch<any>('/customers')).customers || []);
-      if (next === 'suppliers') setSuppliers((await omsFetch<any>('/suppliers')).suppliers || []);
-      if (next === 'shipments') setShipments((await omsFetch<any>('/ledger')).events || []);
+      if (next === 'suppliers') {
+        const response = await omsFetch<any>('/suppliers');
+        setSuppliers(response.suppliers || []);
+        setSupplierLocations(response.locations || []);
+      }
+      if (next === 'shipments') setShipments((await fetchShipmentPlans({ limit: 200 })).plans || []);
       if (next === 'heatmap') setHeatmap(await omsFetch('/heatmap'));
       if (next === 'labels') setLabels(await omsFetch('/label-audit'));
       if (next === 'billing') setBilling(await omsFetch('/billing-profit'));
       if (next === 'ledger') setLedger((await omsFetch<any>('/ledger')).events || []);
     } catch (error) {
       console.error('[OMS] view load failed', error);
-      if (next === 'orders') setOrders([{ externalOrderId: 'UC-10492', channel: 'shopify', status: 'ready_to_ship', customer: 'M. Alvarez', total: '$184.21' }]);
-      if (next === 'customers') setCustomers([{ name: 'Northstar Trading', email: 'ops@northstar.example', ltv: '$18,420', risk: 'low' }]);
-      if (next === 'suppliers') setSuppliers([{ name: 'Atlantic Source Co.', leadTimeDays: 11, quality: '97%', activeSkus: 42 }]);
-      if (next === 'shipments') setShipments([{ event_type: 'asn_projected', source_system: 'oms', summary: 'ASN draft prepared after Cortex auto-routing.', created_at: new Date().toISOString() }]);
-      if (next === 'heatmap') setHeatmap({ states: ['CA', 'TX', 'FL', 'NJ', 'GA', 'IL', 'PA', 'AZ', 'WA', 'NC', 'OH', 'NY'].map((state, index) => ({ state, demand: 80 + index * 10, revenue: 2000 + index * 800, risk: index % 4 === 0 ? 'high' : index % 3 === 0 ? 'medium' : 'low' })), warehouses: fallbackPlan().warehouses.map((w, index) => ({ ...w, inventoryUnits: 900 + index * 550, activeSkus: 50 + index * 12 })) });
-      if (next === 'labels') setLabels({ summary: { openFindings: 18, estimatedRefunds: 1240, optimizedServiceSavings: 3120 }, findings: [{ carrier: 'UPS', trackingNumber: '1Z-DEMO-482', findingType: 'late_delivery_refund', severity: 'high', refundAmount: 42, status: 'open', recommendation: 'File refund with delivery evidence' }] });
-      if (next === 'billing') setBilling({ current: { freight: 18400, storage: 9200, handling: 11600, accessorials: 2600 }, optimized: { freight: 15400, storage: 8100, handling: 9800, accessorials: 1700 } });
-      if (next === 'ledger') setLedger([{ event_type: 'fallback_loaded', source_system: 'oms', summary: 'OMS cockpit fallback data loaded while local API is offline.', created_at: new Date().toISOString() }]);
+      setLoadError(error instanceof Error ? error.message : 'OMS API is not reachable.');
+      if (next === 'orders') setOrders([]);
+      if (next === 'customers') setCustomers([]);
+      if (next === 'suppliers') {
+        setSuppliers([]);
+        setSupplierLocations([]);
+      }
+      if (next === 'shipments') setShipments([]);
+      if (next === 'heatmap') setHeatmap({ states: [], warehouses: [] });
+      if (next === 'labels') setLabels({ summary: { openFindings: 0, estimatedRefunds: 0, optimizedServiceSavings: 0 }, findings: [] });
+      if (next === 'billing') setBilling({ current: {}, optimized: {} });
+      if (next === 'ledger') setLedger([]);
     }
   }
 
@@ -651,31 +927,58 @@ export default function OmsPage() {
       await loadCore();
       await loadView('ledger');
       void router.push('/oms?view=ledger');
-    } catch {
-      setLedger([{ event_type: 'approval_queued', source_system: 'oms', summary: 'Business Double approval is queued locally until the OMS backend is reachable.', created_at: new Date().toISOString() }]);
-      void router.push('/oms?view=ledger');
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Business Double approval failed.');
     } finally {
       setApproving(false);
     }
   };
 
+  const primaryActions: Record<string, PageAction[]> = {
+    command: [
+      { label: 'Create SKU', href: '/catalog', icon: <Plus size={16} /> },
+      { label: 'Create shipment', onClick: () => setWizardOpen(true), icon: <Truck size={16} /> },
+      { label: 'Connect marketplace', href: '/dashboard', icon: <ExternalLink size={16} />, variant: 'secondary' },
+    ],
+    inventory: [
+      { label: 'Create SKU', href: '/catalog', icon: <Plus size={16} /> },
+      { label: 'Create shipment', onClick: () => setWizardOpen(true), icon: <Truck size={16} /> },
+      { label: 'Connect WMS', href: '/connect-warehouse', icon: <Building2 size={16} />, variant: 'secondary' },
+    ],
+    skus: [
+      { label: 'Create SKU', href: '/catalog', icon: <Plus size={16} /> },
+      { label: 'Create shipment', onClick: () => setWizardOpen(true), icon: <Truck size={16} /> },
+    ],
+    orders: [
+      { label: 'Connect marketplace', href: '/dashboard', icon: <ExternalLink size={16} /> },
+      { label: 'Create shipment', onClick: () => setWizardOpen(true), icon: <Truck size={16} />, variant: 'secondary' },
+    ],
+    customers: [{ label: 'Create customer', href: '/customers', icon: <Plus size={16} /> }],
+    suppliers: [{ label: 'Create supplier', href: '/suppliers', icon: <Plus size={16} /> }],
+    shipments: [{ label: 'Create shipment plan', href: '/shipment-plans', icon: <Plus size={16} /> }],
+    heatmap: [{ label: 'Connect warehouse', href: '/connect-warehouse', icon: <Building2 size={16} /> }],
+    labels: [{ label: 'Upload carrier file', href: '/oms?view=labels', icon: <Upload size={16} /> }],
+    ledger: [{ label: 'Refresh ledger', onClick: () => void loadView('ledger'), icon: <RefreshCcw size={16} />, variant: 'secondary' }],
+  };
+
   const screen =
     view === 'business' ? <BusinessScreen data={business} onApprove={approveBusiness} approving={approving} /> :
-    view === 'inventory' ? <InventoryScreen plan={plan} selected={selected} toggleSku={toggleSku} openSku={openSku} /> :
-    view === 'skus' ? <div className="oms-page"><SkuTable skus={plan?.skus || []} selected={selected} toggleSku={toggleSku} openSku={openSku} /></div> :
-    view === 'orders' ? <GenericTableScreen type="Orders" rows={orders} /> :
-    view === 'customers' ? <GenericTableScreen type="Customers" rows={customers} /> :
-    view === 'suppliers' ? <GenericTableScreen type="Suppliers" rows={suppliers} /> :
-    view === 'shipments' ? <GenericTableScreen type="Shipment / ASN activity" rows={shipments} /> :
+    view === 'inventory' ? <InventoryScreen plan={plan} selected={selected} toggleSku={toggleSku} openSku={openSku} actions={primaryActions.inventory} /> :
+    view === 'skus' ? <div className="oms-page"><SkuTable skus={plan?.skus || []} selected={selected} toggleSku={toggleSku} openSku={openSku} actions={primaryActions.skus} /></div> :
+    view === 'orders' ? <GenericTableScreen type="Orders" rows={orders} actions={primaryActions.orders} onRowClick={setOrderDetail} emptyDetail="Connect Amazon, Shopify, eBay, or a custom OMS order API before this page can show order activity." emptyAction={primaryActions.orders[0]} /> :
+    view === 'customers' ? <GenericTableScreen type="Customers" rows={customers} actions={primaryActions.customers} emptyDetail="Create customers directly or sync them from connected marketplace/order channels." emptyAction={primaryActions.customers[0]} /> :
+    view === 'suppliers' ? <GenericTableScreen type="Suppliers" rows={suppliers} actions={primaryActions.suppliers} emptyDetail="Suppliers and ship-from locations are required before shipments can be built from inventory." emptyAction={primaryActions.suppliers[0]} /> :
+    view === 'shipments' ? <GenericTableScreen type="Shipment plans" rows={shipments} actions={primaryActions.shipments} emptyDetail="Create a shipment plan or select SKUs to start the auto-routed OMS shipment wizard." emptyAction={primaryActions.shipments[0]} /> :
     view === 'heatmap' ? <HeatmapScreen data={heatmap} /> :
     view === 'labels' ? <LabelAuditScreen data={labels} /> :
     view === 'billing' ? <BillingScreen data={billing} /> :
     view === 'marketplace' ? <MarketplaceScreen /> :
-    view === 'ledger' ? <GenericTableScreen type="Intelligence ledger" rows={ledger} /> :
-    <CommandScreen data={command} range={range} setRange={setRange} />;
+    view === 'ledger' ? <GenericTableScreen type="Intelligence ledger" rows={ledger} actions={primaryActions.ledger} emptyDetail="Ledger entries appear after approved Business Double plans, shipment confirmations, WMS callbacks, carrier audit activity, and Cortex orchestration events." /> :
+    <CommandScreen data={command} range={range} setRange={setRange} actions={primaryActions.command} />;
 
   return (
     <DashboardLayout title={copy.title} subtitle={copy.subtitle}>
+      {loadError && <div className="oms-error-banner"><ShieldAlert size={16} /> {loadError}</div>}
       {screen}
       {selectedList.length > 0 && (
         <div className="oms-selection-bar">
@@ -686,7 +989,8 @@ export default function OmsPage() {
         </div>
       )}
       {detail && <DetailModal sku={detail} onClose={() => setDetail(null)} />}
-      {wizardOpen && <ShipmentWizard selected={selectedList} onClose={() => setWizardOpen(false)} />}
+      {orderDetail && <OrderModal order={orderDetail} onClose={() => setOrderDetail(null)} />}
+      {wizardOpen && <ShipmentWizard selected={selectedList} suppliers={suppliers} locations={supplierLocations} onClose={() => setWizardOpen(false)} />}
     </DashboardLayout>
   );
 }
