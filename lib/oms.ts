@@ -73,6 +73,7 @@ export type BusinessDoubleResponse = {
     status: string;
     title: string;
     summary: string;
+    forecastHorizonMonths?: number;
     currentMetrics: Record<string, number>;
     optimizedMetrics: Record<string, number>;
     savings: Record<string, number>;
@@ -82,3 +83,232 @@ export type BusinessDoubleResponse = {
   latestApproved?: unknown;
   persistence: string;
 };
+
+/* ============================ Extended OMS types ============================ */
+
+export type CommandCenterFull = {
+  range: OmsRange;
+  generatedAt?: string;
+  source?: { sales?: string; inventory?: string; persistence?: string };
+  metrics: CommandCenter['metrics'];
+  warnings: Array<{ severity: string; title: string; detail: string }>;
+  autonomousActivity: Array<{ system: string; action: string; status: string; confidence: number; at: string; impact?: string }>;
+  counts: Record<string, number>;
+};
+
+export type InventoryPlanFull = {
+  horizon?: string;
+  generatedAt?: string;
+  current: { skuCount?: number; warehouseCount?: number; stockoutRiskSkus?: number; estimatedMonthlyCost?: number } & Record<string, number>;
+  proposed: { warehouseCount?: number; stockoutRiskSkus?: number; estimatedMonthlyCost?: number; sharedPalletCandidates?: number } & Record<string, number>;
+  months: Array<{ month: string; projectedUnits: number; proposedReplenishment: number; savings: number }>;
+  skus: OmsSku[];
+  warehouses: Array<{ id: string; code?: string; name?: string; city?: string; state?: string }>;
+};
+
+export type OmsSkuDetail = {
+  id: string;
+  sku: string;
+  title?: string;
+  asin?: string;
+  image?: string | null;
+  supplierId?: string | null;
+  dimensions?: { length?: number; width?: number; height?: number } | null;
+  weight?: number | null;
+  price?: number;
+  margin?: number;
+  intelligence?: Record<string, unknown> & {
+    risk?: string;
+    available?: number;
+    inbound?: number;
+    daysOfCover?: number;
+    velocity30d?: number;
+    revenue30d?: number;
+    grossProfit30d?: number;
+  };
+  nextShipments: Array<{ id: string; date: string; origin: string; destination: string; quantity: number; status: string; cube?: number; mode?: string }>;
+  warehouses: Array<{ code: string; name?: string; region?: string; available: number; inbound: number; daysOfCover: number; storageCost?: number; velocityPerDay?: number; status?: string }>;
+  history: Array<{ ts: string; type: string; actor: string; subject: string; impact?: number | null }>;
+  channels?: Array<{ channel: string; units30d: number; revenue30d: number; shareOfDemand: number; refundRate: number }>;
+  billing?: { currentMonthly: number; optimizedMonthly: number; drivers?: Array<{ wh: string; storage: number; handling: number; accessorial?: number }> };
+  relatedSkus?: Array<{ id: string; sku: string; title?: string; daysOfCover: number }>;
+};
+
+export type OmsOrder = {
+  id: string;
+  ch?: string;
+  account_channel?: string;
+  chOrderId?: string;
+  customer?: string;
+  customer_name?: string;
+  customer_email?: string;
+  display_name?: string;
+  state?: string;
+  items?: number;
+  qty?: number;
+  total?: number;
+  status?: string;
+  sla?: string;
+  wh?: string;
+  sku?: string;
+  skuName?: string;
+  date?: string;
+  promised?: string;
+  carrier?: string;
+  tracking?: string;
+  cost?: number;
+};
+
+export type OmsCustomer = {
+  id: string;
+  name: string;
+  email?: string;
+  state?: string;
+  city?: string;
+  primaryChannel?: string;
+  orders: number;
+  ltv: number;
+  aov: number;
+  lastOrder?: string;
+  firstOrder?: string;
+  segment?: string;
+  tags?: string[];
+};
+
+export type OmsSupplier = {
+  id: string;
+  name: string;
+  country?: string;
+  region?: string;
+  leadTime?: number;
+  onTime?: number;
+  qualityPass?: number;
+  paymentTerms?: string;
+  relationship?: string;
+  spend90d?: number;
+  spendYTD?: number;
+  skuCount?: number;
+  rating?: number;
+  contact?: string;
+  skus?: string[];
+};
+
+export type HeatmapResponse = {
+  states: Array<{ state: string; demand: number; revenue: number; risk?: number; orders?: number }>;
+  warehouses: Array<{ id: string; name?: string; code?: string; state?: string; inventoryUnits?: number; activeSkus?: number; capacity?: number; region?: string; status?: string }>;
+};
+
+export type LabelAuditResponse = {
+  findings: Array<{
+    id: string;
+    order?: string;
+    carrier: string;
+    service?: string;
+    trackingNumber?: string;
+    tracking?: string;
+    findingType?: string;
+    issue?: string;
+    severity?: string;
+    refundAmount?: number;
+    refund?: number;
+    cost?: number;
+    weight?: string | number;
+    dim?: string;
+    zone?: number;
+    shipped?: string;
+    promised?: string;
+    delivered?: string;
+    status?: string;
+    auditStatus?: string;
+    recommendation?: string;
+    optimizedCarrier?: string;
+    optimizedCost?: number;
+  }>;
+  summary: { openFindings?: number; estimatedRefunds?: number; optimizedServiceSavings?: number; labels30d?: number; lateDeliveries?: number };
+};
+
+export type BillingProfitResponse = {
+  revenue?: number;
+  current: { freight: number; storage: number; handling: number; accessorials: number; refundsCaptured: number; lostRevenue?: number } & Record<string, number>;
+  optimized: { freight: number; storage: number; handling: number; accessorials: number; refundsCaptured: number; lostRevenue?: number } & Record<string, number>;
+  perWarehouse?: Array<{ code: string; region?: string; current: number; optimized: number }>;
+};
+
+export type LedgerResponse = {
+  events: Array<{
+    id: string;
+    entity_type?: string;
+    entity_id?: string;
+    event_type?: string;
+    source_system?: string;
+    actor?: string;
+    type?: string;
+    summary?: string;
+    subject?: string;
+    payload?: Record<string, unknown>;
+    confidence?: number;
+    impact?: number;
+    evidence?: number;
+    status?: string;
+    created_at?: string;
+    ts?: string;
+  }>;
+  persistence?: string;
+};
+
+export type CopilotContext = {
+  screen: string;
+  posture?: string;
+  summary?: string;
+  recommendedPrompts?: string[];
+  latestSignals?: Array<{ title?: string; detail?: string; confidence?: number }>;
+};
+
+export const fetchCommandCenter = (range: OmsRange) =>
+  omsFetch<CommandCenterFull>(`/command-center?range=${range}`);
+
+export const fetchBusinessDouble = () => omsFetch<BusinessDoubleResponse>('/business-double');
+
+export const approveBusinessDouble = (planId: string) =>
+  omsFetch<{ approved: boolean; planId: string }>(`/business-double/${encodeURIComponent(planId)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+
+export const fetchInventoryPlan = (horizon: '6m' | '3m' = '6m') =>
+  omsFetch<InventoryPlanFull>(`/inventory-plan?horizon=${horizon}`);
+
+export const fetchOmsSkus = () => omsFetch<{ skus: OmsSku[]; total: number }>('/skus');
+
+export const fetchOmsSkuDetail = (skuId: string) =>
+  omsFetch<OmsSkuDetail>(`/skus/${encodeURIComponent(skuId)}`);
+
+export const fetchOmsOrders = () => omsFetch<{ orders: OmsOrder[] }>('/orders');
+
+export const fetchOmsCustomers = () => omsFetch<{ customers: OmsCustomer[] }>('/customers');
+
+export const fetchOmsSuppliers = () =>
+  omsFetch<{ suppliers: OmsSupplier[]; locations: Array<Record<string, unknown>> }>('/suppliers');
+
+export const fetchHeatmap = () => omsFetch<HeatmapResponse>('/heatmap');
+
+export const fetchLabelAudit = () => omsFetch<LabelAuditResponse>('/label-audit');
+
+export const fetchBillingProfit = () => omsFetch<BillingProfitResponse>('/billing-profit');
+
+export const fetchLedger = () => omsFetch<LedgerResponse>('/ledger');
+
+export const fetchCopilotContext = (screen: string) =>
+  omsFetch<CopilotContext>(`/copilot/context?screen=${encodeURIComponent(screen)}`);
+
+export const createShipmentDraft = (body: unknown) =>
+  omsFetch<{ draft: { id: string } & Record<string, unknown>; persistence: string }>('/shipment-wizard/drafts', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const confirmShipmentDraft = (draftId: string, body: unknown) =>
+  omsFetch<Record<string, unknown>>(`/shipment-wizard/drafts/${encodeURIComponent(draftId)}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });

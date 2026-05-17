@@ -3,6 +3,7 @@ import Head from 'next/head';
 import '../styles/globals.css';
 import '../styles/nav-fixes.css';
 import '../styles/oms.css';
+import '../styles/oms-design.css';
 
 export default function App({ Component, pageProps }: AppProps) {
   return (

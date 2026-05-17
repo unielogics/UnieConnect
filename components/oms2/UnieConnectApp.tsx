@@ -1,0 +1,269 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
+import { CtxMenuProvider } from './ContextMenu';
+import { Sidebar } from './Sidebar';
+import { TopBar } from './TopBar';
+import { SelectionBar, SelSku } from './SelectionBar';
+import { Icon } from './icons';
+import { AICopilot } from './AICopilot';
+import { ShipmentWizard } from './ShipmentWizard';
+import { OrderModal } from './OrderModal';
+import { TweaksPanel } from './TweaksPanel';
+import { CommandCenter } from './screens/CommandCenter';
+import { BusinessDouble } from './screens/BusinessDouble';
+import { InventoryPlan } from './screens/InventoryPlan';
+import { InventoryNetwork } from './screens/InventoryNetwork';
+import { SkuDetail } from './screens/SkuDetail';
+import { Orders } from './screens/Orders';
+import { Shipments } from './screens/Shipments';
+import { Customers } from './screens/Customers';
+import { Suppliers } from './screens/Suppliers';
+import { Heatmap } from './screens/Heatmap';
+import { LabelAudit } from './screens/LabelAudit';
+import { Billing } from './screens/Billing';
+import { Audits } from './screens/Audits';
+import { Marketplace } from './screens/Marketplace';
+import { Support } from './screens/Support';
+import { Connections } from './screens/Connections';
+import { Ledger } from './screens/Ledger';
+import type { OmsOrder, OmsSku } from '../../lib/oms';
+import { fetchCurrentUser } from '../../lib/user';
+
+export type Tweaks = { theme: 'light' | 'dark'; accent: string; density: 'comfortable' | 'compact'; cortexAvailable: boolean };
+export const ACCENT_OPTIONS = ['#3157f6', '#6d28d9', '#0d9488', '#db2777'];
+const TWEAK_KEY = 'uc-oms-tweaks';
+const DEFAULT_TWEAKS: Tweaks = { theme: 'light', accent: '#3157f6', density: 'comfortable', cortexAvailable: true };
+
+export type NavFn = (target: string, payload?: string) => void;
+
+export interface ScreenProps {
+  onNavigate: NavFn;
+  toggleSelect: (sku: SelSku) => void;
+  isSelected: (id: string) => boolean;
+  onOpenOrder?: (o: OmsOrder) => void;
+  onCreateShipmentWithSupplier?: (supplierId: string, skus: SelSku[]) => void;
+  skuId?: string | null;
+  cortexAvailable?: boolean;
+}
+
+const CortexDegradedBanner = () => (
+  <div
+    style={{
+      position: 'fixed',
+      bottom: 80,
+      left: '50%',
+      transform: 'translateX(-50%)',
+      background: 'var(--amber-soft)',
+      color: 'var(--amber-text)',
+      border: '1px solid var(--amber)',
+      borderRadius: 8,
+      padding: '8px 14px',
+      fontSize: 12.5,
+      fontWeight: 600,
+      zIndex: 100,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      boxShadow: 'var(--shadow-md)',
+    }}
+  >
+    <Icon name="warning" size={14} />
+    Cortex unavailable — AI recommendations showing cached values (12 min stale). Operating views fully functional.
+  </div>
+);
+
+export default function UnieConnectApp() {
+  const router = useRouter();
+  const [tweaks, setTweaks] = useState<Tweaks>(DEFAULT_TWEAKS);
+  const [section, setSection] = useState('command');
+  const [skuDetailId, setSkuDetailId] = useState<string | null>(null);
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [selectedSkus, setSelectedSkus] = useState<SelSku[]>([]);
+  const [skuSupplierMap, setSkuSupplierMap] = useState<Record<string, string | null>>({});
+  const [showWizard, setShowWizard] = useState(false);
+  const [orderModal, setOrderModal] = useState<OmsOrder | null>(null);
+  const [forcedSupplierId, setForcedSupplierId] = useState<string | null>(null);
+  const [userName, setUserName] = useState('Jordan Martinelli');
+
+  // Load tweaks from storage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(TWEAK_KEY);
+      if (raw) setTweaks({ ...DEFAULT_TWEAKS, ...JSON.parse(raw) });
+      else {
+        const legacy = localStorage.getItem('unie-theme');
+        if (legacy === 'dark' || legacy === 'light') setTweaks((t) => ({ ...t, theme: legacy }));
+      }
+    } catch {
+      /* noop */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCurrentUser()
+      .then((u: any) => {
+        const n = [u?.firstName, u?.lastName].filter(Boolean).join(' ') || u?.email;
+        if (n) setUserName(n);
+      })
+      .catch(() => {});
+  }, []);
+
+  const setTweak = useCallback(<K extends keyof Tweaks>(k: K, v: Tweaks[K]) => {
+    setTweaks((prev) => {
+      const next = { ...prev, [k]: v };
+      try {
+        localStorage.setItem(TWEAK_KEY, JSON.stringify(next));
+        if (k === 'theme') localStorage.setItem('unie-theme', String(v));
+      } catch {
+        /* noop */
+      }
+      return next;
+    });
+  }, []);
+
+  // Sync section from URL (?view= & ?sku=)
+  useEffect(() => {
+    if (!router.isReady) return;
+    const v = (router.query.view as string) || 'command';
+    setSection(v);
+    if (v === 'sku-detail') setSkuDetailId((router.query.sku as string) || null);
+  }, [router.isReady, router.query.view, router.query.sku]);
+
+  const navigate: NavFn = useCallback(
+    (target, payload) => {
+      const q: Record<string, string> = { view: target };
+      if (target === 'sku-detail') {
+        const id = payload || skuDetailId || '';
+        setSkuDetailId(id);
+        if (id) q.sku = id;
+      }
+      setSection(target);
+      router.push({ pathname: '/oms', query: q }, undefined, { shallow: true });
+    },
+    [router, skuDetailId]
+  );
+
+  const toggleSelect = useCallback((sku: SelSku & { supplierId?: string | null }) => {
+    setSelectedSkus((prev) =>
+      prev.find((s) => s.id === sku.id) ? prev.filter((s) => s.id !== sku.id) : [...prev, { id: sku.id, name: sku.name }]
+    );
+    if ('supplierId' in sku) setSkuSupplierMap((m) => ({ ...m, [sku.id]: sku.supplierId ?? null }));
+  }, []);
+
+  const isSelected = useCallback((id: string) => selectedSkus.some((s) => s.id === id), [selectedSkus]);
+
+  const supplierMixed = useMemo(() => {
+    if (selectedSkus.length < 2) return false;
+    const sups = selectedSkus.map((s) => skuSupplierMap[s.id]).filter((x) => x != null);
+    if (sups.length < 2) return false;
+    return new Set(sups).size > 1;
+  }, [selectedSkus, skuSupplierMap]);
+
+  const createShipmentForSupplier = useCallback((supplierId: string, skus: SelSku[]) => {
+    setSelectedSkus(skus);
+    setForcedSupplierId(supplierId);
+    setShowWizard(true);
+  }, []);
+
+  // Apply theme/density/accent to shell root only
+  const shellRef = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el) return;
+    el.dataset.theme = tweaks.theme;
+    el.dataset.density = tweaks.density;
+    el.style.setProperty('--accent', tweaks.accent);
+    el.style.setProperty('--accent-hover', tweaks.accent);
+  }, [tweaks]);
+
+  const sp: ScreenProps = {
+    onNavigate: navigate,
+    toggleSelect,
+    isSelected,
+    onOpenOrder: setOrderModal,
+    onCreateShipmentWithSupplier: createShipmentForSupplier,
+    cortexAvailable: tweaks.cortexAvailable,
+  };
+
+  const screens: Record<string, React.ReactNode> = {
+    command: <CommandCenter {...sp} />,
+    double: <BusinessDouble {...sp} />,
+    plan: <InventoryPlan {...sp} />,
+    skus: <InventoryNetwork {...sp} />,
+    'sku-detail': <SkuDetail {...sp} skuId={skuDetailId} />,
+    orders: <Orders {...sp} />,
+    customers: <Customers {...sp} />,
+    suppliers: <Suppliers {...sp} />,
+    shipments: <Shipments {...sp} />,
+    heatmap: <Heatmap {...sp} />,
+    labels: <LabelAudit {...sp} />,
+    billing: <Billing {...sp} />,
+    audits: <Audits {...sp} />,
+    marketplace: <Marketplace {...sp} />,
+    support: <Support {...sp} />,
+    connections: <Connections {...sp} />,
+    ledger: <Ledger {...sp} />,
+  };
+
+  return (
+    <div className="uc-shell" ref={shellRef} data-theme={tweaks.theme} data-density={tweaks.density}>
+      <CtxMenuProvider>
+        <div className={`app ${copilotOpen ? 'copilot-open' : ''}`}>
+          <Sidebar active={section} onNavigate={navigate} userName={userName} />
+          <div className="workspace">
+            <TopBar
+              section={section}
+              copilotOpen={copilotOpen}
+              onToggleCopilot={() => setCopilotOpen((o) => !o)}
+              theme={tweaks.theme}
+              onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
+            />
+            {screens[section] || <CommandCenter {...sp} />}
+          </div>
+          {copilotOpen && (
+            <AICopilot
+              section={section}
+              onClose={() => setCopilotOpen(false)}
+              cortexAvailable={tweaks.cortexAvailable}
+            />
+          )}
+
+          <SelectionBar
+            count={selectedSkus.length}
+            items={selectedSkus}
+            supplierMixed={supplierMixed}
+            onClear={() => setSelectedSkus([])}
+            onCreateShipment={() => setShowWizard(true)}
+            onExport={() => {}}
+            onDelete={() => setSelectedSkus([])}
+          />
+
+          {showWizard && (
+            <ShipmentWizard
+              skus={selectedSkus}
+              forcedSupplierId={forcedSupplierId}
+              onClose={() => {
+                setShowWizard(false);
+                setForcedSupplierId(null);
+              }}
+              onComplete={() => {
+                setShowWizard(false);
+                setSelectedSkus([]);
+                setForcedSupplierId(null);
+                navigate('shipments');
+              }}
+            />
+          )}
+
+          {orderModal && (
+            <OrderModal order={orderModal} onClose={() => setOrderModal(null)} onNavigate={navigate} />
+          )}
+
+          <TweaksPanel tweaks={tweaks} setTweak={setTweak} />
+
+          {!tweaks.cortexAvailable && <CortexDegradedBanner />}
+        </div>
+      </CtxMenuProvider>
+    </div>
+  );
+}

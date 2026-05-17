@@ -1,0 +1,223 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Icon } from '../icons';
+import { Chip, Loading, ErrorState, EmptyState } from '../ui';
+import { fetchMarketplaceFeatures, enableFeature, disableFeature, Feature } from '../../../lib/features';
+import type { ScreenProps } from '../UnieConnectApp';
+
+const COLORS = ['#6d28d9', '#3157f6', '#0d9488', '#f59e0b', '#b42318', '#db2777', '#10b981', '#0369a1'];
+const colorFor = (id: string) => COLORS[[...id].reduce((s, c) => s + c.charCodeAt(0), 0) % COLORS.length];
+const iconFor = (f: Feature): string => {
+  const c = (f.category || '').toLowerCase();
+  if (c.includes('account') || c.includes('billing')) return 'billing';
+  if (c.includes('analytic')) return 'layers';
+  if (c.includes('workflow') || c.includes('automation')) return 'bolt';
+  if (c.includes('customer')) return 'support';
+  if (c.includes('ai') || c.includes('bot')) return 'sparkle';
+  return 'grid';
+};
+const priceLabel = (f: Feature) => {
+  const p = f.pricing;
+  if (!p || p.type === 'free') return 'Free';
+  if (p.type === 'one-time') return p.amount ? `$${p.amount} once` : 'One-time';
+  return p.amount ? `$${p.amount}/mo` : 'Subscription';
+};
+
+export const Marketplace = (_: ScreenProps) => {
+  const [features, setFeatures] = useState<Feature[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [cat, setCat] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    setErr(null);
+    fetchMarketplaceFeatures({ limit: 60 })
+      .then((r) => {
+        setFeatures(r.features || []);
+        setCategories(r.categories || Array.from(new Set((r.features || []).map((f) => f.category).filter(Boolean))));
+      })
+      .catch((e) => setErr(e.message || 'Failed to load marketplace'))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, []);
+
+  const toggle = async (f: Feature) => {
+    setBusy(f.id);
+    try {
+      if (f.isEnabled) await disableFeature(f.slug || f.id);
+      else await enableFeature(f.slug || f.id);
+      setFeatures((prev) => prev.map((x) => (x.id === f.id ? { ...x, isEnabled: !x.isEnabled } : x)));
+    } catch (e) {
+      /* surfaced via reload */
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const filtered = useMemo(() => (cat === 'all' ? features : features.filter((f) => f.category === cat)), [features, cat]);
+  const featured = features.find((f) => (f.tags || []).includes('featured')) || features[0];
+  const installedCount = features.filter((f) => f.isEnabled).length;
+
+  const catTabs = [{ id: 'all', label: 'All' }, ...categories.map((c) => ({ id: c, label: c }))];
+
+  return (
+    <div className="page fade-in">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Marketplace</h1>
+          <p className="page-subtitle">
+            Extend UnieConnect with AI bots, automations, accounting connectors, and analytics widgets — installed in one click.
+          </p>
+        </div>
+        <div className="page-actions">
+          <button className="btn">
+            <Icon name="settings" size={13} /> Manage installed ({installedCount})
+          </button>
+          <button className="btn primary"><Icon name="plus" size={13} /> Suggest an app</button>
+        </div>
+      </div>
+
+      {err ? (
+        <div className="card"><ErrorState message={err} onRetry={load} /></div>
+      ) : loading ? (
+        <div className="card"><Loading rows={5} /></div>
+      ) : features.length === 0 ? (
+        <div className="card"><EmptyState>No marketplace apps available yet.</EmptyState></div>
+      ) : (
+        <>
+          {featured && (
+            <div
+              className="card"
+              style={{
+                marginBottom: 18,
+                background: `linear-gradient(135deg, ${colorFor(featured.id)}15 0%, var(--bg-elev) 60%)`,
+                border: `1px solid ${colorFor(featured.id)}40`,
+              }}
+            >
+              <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 24, alignItems: 'center' }}>
+                <div style={{ width: 72, height: 72, borderRadius: 16, background: colorFor(featured.id), color: 'white', display: 'grid', placeItems: 'center', boxShadow: `0 8px 24px ${colorFor(featured.id)}40` }}>
+                  <Icon name={iconFor(featured)} size={32} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Chip tone="purple" dot={false}>FEATURED</Chip>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{featured.category}</span>
+                  </div>
+                  <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', marginBottom: 4 }}>{featured.name}</div>
+                  <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 10 }}>{featured.description}</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {(featured.tags || []).slice(0, 4).map((c) => (
+                      <Chip key={c} dot={false} tone="outline">
+                        {c}
+                      </Chip>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>{priceLabel(featured)}</div>
+                  <button className={`btn lg ${featured.isEnabled ? '' : 'primary'}`} onClick={() => toggle(featured)} disabled={busy === featured.id}>
+                    {featured.isEnabled ? (
+                      <>
+                        <Icon name="check" size={13} /> Installed
+                      </>
+                    ) : (
+                      'Install'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+            {catTabs.map((c) => {
+              const count = c.id === 'all' ? features.length : features.filter((f) => f.category === c.id).length;
+              const active = cat === c.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setCat(c.id)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                    background: active ? 'var(--accent-soft)' : 'var(--bg-elev)',
+                    color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {c.label}
+                  <span style={{ background: active ? 'var(--accent)' : 'var(--bg-active)', color: active ? 'white' : 'var(--text-tertiary)', padding: '0 6px', borderRadius: 999, fontSize: 10.5, fontWeight: 700 }}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 14 }}>
+            {filtered.map((app) => (
+              <div key={app.id} className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 230 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 10, background: colorFor(app.id), color: 'white', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                      <Icon name={iconFor(app)} size={18} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {app.name}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'capitalize' }}>{app.category}</div>
+                    </div>
+                  </div>
+                  {app.isEnabled && (
+                    <Chip tone="green" dot={false}>
+                      Installed
+                    </Chip>
+                  )}
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, flex: 1 }}>{app.description}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {(app.tags || []).slice(0, 3).map((c) => (
+                    <span key={c} style={{ fontSize: 10.5, color: 'var(--text-secondary)', background: 'var(--bg-sunken)', padding: '3px 7px', borderRadius: 4 }}>
+                      {c}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{priceLabel(app)}</div>
+                  <button className={`btn ${app.isEnabled ? '' : 'primary'} sm`} onClick={() => toggle(app)} disabled={busy === app.id}>
+                    {app.isEnabled ? 'Manage' : 'Install'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="card" style={{ marginTop: 18, background: 'var(--bg-sunken)' }}>
+            <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 22 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Build your own bot or widget</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Use the Cortex SDK to ship custom AI agents that read OMS facts, call Cortex, and publish actions to the ledger.
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn">Read SDK docs</button>
+                <button className="btn primary">Open builder</button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
