@@ -350,8 +350,10 @@ export type CreateCatalogItemBody = {
   tags?: string[];
 };
 
-export const createCatalogItem = (body: CreateCatalogItemBody) =>
-  apiFetch<{ item: Record<string, unknown> }>('/items', { method: 'POST', body: JSON.stringify(body) });
+export const createCatalogItem = async (body: CreateCatalogItemBody) => {
+  const result = await apiFetch<any>('/items', { method: 'POST', body: JSON.stringify(body) });
+  return { item: result?.item || result };
+};
 
 export type CreateCustomerBody = {
   name: string;
@@ -364,11 +366,13 @@ export type CreateCustomerBody = {
   metadata?: Record<string, unknown>;
 };
 
-export const createCustomer = (body: CreateCustomerBody) =>
-  apiFetch<{ customer: { id: string } & Record<string, unknown> }>('/customers', {
+export const createCustomer = async (body: CreateCustomerBody) => {
+  const result = await apiFetch<any>('/customers', {
     method: 'POST',
     body: JSON.stringify(body),
   });
+  return { customer: result?.customer || result };
+};
 
 export type CreateOrderLine = {
   itemId?: string;
@@ -393,11 +397,13 @@ export type CreateOrderBody = {
   metadata?: Record<string, unknown>;
 };
 
-export const createManualOrder = (body: CreateOrderBody) =>
-  apiFetch<{ order: { id: string } & Record<string, unknown> }>('/orders', {
+export const createManualOrder = async (body: CreateOrderBody) => {
+  const result = await apiFetch<any>('/orders', {
     method: 'POST',
     body: JSON.stringify(body),
   });
+  return { order: result?.order || result };
+};
 
 export type SupportTicket = {
   id: string;
