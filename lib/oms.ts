@@ -193,9 +193,29 @@ export type OmsCustomer = {
   tags?: string[];
 };
 
+export type SupplierPickupProfile = {
+  loadingDock?: boolean | null;
+  maxVehicleSize?: string | null;
+  hoursOfOperation?: string;
+  equipmentRequired?: string[];
+  appointmentRequired?: boolean;
+  dockAppointmentLeadTimeHours?: number | null;
+  liftgateRequired?: boolean;
+  insidePickup?: boolean;
+  palletExchange?: boolean;
+  pickupInstructions?: string;
+  contactName?: string;
+  address?: Record<string, unknown>;
+};
+
 export type OmsSupplier = {
   id: string;
   name: string;
+  email?: string | null;
+  phone?: string | null;
+  status?: string;
+  website?: string | null;
+  notes?: string | null;
   country?: string;
   region?: string;
   leadTime?: number;
@@ -209,6 +229,41 @@ export type OmsSupplier = {
   rating?: number;
   contact?: string;
   skus?: string[];
+  pickupProfile?: SupplierPickupProfile;
+  metadata?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type SupplierActivityRecord = {
+  id: string;
+  type: 'sku' | 'shipment_plan' | 'asn' | 'bol' | 'label' | 'order' | 'invoice' | 'activity' | 'ledger' | string;
+  title: string;
+  subtitle?: string;
+  status?: string;
+  units?: number;
+  amount?: number;
+  confidence?: number | null;
+  date?: string;
+  summary?: string;
+  target?: string;
+  targetId?: string;
+};
+
+export type SupplierActivityResponse = {
+  supplier: OmsSupplier;
+  summary: {
+    skus: number;
+    shipmentPlans: number;
+    asns: number;
+    documents: number;
+    orderCount: number;
+    orderUnits: number;
+    shipmentUnits: number;
+    invoiceAmount: number;
+    lastActivityAt?: string;
+  };
+  records: SupplierActivityRecord[];
 };
 
 export type HeatmapResponse = {
@@ -307,6 +362,9 @@ export const fetchOmsCustomers = () => omsFetch<{ customers: OmsCustomer[] }>('/
 
 export const fetchOmsSuppliers = () =>
   omsFetch<{ suppliers: OmsSupplier[]; locations: Array<Record<string, unknown>> }>('/suppliers');
+
+export const fetchOmsSupplierActivity = (supplierId: string) =>
+  omsFetch<SupplierActivityResponse>(`/suppliers/${encodeURIComponent(supplierId)}/activity`);
 
 export const fetchHeatmap = () => omsFetch<HeatmapResponse>('/heatmap');
 
