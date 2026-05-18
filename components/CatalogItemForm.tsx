@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from './Button';
 import type { CatalogItem } from '../lib/catalog-types';
 import type { Supplier } from '../lib/amazon-fba';
+import { uploadCatalogImage } from '../lib/oms';
 
 interface CatalogItemFormProps {
   item?: CatalogItem | null;
@@ -38,10 +39,31 @@ export function CatalogItemForm({
   });
 
   const [imagePreview, setImagePreview] = useState<string | null>(item?.image || null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   const handleImageUrlChange = (url: string) => {
     setFormData((prev) => ({ ...prev, image: url }));
     setImagePreview(url || null);
+  };
+
+  const handleImageFile = async (file?: File | null) => {
+    if (!file) return;
+    setImageUploading(true);
+    setImageError(null);
+    const localPreview = URL.createObjectURL(file);
+    setImagePreview(localPreview);
+    try {
+      const uploaded = await uploadCatalogImage(file);
+      setFormData((prev) => ({ ...prev, image: uploaded.url }));
+      setImagePreview(uploaded.url);
+    } catch (err: any) {
+      setImageError(err?.message || 'Image upload failed');
+      setImagePreview(formData.image || null);
+    } finally {
+      setImageUploading(false);
+      URL.revokeObjectURL(localPreview);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -90,7 +112,7 @@ export function CatalogItemForm({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Image */}
         <div className={formField}>
-          <label className={labelClass}>Image URL</label>
+          <label className={labelClass}>Product image</label>
           <div className="flex gap-4 items-start">
             <div className="flex-shrink-0">
               {imagePreview ? (
@@ -106,13 +128,32 @@ export function CatalogItemForm({
                 </div>
               )}
             </div>
-            <input
-              type="url"
-              value={formData.image}
-              onChange={(e) => handleImageUrlChange(e.target.value)}
-              placeholder="https://..."
-              className={inputClass}
-            />
+            <div className="flex-1 space-y-2">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => {
+                  void handleImageFile(e.target.files?.[0]);
+                  e.currentTarget.value = '';
+                }}
+                className={inputClass}
+                disabled={imageUploading}
+              />
+              <div className="text-xs text-gray-500">
+                {imageUploading ? 'Uploading to S3...' : formData.image ? 'Stored in S3 for this OMS account.' : 'Upload PNG, JPG, WebP, or GIF.'}
+              </div>
+              {imageError && <div className="text-xs text-red-600 font-medium">{imageError}</div>}
+              <details className="text-xs text-gray-500">
+                <summary className="cursor-pointer">Advanced: use existing image URL</summary>
+                <input
+                  type="url"
+                  value={formData.image}
+                  onChange={(e) => handleImageUrlChange(e.target.value)}
+                  placeholder="https://..."
+                  className={`${inputClass} mt-2`}
+                />
+              </details>
+            </div>
           </div>
         </div>
 

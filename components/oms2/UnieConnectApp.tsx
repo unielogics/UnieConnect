@@ -108,6 +108,19 @@ export default function UnieConnectApp() {
   const [screenKey, setScreenKey] = useState(0);
   const bumpScreen = useCallback(() => setScreenKey((k) => k + 1), []);
 
+  const closeTransientUi = useCallback(() => {
+    setShowWizard(false);
+    setOrderModal(null);
+    setForcedSupplierId(null);
+    setNewProductOpen(false);
+    setNewSupplierOpen(false);
+    setNewCustomerOpen(false);
+    setNewOrderOpen(false);
+    setNewTicketOpen(false);
+    setCsvImport(null);
+    setStateDetail(null);
+  }, []);
+
   // Load tweaks from storage
   useEffect(() => {
     try {
@@ -154,6 +167,7 @@ export default function UnieConnectApp() {
 
   const navigate: NavFn = useCallback(
     (target, payload) => {
+      closeTransientUi();
       const q: Record<string, string> = { view: target };
       if (target === 'sku-detail') {
         const id = payload || skuDetailId || '';
@@ -163,7 +177,7 @@ export default function UnieConnectApp() {
       setSection(target);
       router.push({ pathname: '/oms', query: q }, undefined, { shallow: true });
     },
-    [router, skuDetailId]
+    [closeTransientUi, router, skuDetailId]
   );
 
   const toggleSelect = useCallback((sku: SelSku & { supplierId?: string | null }) => {
@@ -239,7 +253,7 @@ export default function UnieConnectApp() {
     <div className="uc-shell" ref={shellRef} data-theme={tweaks.theme} data-density={tweaks.density}>
       <CtxMenuProvider>
         <div className={`app ${copilotOpen ? 'copilot-open' : ''}`}>
-          <Sidebar active={section} onNavigate={navigate} userName={userName} />
+          <Sidebar active={section} onNavigate={navigate} onInteract={closeTransientUi} userName={userName} />
           <div className="workspace">
             <TopBar
               section={section}

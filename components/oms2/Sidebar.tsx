@@ -126,10 +126,12 @@ const SidebarPanel = ({
 export const Sidebar = ({
   active,
   onNavigate,
+  onInteract,
   userName = 'Jordan Martinelli',
 }: {
   active: string;
   onNavigate: (id: string) => void;
+  onInteract?: () => void;
   userName?: string;
 }) => {
   const [openCat, setOpenCat] = useState<string | null>(null);
@@ -153,6 +155,7 @@ export const Sidebar = ({
   const activeCat = SIDEBAR_NAV.find((c) => c.items.some((it) => it.id === active))?.id;
 
   const handleCatClick = (cat: NavCat) => {
+    onInteract?.();
     if (cat.items.length === 1) {
       onNavigate(cat.items[0].id);
       setOpenCat(null);

@@ -355,6 +355,33 @@ export const createCatalogItem = async (body: CreateCatalogItemBody) => {
   return { item: result?.item || result };
 };
 
+export type UploadedImage = {
+  key: string;
+  bucket: string;
+  contentType: string;
+  size: number;
+  url: string;
+  storage: 's3';
+};
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || '').split(',').pop() || '');
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+
+export const uploadCatalogImage = async (file: File) =>
+  apiFetch<UploadedImage>('/uploads/images', {
+    method: 'POST',
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type,
+      dataBase64: await fileToBase64(file),
+    }),
+  });
+
 export type CreateCustomerBody = {
   name: string;
   email?: string;
