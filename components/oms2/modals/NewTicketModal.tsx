@@ -106,7 +106,7 @@ export const NewTicketModal = ({ onClose, onSuccess }: { onClose: () => void; on
               </div>
               <div>
                 <label style={label}>Entity ID</label>
-                <input style={field} value={f.entityId} onChange={set('entityId')} placeholder="AMZ-058214" />
+              <input style={field} value={f.entityId} onChange={set('entityId')} placeholder="OR12345678 or source order ID" />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
-import { fetchOmsOrders, OmsOrder } from '../../../lib/oms';
+import { cancelOrder, fetchOmsOrders, OmsOrder, publicEntityId } from '../../../lib/oms';
 import { num, channelColor } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 
@@ -30,6 +30,9 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<'all' | 'risk' | 'exceptions' | 'hold' | 'new'>('all');
+  const [cancelTarget, setCancelTarget] = useState<OmsOrder | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
   const ctx = useCtxMenu();
 
   const load = () => {
@@ -68,6 +71,19 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
 
   const totalRev = all.reduce((a, o) => a + num(o.total), 0);
   const avgCost = all.length ? all.reduce((a, o) => a + num(o.cost), 0) / all.length : 0;
+
+  const submitCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    try {
+      await cancelOrder(cancelTarget.id, cancelReason.trim() || 'Cancelled from OMS order screen');
+      setCancelTarget(null);
+      setCancelReason('');
+      await load();
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <div className="page fade-in">
@@ -154,6 +170,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                   <th>SLA</th>
                   <th>Promised</th>
                   <th>Carrier · Tracking</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -172,13 +189,20 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                         { icon: 'audit', title: 'Open dispute', onClick: () => onNavigate('audits') },
                         { icon: 'refresh', title: `Re-sync from ${o._ch}`, shortcut: '⌘R', onClick: load },
                         { divider: true },
-                        { icon: 'x', title: 'Cancel order', danger: true },
+                        {
+                          icon: 'x',
+                          title: o._status === 'cancelled' ? 'Order already cancelled' : 'Cancel order',
+                          danger: true,
+                          onClick: () => {
+                            if (o._status !== 'cancelled') setCancelTarget(o);
+                          },
+                        },
                       ])
                     }
                   >
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span className="mono strong" style={{ color: 'var(--text)' }}>{o.id}</span>
+                        <span className="mono strong" style={{ color: 'var(--text)' }}>{o.displayId || o.publicId || publicEntityId('OR', o.id)}</span>
                         <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{o.chOrderId || ''}</span>
                       </div>
                     </td>
@@ -206,13 +230,67 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                     <td className="muted">{o.promised || '—'}</td>
                     <td>
                       <div style={{ fontSize: 12 }}>{o.carrier || '—'}</div>
-                      <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{o.tracking || ''}</div>
-                    </td>
+                        <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{o.tracking || ''}</div>
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="btn ghost sm"
+                          disabled={o._status === 'cancelled'}
+                          onClick={() => setCancelTarget(o)}
+                        >
+                          <Icon name="x" size={12} /> Cancel
+                        </button>
+                      </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+        </div>
+      )}
+      {cancelTarget && (
+        <div className="modal-overlay" onClick={() => setCancelTarget(null)}>
+          <div className="modal" style={{ width: 460 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>Cancel order</div>
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                  {cancelTarget.displayId || cancelTarget.publicId || publicEntityId('OR', cancelTarget.id)}
+                </div>
+              </div>
+              <button className="icon-btn" onClick={() => setCancelTarget(null)}><Icon name="x" /></button>
+            </div>
+            <div className="modal-body">
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Reason
+              </label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Why is this order being stopped or cancelled?"
+                style={{
+                  width: '100%',
+                  height: 110,
+                  marginTop: 6,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg)',
+                  color: 'var(--text)',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+            <div className="modal-foot">
+              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>This archives OMS execution and writes the cancellation to the ledger.</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn ghost" onClick={() => setCancelTarget(null)}>Back</button>
+                <button className="btn primary" onClick={submitCancel} disabled={cancelling}>
+                  {cancelling ? 'Cancelling…' : 'Cancel order'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

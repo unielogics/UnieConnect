@@ -1,21 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState } from '../ui';
-import { fetchInventoryPlan, fetchCopilotContext, InventoryPlanFull, CopilotContext } from '../../../lib/oms';
+import {
+  cancelAsn,
+  fetchCopilotContext,
+  fetchInventoryPlan,
+  fetchOmsAsns,
+  InventoryPlanFull,
+  CopilotContext,
+  OmsAsn,
+  publicEntityId,
+  stopAsn,
+} from '../../../lib/oms';
 import { num, monthShort } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 
 export const Shipments = ({ onNavigate }: ScreenProps) => {
   const [plan, setPlan] = useState<InventoryPlanFull | null>(null);
+  const [asns, setAsns] = useState<OmsAsn[]>([]);
   const [ctx, setCtx] = useState<CopilotContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [acting, setActing] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
     setErr(null);
-    fetchInventoryPlan('6m')
-      .then(setPlan)
+    Promise.all([fetchInventoryPlan('6m'), fetchOmsAsns().catch(() => ({ asns: [] }))])
+      .then(([nextPlan, asnPayload]) => {
+        setPlan(nextPlan);
+        setAsns(asnPayload.asns || []);
+      })
       .catch((e) => setErr(e.message || 'Failed to load shipments'))
       .finally(() => setLoading(false));
   };
@@ -27,6 +42,18 @@ export const Shipments = ({ onNavigate }: ScreenProps) => {
   const inbound = (plan?.skus || []).filter((s) => num(s.inbound) > 0 || num(s.proposedUnits) > 0);
   const months = plan?.months || [];
   const maxUnits = Math.max(1, ...months.map((m) => num(m.projectedUnits)));
+  const openAsns = asns.filter((a) => !['cancelled', 'stopped', 'received', 'closed'].includes(String(a.status || '').toLowerCase()));
+  const mutateAsn = async (asn: OmsAsn, action: 'cancel' | 'stop') => {
+    const reason = action === 'stop' ? 'Stopped before warehouse execution from OMS' : 'Cancelled from OMS shipment screen';
+    setActing(`${action}:${asn.id}`);
+    try {
+      if (action === 'stop') await stopAsn(asn.id, reason);
+      else await cancelAsn(asn.id, reason);
+      await load();
+    } finally {
+      setActing(null);
+    }
+  };
 
   return (
     <div className="page fade-in">
@@ -50,10 +77,10 @@ export const Shipments = ({ onNavigate }: ScreenProps) => {
         <>
           <div className="stat-grid cols-5">
             <div className="stat"><div className="stat-label">SKUs inbound</div><div className="stat-value">{inbound.length}</div></div>
+            <div className="stat warn"><div className="stat-label">Active ASNs</div><div className="stat-value">{openAsns.length}</div></div>
             <div className="stat"><div className="stat-label">Planned periods</div><div className="stat-value">{months.length}</div></div>
             <div className="stat"><div className="stat-label">Shared pallets</div><div className="stat-value">{num(plan.proposed?.sharedPalletCandidates)}</div></div>
             <div className="stat warn"><div className="stat-label">Stockout-risk</div><div className="stat-value">{num(plan.proposed?.stockoutRiskSkus)}</div></div>
-            <div className="stat good"><div className="stat-label">Nodes</div><div className="stat-value">{num(plan.proposed?.warehouseCount)}</div></div>
           </div>
 
           <div className="row-2" style={{ marginBottom: 16 }}>
@@ -101,6 +128,65 @@ export const Shipments = ({ onNavigate }: ScreenProps) => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-title">
+                    ASN control <Chip dot={false}>{asns.length}</Chip>
+                  </div>
+                  <button className="btn ghost sm" onClick={load}><Icon name="refresh" size={12} /> Sync</button>
+                </div>
+                <div className="card-body" style={{ padding: 0 }}>
+                  {asns.length === 0 ? (
+                    <EmptyState>No ASNs created yet. Create one from selected SKUs or a shipment plan.</EmptyState>
+                  ) : (
+                    <table className="data">
+                      <thead>
+                        <tr>
+                          <th>ASN</th>
+                          <th>Supplier</th>
+                          <th>Warehouse</th>
+                          <th className="num">Units</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {asns.map((asn) => {
+                          const locked = ['cancelled', 'stopped', 'received', 'closed'].includes(String(asn.status || '').toLowerCase());
+                          return (
+                            <tr key={asn.id}>
+                              <td>
+                                <div className="mono strong">{asn.displayId || asn.publicId || publicEntityId('AS', asn.id)}</div>
+                                <div className="mono muted" style={{ fontSize: 10.5 }}>{asn.asnNumber || asn.shipmentDisplayId || ''}</div>
+                              </td>
+                              <td>
+                                <div>{asn.supplierName || '—'}</div>
+                                <div className="mono muted" style={{ fontSize: 10.5 }}>{asn.supplierDisplayId || ''}</div>
+                              </td>
+                              <td>
+                                <div>{asn.facilityCode || 'Auto'}</div>
+                                <div className="muted" style={{ fontSize: 10.5 }}>{asn.facilityName || 'Cortex-routed'}</div>
+                              </td>
+                              <td className="num mono">{num(asn.units).toLocaleString()}</td>
+                              <td><StatusChip status={asn.status || 'created'} /></td>
+                              <td>
+                                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                  <button className="btn ghost sm" disabled={locked || acting === `stop:${asn.id}`} onClick={() => mutateAsn(asn, 'stop')}>
+                                    Stop
+                                  </button>
+                                  <button className="btn ghost sm" disabled={locked || acting === `cancel:${asn.id}`} onClick={() => mutateAsn(asn, 'cancel')}>
+                                    <Icon name="x" size={12} /> Cancel
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
               <div className="card">
                 <div className="card-header">
                   <div className="card-title">

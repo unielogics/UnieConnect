@@ -38,6 +38,37 @@ export async function omsFetch<T>(path: string, options: RequestInit = {}): Prom
   return res.json();
 }
 
+export function publicEntityId(prefix: string, value: unknown): string {
+  const normalizedPrefix = String(prefix || 'AC').slice(0, 2).toUpperCase().padEnd(2, 'X');
+  const source = String(value || '');
+  let hash = 2166136261;
+  for (let i = 0; i < source.length; i += 1) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return `${normalizedPrefix}${String(hash % 100000000).padStart(8, '0')}`;
+}
+
+export function entityPrefix(entityType?: string): string {
+  const key = String(entityType || '').toLowerCase().replace(/[-\s]+/g, '_');
+  const map: Record<string, string> = {
+    asn: 'AS',
+    customer: 'CU',
+    intermediary: 'IN',
+    invoice: 'IV',
+    item: 'SK',
+    order: 'OR',
+    shipment: 'SH',
+    shipment_plan: 'SH',
+    sku: 'SK',
+    supplier: 'SU',
+    support_ticket: 'TI',
+    ticket: 'TI',
+    warehouse: 'WH',
+  };
+  return map[key] || 'AC';
+}
+
 export type OmsSku = {
   id: string;
   sku: string;
@@ -154,6 +185,8 @@ export type OmsSkuDetail = {
 
 export type OmsOrder = {
   id: string;
+  publicId?: string;
+  displayId?: string;
   ch?: string;
   account_channel?: string;
   chOrderId?: string;
@@ -175,6 +208,27 @@ export type OmsOrder = {
   carrier?: string;
   tracking?: string;
   cost?: number;
+};
+
+export type OmsAsn = {
+  id: string;
+  publicId?: string;
+  displayId?: string;
+  asnNumber?: string;
+  status: string;
+  shipmentPlanId?: string;
+  shipmentDisplayId?: string | null;
+  shipmentTitle?: string;
+  shipmentStatus?: string | null;
+  supplierId?: string | null;
+  supplierDisplayId?: string | null;
+  supplierName?: string | null;
+  facilityCode?: string | null;
+  facilityName?: string | null;
+  estimatedArrivalDate?: string;
+  units?: number;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type OmsCustomer = {
@@ -358,6 +412,26 @@ export const fetchOmsSkuDetail = (skuId: string) =>
 
 export const fetchOmsOrders = () => omsFetch<{ orders: OmsOrder[] }>('/orders');
 
+export const fetchOmsAsns = () => omsFetch<{ asns: OmsAsn[] }>('/asns');
+
+export const cancelOrder = (id: string, reason?: string) =>
+  apiFetch<{ order: OmsOrder; success: boolean }>(`/orders/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: reason || 'Cancelled from OMS' }),
+  });
+
+export const cancelAsn = (id: string, reason?: string) =>
+  apiFetch<{ asn: OmsAsn; success: boolean }>(`/asn/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: reason || 'Cancelled from OMS' }),
+  });
+
+export const stopAsn = (id: string, reason?: string) =>
+  apiFetch<{ asn: OmsAsn; success: boolean }>(`/asn/${encodeURIComponent(id)}/stop`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: reason || 'Stopped before warehouse execution' }),
+  });
+
 export const fetchOmsCustomers = () => omsFetch<{ customers: OmsCustomer[] }>('/customers');
 
 export const fetchOmsSuppliers = () =>
@@ -422,6 +496,11 @@ export type UploadedImage = {
   storage: 's3';
 };
 
+export type UploadedAttachment = UploadedImage & {
+  filename?: string;
+  purpose?: string;
+};
+
 const fileToBase64 = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -437,6 +516,17 @@ export const uploadCatalogImage = async (file: File) =>
       filename: file.name,
       contentType: file.type,
       dataBase64: await fileToBase64(file),
+    }),
+  });
+
+export const uploadSupportAttachment = async (file: File) =>
+  apiFetch<UploadedAttachment>('/uploads/files', {
+    method: 'POST',
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type || 'application/octet-stream',
+      dataBase64: await fileToBase64(file),
+      purpose: 'support-attachment',
     }),
   });
 
@@ -492,16 +582,33 @@ export const createManualOrder = async (body: CreateOrderBody) => {
 
 export type SupportTicket = {
   id: string;
+  publicId?: string;
+  displayId?: string;
   subject: string;
   body?: string;
   entityType?: string;
   entityId?: string;
+  entityDisplayId?: string;
+  linkedEntityDisplayId?: string;
   channel?: string;
   priority: string;
   status: string;
   owner?: string;
+  messagesCount?: number;
+  attachmentsCount?: number;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type SupportTicketMessage = {
+  id: string;
+  publicId?: string;
+  ticketId: string;
+  authorType: string;
+  authorName?: string;
+  body: string;
+  attachments?: UploadedAttachment[];
+  createdAt?: string;
 };
 
 export type CreateTicketBody = {
@@ -523,4 +630,16 @@ export const updateTicketStatus = (id: string, status: string) =>
   apiFetch<{ ticket: SupportTicket }>(`/support/tickets/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+  });
+
+export const fetchTicketDetail = (id: string) =>
+  apiFetch<{ ticket: SupportTicket; messages: SupportTicketMessage[] }>(`/support/tickets/${encodeURIComponent(id)}`);
+
+export const addTicketMessage = (
+  id: string,
+  body: { body?: string; attachments?: UploadedAttachment[]; authorType?: string; authorName?: string },
+) =>
+  apiFetch<{ message: SupportTicketMessage }>(`/support/tickets/${encodeURIComponent(id)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify(body),
   });
