@@ -34,7 +34,7 @@ import { NewTicketModal } from './modals/NewTicketModal';
 import { CsvImportModal, CsvImportEntity } from './modals/CsvImportModal';
 import { StateDetailModal } from './modals/StateDetailModal';
 import type { OmsOrder, OmsSku } from '../../lib/oms';
-import { fetchCurrentUser } from '../../lib/user';
+import { fetchCurrentUser, type CurrentUser } from '../../lib/user';
 
 export type Tweaks = { theme: 'light' | 'dark'; accent: string; density: 'comfortable' | 'compact'; cortexAvailable: boolean };
 export const ACCENT_OPTIONS = ['#3157f6', '#6d28d9', '#0d9488', '#db2777'];
@@ -97,7 +97,7 @@ export default function UnieConnectApp() {
   const [showWizard, setShowWizard] = useState(false);
   const [orderModal, setOrderModal] = useState<OmsOrder | null>(null);
   const [forcedSupplierId, setForcedSupplierId] = useState<string | null>(null);
-  const [userName, setUserName] = useState('Jordan Martinelli');
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [newProductOpen, setNewProductOpen] = useState(false);
   const [newSupplierOpen, setNewSupplierOpen] = useState(false);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
@@ -137,9 +137,8 @@ export default function UnieConnectApp() {
 
   useEffect(() => {
     fetchCurrentUser()
-      .then((u: any) => {
-        const n = [u?.firstName, u?.lastName].filter(Boolean).join(' ') || u?.email;
-        if (n) setUserName(n);
+      .then((u) => {
+        if (u) setCurrentUser(u);
       })
       .catch(() => {});
   }, []);
@@ -253,7 +252,7 @@ export default function UnieConnectApp() {
     <div className="uc-shell" ref={shellRef} data-theme={tweaks.theme} data-density={tweaks.density}>
       <CtxMenuProvider>
         <div className={`app ${copilotOpen ? 'copilot-open' : ''}`}>
-          <Sidebar active={section} onNavigate={navigate} onInteract={closeTransientUi} userName={userName} />
+          <Sidebar active={section} onNavigate={navigate} onInteract={closeTransientUi} user={currentUser} />
           <div className="workspace">
             <TopBar
               section={section}

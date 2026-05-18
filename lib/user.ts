@@ -7,6 +7,9 @@ export interface CurrentUser {
   userId: string;
   email: string;
   role: UserRole;
+  firstName?: string;
+  lastName?: string;
+  avatarUrl?: string;
 }
 
 const CAN_MANAGE_USERS: UserRole[] = ['super_admin', 'management'];
@@ -47,11 +50,15 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
     const data = await res.json();
     const role = parseRole(data.role);
     if (!role) return null;
-    return {
+    const current: CurrentUser = {
       userId: data.userId,
       email: data.email,
       role,
     };
+    if (data.firstName) current.firstName = data.firstName;
+    if (data.lastName) current.lastName = data.lastName;
+    if (data.avatarUrl) current.avatarUrl = data.avatarUrl;
+    return current;
   } catch {
     const role = getRoleFromToken();
     if (!role) return null;
@@ -59,4 +66,35 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
     const payload = parts[1] ? JSON.parse(atob(parts[1])) : {};
     return { userId: payload.userId, email: payload.email || '', role };
   }
+}
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || '').split(',').pop() || '');
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+
+export async function uploadProfileAvatar(file: File): Promise<{ url: string; key: string }> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+  if (!token) throw new Error('Not authenticated');
+  const res = await fetch(apiUrl('/api/v1/uploads/images'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type,
+      dataBase64: await fileToBase64(file),
+      purpose: 'profile-avatar',
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || err?.message || 'Failed to upload profile avatar');
+  }
+  return res.json();
 }

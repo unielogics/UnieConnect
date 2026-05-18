@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import { TOKEN_KEY, apiUrl } from '../lib/api';
 import { fetchInvoices, type InvoiceLine } from '../lib/invoices';
+import { uploadProfileAvatar } from '../lib/user';
 import { FiLock, FiCreditCard, FiPackage, FiLink, FiUser } from 'react-icons/fi';
 
 type TabId = 'account' | 'billing' | 'cards' | 'security';
@@ -157,6 +158,8 @@ export default function ProfilePage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [llcName, setLlcName] = useState('');
   const [billingAddress, setBillingAddress] = useState<BillingAddress>(emptyBilling());
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
@@ -181,11 +184,12 @@ export default function ProfilePage() {
       credentials: 'include',
     })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed to load profile'))))
-      .then((data: { firstName?: string; lastName?: string; email?: string; phone?: string; llcName?: string; billingAddress?: BillingAddress }) => {
+      .then((data: { firstName?: string; lastName?: string; email?: string; phone?: string; avatarUrl?: string; llcName?: string; billingAddress?: BillingAddress }) => {
         setFirstName(data.firstName ?? '');
         setLastName(data.lastName ?? '');
         setEmail(data.email ?? '');
         setPhone(data.phone ?? '');
+        setAvatarUrl(data.avatarUrl ?? '');
         setLlcName(data.llcName ?? '');
         setBillingAddress(
           data.billingAddress
@@ -236,6 +240,20 @@ export default function ProfilePage() {
         setTimeout(() => setProfileMsg(null), 3000);
       })
       .catch((err: unknown) => setProfileMsg(err instanceof Error ? err.message : 'Save failed'));
+  };
+
+  const handleAvatarUpload = (file: File | null) => {
+    if (!file) return;
+    setProfileMsg(null);
+    setAvatarUploading(true);
+    uploadProfileAvatar(file)
+      .then((uploaded) => {
+        setAvatarUrl(uploaded.url);
+        setProfileMsg('Profile image saved.');
+        setTimeout(() => setProfileMsg(null), 3000);
+      })
+      .catch((err: unknown) => setProfileMsg(err instanceof Error ? err.message : 'Image upload failed'))
+      .finally(() => setAvatarUploading(false));
   };
 
   const handleChangePassword = () => {
@@ -292,6 +310,37 @@ export default function ProfilePage() {
               <div className="muted">Loading profile…</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 480 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: '50%',
+                      overflow: 'hidden',
+                      display: 'grid',
+                      placeItems: 'center',
+                      background: 'linear-gradient(135deg, #3157f6, #6d28d9)',
+                      color: '#fff',
+                      fontWeight: 800,
+                    }}
+                  >
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      `${firstName?.[0] || email?.[0] || 'U'}${lastName?.[0] || ''}`.toUpperCase()
+                    )}
+                  </div>
+                  <label className="button-secondary" style={{ cursor: avatarUploading ? 'not-allowed' : 'pointer' }}>
+                    {avatarUploading ? 'Uploading...' : 'Upload profile image'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      style={{ display: 'none' }}
+                      disabled={avatarUploading}
+                      onChange={(e) => handleAvatarUpload(e.target.files?.[0] || null)}
+                    />
+                  </label>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span className="muted" style={{ fontSize: 13 }}>First name *</span>

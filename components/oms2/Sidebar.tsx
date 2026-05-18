@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
+import type { CurrentUser } from '../../lib/user';
 
 export type NavItem = {
   id: string;
@@ -127,12 +128,12 @@ export const Sidebar = ({
   active,
   onNavigate,
   onInteract,
-  userName = 'Jordan Martinelli',
+  user,
 }: {
   active: string;
   onNavigate: (id: string) => void;
   onInteract?: () => void;
-  userName?: string;
+  user?: CurrentUser | null;
 }) => {
   const [openCat, setOpenCat] = useState<string | null>(null);
   const railRef = useRef<HTMLElement>(null);
@@ -164,42 +165,54 @@ export const Sidebar = ({
     }
   };
 
-  const initials = userName.split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
-  const shortName = `${userName.split(' ')[0]} ${(userName.split(' ')[1] || '')[0] || ''}.`.trim();
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim();
+  const email = user?.email || '';
+  const displayName = fullName || email || 'Account';
+  const initialsSource = fullName || email.split('@')[0] || 'UC';
+  const initials = initialsSource
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .map((s) => s[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'UC';
 
   return (
-    <aside className="sidebar-rail" ref={railRef}>
-      <div className="sb-brand">
-        <div className="brand-mark">U</div>
-      </div>
+    <>
+      <aside className="sidebar-rail" ref={railRef}>
+        <div className="sb-brand">
+          <div className="brand-mark">U</div>
+        </div>
 
-      <nav className="sb-nav">
-        {SIDEBAR_NAV.map((cat) => (
-          <button
-            key={cat.id}
-            className={`sb-item ${activeCat === cat.id ? 'active' : ''} ${openCat === cat.id ? 'expanded' : ''}`}
-            onClick={() => handleCatClick(cat)}
-            data-hint={cat.label}
-          >
-            <Icon name={cat.icon} size={18} />
-            <span className="sb-label">{cat.label}</span>
-            {cat.badge && <span className="sb-badge">{cat.badge}</span>}
+        <nav className="sb-nav">
+          {SIDEBAR_NAV.map((cat) => (
+            <button
+              key={cat.id}
+              className={`sb-item ${activeCat === cat.id ? 'active' : ''} ${openCat === cat.id ? 'expanded' : ''}`}
+              onClick={() => handleCatClick(cat)}
+              data-hint={cat.label}
+            >
+              <Icon name={cat.icon} size={18} />
+              <span className="sb-label">{cat.label}</span>
+              {cat.badge && <span className="sb-badge">{cat.badge}</span>}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sb-footer">
+          <button className="sb-item" data-hint="Help">
+            <Icon name="info" size={18} />
+            <span className="sb-label">Help</span>
           </button>
-        ))}
-      </nav>
+          <button className="sb-item avatar-btn" data-hint={displayName}>
+            <div className="avatar">
+              {user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials}
+            </div>
+          </button>
+        </div>
+      </aside>
 
-      <div className="sb-footer">
-        <button className="sb-item" data-hint="Help">
-          <Icon name="info" size={18} />
-          <span className="sb-label">Help</span>
-        </button>
-        <button className="sb-item avatar-btn" data-hint={userName}>
-          <div className="avatar">{initials}</div>
-          <span className="sb-label">{shortName}</span>
-        </button>
-      </div>
-
-      {openCat && (
+      {openCat ? (
         <SidebarPanel
           cat={SIDEBAR_NAV.find((c) => c.id === openCat)!}
           active={active}
@@ -209,7 +222,7 @@ export const Sidebar = ({
           }}
           onClose={() => setOpenCat(null)}
         />
-      )}
-    </aside>
+      ) : null}
+    </>
   );
 };

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, Loading, ErrorState, EmptyState, Modal } from '../ui';
 import { fetchMarketplaceFeatures, enableFeature, disableFeature, Feature } from '../../../lib/features';
 import type { ScreenProps } from '../UnieConnectApp';
+import { AppStudioModal } from './AppStudioModal';
 
 const COLORS = ['#6d28d9', '#3157f6', '#0d9488', '#f59e0b', '#b42318', '#db2777', '#10b981', '#0369a1'];
 const colorFor = (id: string) => COLORS[[...id].reduce((s, c) => s + c.charCodeAt(0), 0) % COLORS.length];
@@ -22,6 +23,77 @@ const priceLabel = (f: Feature) => {
   return p.amount ? `$${p.amount}/mo` : 'Subscription';
 };
 
+const SdkDocsModal = ({ onClose, onOpenBuilder }: { onClose: () => void; onOpenBuilder: () => void }) => (
+  <Modal
+    title="Cortex OMS SDK"
+    subtitle="Use scoped API keys and idempotent events to add custom apps, workflows, and external systems."
+    onClose={onClose}
+    width={920}
+    footer={
+      <>
+        <div style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>API keys are created in App Studio and shown once.</div>
+        <button className="btn primary" onClick={onOpenBuilder}>
+          <Icon name="studio" size={13} /> Open App Studio
+        </button>
+      </>
+    }
+  >
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+        {[
+          ['1. Create key', 'Generate a scoped key in App Studio with oms:read, workflows:run, events:write, or apps:manage.'],
+          ['2. Send events', 'POST events from WMS, ERP, store apps, or custom tools with an Idempotency-Key header.'],
+          ['3. Run workflows', 'Workflows can draft recommendations automatically and pause risky WMS/TMS actions for approval.'],
+        ].map(([title, body]) => (
+          <div key={title} className="card" style={{ padding: 14 }}>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>{title}</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: 12.5 }}>{body}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr><th>Endpoint</th><th>Purpose</th><th>Scope</th></tr>
+          </thead>
+          <tbody>
+            <tr><td className="mono">GET /api/v1/oms/apps</td><td>List private account apps</td><td>oms:read</td></tr>
+            <tr><td className="mono">POST /api/v1/oms/apps</td><td>Create a private app</td><td>apps:manage</td></tr>
+            <tr><td className="mono">POST /api/v1/oms/workflows/:id/run</td><td>Run a workflow manually or from an API</td><td>workflows:run</td></tr>
+            <tr><td className="mono">POST /api/v1/oms/events</td><td>Push external OMS/WMS events into workflow matching</td><td>events:write</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>Event example</div>
+          <pre style={{ margin: 0, padding: 12, overflow: 'auto', borderRadius: 8, background: 'var(--bg-sunken)', fontSize: 11.5 }}>{`POST /api/v1/oms/events
+Authorization: Bearer uc_xxxxxxxxxx
+Idempotency-Key: wms-inventory-123
+
+{
+  "eventType": "inventory.updated",
+  "sourceSystem": "custom_wms",
+  "payload": {
+    "sku": "SKU-100",
+    "available": 240,
+    "warehouseCode": "NJ-01"
+  }
+}`}</pre>
+        </div>
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>Guardrail rules</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 12.5, lineHeight: 1.6 }}>
+            Custom apps can read OMS facts, create tickets, write ledger events, draft shipment plans, and request Cortex recommendations. WMS work changes, driver dispatch, carrier purchases, billing claims, and inventory placement execution pause for approval.
+          </div>
+        </div>
+      </div>
+    </div>
+  </Modal>
+);
+
 export const Marketplace = (_: ScreenProps) => {
   const [features, setFeatures] = useState<Feature[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -29,6 +101,8 @@ export const Marketplace = (_: ScreenProps) => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -75,7 +149,7 @@ export const Marketplace = (_: ScreenProps) => {
           <button className="btn">
             <Icon name="settings" size={13} /> Manage installed ({installedCount})
           </button>
-          <button className="btn primary"><Icon name="plus" size={13} /> Suggest an app</button>
+          <button className="btn primary" onClick={() => setStudioOpen(true)}><Icon name="studio" size={13} /> Open App Studio</button>
         </div>
       </div>
 
@@ -211,12 +285,22 @@ export const Marketplace = (_: ScreenProps) => {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn">Read SDK docs</button>
-                <button className="btn primary">Open builder</button>
+                <button className="btn" onClick={() => setDocsOpen(true)}>Read SDK docs</button>
+                <button className="btn primary" onClick={() => setStudioOpen(true)}>Open builder</button>
               </div>
             </div>
           </div>
         </>
+      )}
+      {studioOpen && <AppStudioModal onClose={() => setStudioOpen(false)} />}
+      {docsOpen && (
+        <SdkDocsModal
+          onClose={() => setDocsOpen(false)}
+          onOpenBuilder={() => {
+            setDocsOpen(false);
+            setStudioOpen(true);
+          }}
+        />
       )}
     </div>
   );
