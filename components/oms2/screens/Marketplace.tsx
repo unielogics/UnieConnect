@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Loading, ErrorState, EmptyState, Modal } from '../ui';
 import { fetchMarketplaceFeatures, enableFeature, disableFeature, Feature } from '../../../lib/features';
@@ -22,6 +23,9 @@ const priceLabel = (f: Feature) => {
   if (p.type === 'one-time') return p.amount ? `$${p.amount} once` : 'One-time';
   return p.amount ? `$${p.amount}/mo` : 'Subscription';
 };
+
+const unlockedScreens = (f: Feature) => f.unlockedScreens || f.metadata?.unlockedScreens || [];
+const requiredConnections = (f: Feature) => f.requiredConnections || f.metadata?.requiredConnections || [];
 
 const SdkDocsModal = ({ onClose, onOpenBuilder }: { onClose: () => void; onOpenBuilder: () => void }) => (
   <Modal
@@ -94,7 +98,8 @@ Idempotency-Key: wms-inventory-123
   </Modal>
 );
 
-export const Marketplace = (_: ScreenProps) => {
+export const Marketplace = (props: ScreenProps) => {
+  const router = useRouter();
   const [features, setFeatures] = useState<Feature[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [cat, setCat] = useState('all');
@@ -120,9 +125,10 @@ export const Marketplace = (_: ScreenProps) => {
   const toggle = async (f: Feature) => {
     setBusy(f.id);
     try {
-      if (f.isEnabled) await disableFeature(f.slug || f.id);
-      else await enableFeature(f.slug || f.id);
+      if (f.isEnabled) await disableFeature(f.id);
+      else await enableFeature(f.id);
       setFeatures((prev) => prev.map((x) => (x.id === f.id ? { ...x, isEnabled: !x.isEnabled } : x)));
+      props.onFeaturesChanged?.();
     } catch (e) {
       /* surfaced via reload */
     } finally {
@@ -131,7 +137,9 @@ export const Marketplace = (_: ScreenProps) => {
   };
 
   const filtered = useMemo(() => (cat === 'all' ? features : features.filter((f) => f.category === cat)), [features, cat]);
-  const featured = features.find((f) => (f.tags || []).includes('featured')) || features[0];
+  const installFocus = typeof router.query.install === 'string' ? router.query.install : '';
+  const focused = installFocus ? features.find((f) => f.id === installFocus || f.slug === installFocus) : undefined;
+  const featured = focused || features.find((f) => (f.tags || []).includes('featured')) || features[0];
   const installedCount = features.filter((f) => f.isEnabled).length;
 
   const catTabs = [{ id: 'all', label: 'All' }, ...categories.map((c) => ({ id: c, label: c }))];
@@ -188,6 +196,11 @@ export const Marketplace = (_: ScreenProps) => {
                       </Chip>
                     ))}
                   </div>
+                  {unlockedScreens(featured).length > 0 && (
+                    <div className="app-unlocks">
+                      Unlocks: {unlockedScreens(featured).map((screen) => screen.replace(/-/g, ' ')).join(', ')}
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>{priceLabel(featured)}</div>
@@ -266,6 +279,16 @@ export const Marketplace = (_: ScreenProps) => {
                     </span>
                   ))}
                 </div>
+                {unlockedScreens(app).length > 0 && (
+                  <div className="app-unlocks">
+                    <Icon name="check" size={11} /> Unlocks {unlockedScreens(app).map((screen) => screen.replace(/-/g, ' ')).join(', ')}
+                  </div>
+                )}
+                {requiredConnections(app).length > 0 && (
+                  <div className="app-unlocks muted">
+                    <Icon name="plug" size={11} /> Needs {requiredConnections(app).join(', ')}
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: 12, fontWeight: 600 }}>{priceLabel(app)}</div>
                   <button className={`btn ${app.isEnabled ? '' : 'primary'} sm`} onClick={() => toggle(app)} disabled={busy === app.id}>

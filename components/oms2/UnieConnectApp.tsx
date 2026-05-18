@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { CtxMenuProvider } from './ContextMenu';
-import { Sidebar } from './Sidebar';
+import { Sidebar, buildSidebarNav, featureForScreen, isCoreScreen, SCREEN_FEATURES } from './Sidebar';
 import { TopBar } from './TopBar';
 import { SelectionBar, SelSku } from './SelectionBar';
 import { Icon } from './icons';
@@ -34,7 +34,8 @@ import { NewTicketModal } from './modals/NewTicketModal';
 import { CsvImportModal, CsvImportEntity } from './modals/CsvImportModal';
 import { StateDetailModal } from './modals/StateDetailModal';
 import type { OmsOrder, OmsSku } from '../../lib/oms';
-import { fetchCurrentUser, type CurrentUser } from '../../lib/user';
+import { fetchCurrentUser, canManageUsers, type CurrentUser } from '../../lib/user';
+import { fetchUserFeatures, type Feature } from '../../lib/features';
 
 export type Tweaks = { theme: 'light' | 'dark'; accent: string; density: 'comfortable' | 'compact'; cortexAvailable: boolean };
 export const ACCENT_OPTIONS = ['#3157f6', '#6d28d9', '#0d9488', '#db2777'];
@@ -56,6 +57,7 @@ export interface ScreenProps {
   onNewTicket?: () => void;
   onImportCsv?: (entity: CsvImportEntity) => void;
   onSelectState?: (state: string) => void;
+  onFeaturesChanged?: () => void;
   skuId?: string | null;
   cortexAvailable?: boolean;
 }
@@ -98,6 +100,7 @@ export default function UnieConnectApp() {
   const [orderModal, setOrderModal] = useState<OmsOrder | null>(null);
   const [forcedSupplierId, setForcedSupplierId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [userLoadComplete, setUserLoadComplete] = useState(false);
   const [newProductOpen, setNewProductOpen] = useState(false);
   const [newSupplierOpen, setNewSupplierOpen] = useState(false);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
@@ -106,6 +109,9 @@ export default function UnieConnectApp() {
   const [csvImport, setCsvImport] = useState<CsvImportEntity | null>(null);
   const [stateDetail, setStateDetail] = useState<string | null>(null);
   const [screenKey, setScreenKey] = useState(0);
+  const [userFeatures, setUserFeatures] = useState<Feature[]>([]);
+  const [featureLoadComplete, setFeatureLoadComplete] = useState(false);
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const bumpScreen = useCallback(() => setScreenKey((k) => k + 1), []);
 
   const closeTransientUi = useCallback(() => {
@@ -140,8 +146,29 @@ export default function UnieConnectApp() {
       .then((u) => {
         if (u) setCurrentUser(u);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setUserLoadComplete(true));
   }, []);
+
+  const reloadUserFeatures = useCallback(() => {
+    let cancelled = false;
+    setFeatureLoadComplete(false);
+    fetchUserFeatures()
+      .then((result) => {
+        if (!cancelled) setUserFeatures(result.features || []);
+      })
+      .catch(() => {
+        if (!cancelled) setUserFeatures([]);
+      })
+      .finally(() => {
+        if (!cancelled) setFeatureLoadComplete(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => reloadUserFeatures(), [reloadUserFeatures]);
 
   const setTweak = useCallback(<K extends keyof Tweaks>(k: K, v: Tweaks[K]) => {
     setTweaks((prev) => {
@@ -195,11 +222,45 @@ export default function UnieConnectApp() {
     return new Set(sups).size > 1;
   }, [selectedSkus, skuSupplierMap]);
 
+  const enabledFeatureIds = useMemo(() => {
+    const ids = new Set<string>();
+    userFeatures.forEach((feature) => {
+      const status = feature.userStatus || (feature.isEnabled ? 'enabled' : 'available');
+      if (feature.isEnabled || feature.isStandard || status === 'enabled') ids.add(feature.id);
+    });
+    return ids;
+  }, [userFeatures]);
+
+  const previewAllApps = canManageUsers(currentUser?.role);
+  const nav = useMemo(() => buildSidebarNav(enabledFeatureIds, previewAllApps), [enabledFeatureIds, previewAllApps]);
+
+  const isScreenAvailable = useCallback(
+    (screenId: string) => {
+      if (previewAllApps || isCoreScreen(screenId)) return true;
+      const featureId = featureForScreen(screenId);
+      return !!featureId && enabledFeatureIds.has(featureId);
+    },
+    [enabledFeatureIds, previewAllApps]
+  );
+
   const createShipmentForSupplier = useCallback((supplierId: string, skus: SelSku[]) => {
     setSelectedSkus(skus);
     setForcedSupplierId(supplierId);
     setShowWizard(true);
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady || !featureLoadComplete || !userLoadComplete) return;
+    if (isScreenAvailable(section)) return;
+    const featureId = featureForScreen(section) || SCREEN_FEATURES[section] || '';
+    closeTransientUi();
+    setSection('marketplace');
+    router.replace(
+      { pathname: '/oms', query: { view: 'marketplace', install: featureId } },
+      undefined,
+      { shallow: true }
+    );
+  }, [closeTransientUi, featureLoadComplete, isScreenAvailable, router, section, userLoadComplete]);
 
   // Apply theme/density/accent to shell root only
   const shellRef = React.useRef<HTMLDivElement>(null);
@@ -225,6 +286,7 @@ export default function UnieConnectApp() {
     onNewTicket: () => setNewTicketOpen(true),
     onImportCsv: (entity) => setCsvImport(entity),
     onSelectState: (s: string) => setStateDetail(s),
+    onFeaturesChanged: reloadUserFeatures,
     cortexAvailable: tweaks.cortexAvailable,
   };
 
@@ -251,8 +313,15 @@ export default function UnieConnectApp() {
   return (
     <div className="uc-shell" ref={shellRef} data-theme={tweaks.theme} data-density={tweaks.density}>
       <CtxMenuProvider>
-        <div className={`app ${copilotOpen ? 'copilot-open' : ''}`}>
-          <Sidebar active={section} onNavigate={navigate} onInteract={closeTransientUi} user={currentUser} />
+        <div className={`app ${copilotOpen ? 'copilot-open' : ''} ${sidePanelOpen ? 'nav-panel-open' : ''}`}>
+          <Sidebar
+            active={section}
+            onNavigate={navigate}
+            onInteract={closeTransientUi}
+            onPanelOpenChange={setSidePanelOpen}
+            nav={nav}
+            user={currentUser}
+          />
           <div className="workspace">
             <TopBar
               section={section}

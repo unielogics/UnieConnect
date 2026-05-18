@@ -7,9 +7,32 @@ export type NavItem = {
   label: string;
   icon: string;
   desc: string;
+  featureId?: string;
   badge?: { type: 'warn' | 'danger' | 'ai'; value: string };
 };
-export type NavCat = { id: string; label: string; icon: string; badge?: string; items: NavItem[] };
+export type NavCat = { id: string; label: string; icon: string; badge?: string; featureId?: string; items: NavItem[] };
+
+export const CORE_SCREEN_IDS = new Set([
+  'command',
+  'skus',
+  'suppliers',
+  'shipments',
+  'orders',
+  'customers',
+  'connections',
+  'marketplace',
+  'support',
+]);
+
+export const SCREEN_FEATURES: Record<string, string> = {
+  double: 'optimize-suite',
+  plan: 'optimize-suite',
+  billing: 'finance-suite',
+  audits: 'finance-suite',
+  labels: 'label-audit',
+  heatmap: 'inventory-heatmap',
+  ledger: 'advanced-analytics',
+};
 
 export const SIDEBAR_NAV: NavCat[] = [
   {
@@ -23,9 +46,10 @@ export const SIDEBAR_NAV: NavCat[] = [
     label: 'Optimize',
     icon: 'double',
     badge: 'Plan',
+    featureId: 'optimize-suite',
     items: [
-      { id: 'double', label: 'Business Double', icon: 'double', desc: 'Current vs. optimized — accept plan here' },
-      { id: 'plan', label: 'Inventory Plan', icon: 'studio', desc: '6-month dynamic forward plan' },
+      { id: 'double', label: 'Business Double', icon: 'double', desc: 'Current vs. optimized plan', featureId: 'optimize-suite' },
+      { id: 'plan', label: 'Inventory Plan', icon: 'studio', desc: '6-month dynamic forward plan', featureId: 'optimize-suite' },
     ],
   },
   {
@@ -36,7 +60,7 @@ export const SIDEBAR_NAV: NavCat[] = [
       { id: 'skus', label: 'SKUs', icon: 'box', desc: 'Every product, every warehouse' },
       { id: 'suppliers', label: 'Suppliers', icon: 'tag', desc: 'Vendor terms, lead times, ratings' },
       { id: 'shipments', label: 'Shipment Plans', icon: 'shipments', desc: 'Inbound to warehouses' },
-      { id: 'heatmap', label: 'US Heatmap', icon: 'map', desc: 'Demand & warehouse coverage' },
+      { id: 'heatmap', label: 'US Heatmap', icon: 'map', desc: 'Demand & warehouse coverage', featureId: 'inventory-heatmap' },
     ],
   },
   {
@@ -47,16 +71,17 @@ export const SIDEBAR_NAV: NavCat[] = [
     items: [
       { id: 'orders', label: 'Orders', icon: 'orders', desc: 'Marketplace orders + WMS truth', badge: { type: 'warn', value: '12' } },
       { id: 'customers', label: 'Customers', icon: 'support', desc: 'Buyers, LTV, segments' },
-      { id: 'labels', label: 'Carrier Label Audit', icon: 'audit', desc: 'Late, refunds, optimization' },
+      { id: 'labels', label: 'Carrier Label Audit', icon: 'audit', desc: 'Late, refunds, optimization', featureId: 'label-audit' },
     ],
   },
   {
     id: 'finance',
     label: 'Finance',
     icon: 'billing',
+    featureId: 'finance-suite',
     items: [
-      { id: 'billing', label: 'Billing & Profit', icon: 'billing', desc: 'Current vs. optimized cost' },
-      { id: 'audits', label: 'Audits & Claims', icon: 'audit', desc: 'Refund opportunities' },
+      { id: 'billing', label: 'Billing & Profit', icon: 'billing', desc: 'Current vs. optimized cost', featureId: 'finance-suite' },
+      { id: 'audits', label: 'Audits & Claims', icon: 'audit', desc: 'Refund opportunities', featureId: 'finance-suite' },
     ],
   },
   {
@@ -72,10 +97,24 @@ export const SIDEBAR_NAV: NavCat[] = [
     items: [
       { id: 'support', label: 'Support', icon: 'support', desc: 'Tickets', badge: { type: 'danger', value: '3' } },
       { id: 'connections', label: 'Connections', icon: 'plug', desc: 'Marketplaces, WMS, carriers' },
-      { id: 'ledger', label: 'Intelligence Ledger', icon: 'ledger', desc: 'Source → finding → action' },
+      { id: 'ledger', label: 'Intelligence Ledger', icon: 'ledger', desc: 'Source to finding to action', featureId: 'advanced-analytics' },
     ],
   },
 ];
+
+export const isCoreScreen = (screen: string) => CORE_SCREEN_IDS.has(screen) || screen === 'sku-detail';
+
+export const featureForScreen = (screen: string) => SCREEN_FEATURES[screen] || null;
+
+export const buildSidebarNav = (enabledFeatureIds: Set<string>, previewAll = false): NavCat[] =>
+  SIDEBAR_NAV.map((cat) => {
+    const items = cat.items.filter((item) => {
+      if (previewAll || isCoreScreen(item.id)) return true;
+      const featureId = item.featureId || SCREEN_FEATURES[item.id];
+      return !!featureId && enabledFeatureIds.has(featureId);
+    });
+    return { ...cat, items };
+  }).filter((cat) => cat.items.length > 0);
 
 const SidebarPanel = ({
   cat,
@@ -128,15 +167,27 @@ export const Sidebar = ({
   active,
   onNavigate,
   onInteract,
+  onPanelOpenChange,
+  nav = SIDEBAR_NAV,
   user,
 }: {
   active: string;
   onNavigate: (id: string) => void;
   onInteract?: () => void;
+  onPanelOpenChange?: (open: boolean) => void;
+  nav?: NavCat[];
   user?: CurrentUser | null;
 }) => {
   const [openCat, setOpenCat] = useState<string | null>(null);
   const railRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    onPanelOpenChange?.(!!openCat);
+  }, [onPanelOpenChange, openCat]);
+
+  useEffect(() => {
+    if (openCat && !nav.some((cat) => cat.id === openCat)) setOpenCat(null);
+  }, [nav, openCat]);
 
   useEffect(() => {
     if (!openCat) return;
@@ -153,7 +204,7 @@ export const Sidebar = ({
     };
   }, [openCat]);
 
-  const activeCat = SIDEBAR_NAV.find((c) => c.items.some((it) => it.id === active))?.id;
+  const activeCat = nav.find((c) => c.items.some((it) => it.id === active))?.id;
 
   const handleCatClick = (cat: NavCat) => {
     onInteract?.();
@@ -185,7 +236,7 @@ export const Sidebar = ({
         </div>
 
         <nav className="sb-nav">
-          {SIDEBAR_NAV.map((cat) => (
+          {nav.map((cat) => (
             <button
               key={cat.id}
               className={`sb-item ${activeCat === cat.id ? 'active' : ''} ${openCat === cat.id ? 'expanded' : ''}`}
@@ -214,7 +265,7 @@ export const Sidebar = ({
 
       {openCat ? (
         <SidebarPanel
-          cat={SIDEBAR_NAV.find((c) => c.id === openCat)!}
+          cat={nav.find((c) => c.id === openCat)!}
           active={active}
           onNavigate={(id) => {
             onNavigate(id);

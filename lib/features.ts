@@ -23,7 +23,21 @@ export interface Feature {
     navLabel?: string;
     navIcon?: string;
     navOrder?: number;
+    appType?: string;
+    appStore?: boolean;
+    navGroup?: string;
+    navGroupLabel?: string;
+    unlockedScreens?: string[];
+    requiredConnections?: string[];
+    setupSteps?: string[];
+    summary?: string;
   };
+  payload?: Record<string, unknown>;
+  unlockedScreens?: string[];
+  requiredConnections?: string[];
+  setupSteps?: string[];
+  userStatus?: string;
+  enabledAt?: string;
   isEnabled?: boolean;
 }
 

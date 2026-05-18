@@ -137,3 +137,15 @@ export const createOmsApiKey = (body: { name: string; scopes: string[] }) =>
     method: 'POST',
     body: JSON.stringify(body),
   });
+
+export const rotateOmsApiKey = (id: string) =>
+  omsFetch<{ apiKey: string; key: OmsApiKey; warning: string }>(`/api-keys/${encodeURIComponent(id)}/rotate`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+
+export const revokeOmsApiKey = (id: string) =>
+  omsFetch<{ success: boolean; key: OmsApiKey }>(`/api-keys/${encodeURIComponent(id)}/revoke`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
