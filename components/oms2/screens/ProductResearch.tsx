@@ -153,7 +153,7 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
         </div>
         <div className="page-actions">
           <button className="btn" onClick={() => onNavigate('skus')}><Icon name="box" size={13} /> SKU catalog</button>
-          <button className="btn primary" onClick={runSingle} disabled={busy}><Icon name="sparkle" size={13} /> Analyze item</button>
+          <button className="btn primary" onClick={runSingle} disabled={busy || (!selected && !manual.sku)}><Icon name="sparkle" size={13} /> Analyze item</button>
         </div>
       </div>
 
