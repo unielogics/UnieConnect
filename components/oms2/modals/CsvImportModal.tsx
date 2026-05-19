@@ -28,9 +28,9 @@ const templates: Record<CsvImportEntity, { title: string; headers: string; help:
   },
   skus: {
     title: 'SKUs',
-    headers: 'sku,title,asin,category,weight,length,width,height,supplierId',
+    headers: 'sku,title,asin,category,cost,price,weight,length,width,height,supplierId',
     help: 'Creates catalog items used by inventory planning, pallet economics, and shipment workflows.',
-    example: 'SKU-1001,Premium Bundle,B0TEST123,Home,2.4,12,8,6,',
+    example: 'SKU-1001,Premium Bundle,B0TEST123,Home,9.50,19.95,2.4,12,8,6,',
   },
   suppliers: {
     title: 'Suppliers',
@@ -131,6 +131,7 @@ export const CsvImportModal = ({
         phone: row.phone?.trim() || undefined,
         company: row.company?.trim() || undefined,
         channel: row.channel?.trim() || 'csv',
+        metadata: { source: 'csv_import' },
       };
       if (row.addressLine1?.trim()) {
         body.addresses = [{
@@ -154,6 +155,11 @@ export const CsvImportModal = ({
         category: row.category?.trim() || undefined,
         weight: row.weight ? toNumber(row.weight) : undefined,
         supplierId: row.supplierId?.trim() || undefined,
+        attributes: {
+          ...(row.cost ? { cost: toNumber(row.cost) } : {}),
+          ...(row.price ? { price: toNumber(row.price) } : {}),
+        },
+        metadata: { source: 'csv_import' },
       };
       if (row.length || row.width || row.height) {
         body.dimensions = {
@@ -174,6 +180,7 @@ export const CsvImportModal = ({
         phone: row.phone?.trim() || undefined,
         website: row.website?.trim() || undefined,
         notes: row.notes?.trim() || undefined,
+        metadata: { source: 'csv_import' },
       });
       return;
     }
@@ -190,6 +197,7 @@ export const CsvImportModal = ({
       externalOrderId: row.externalOrderId || row.orderNumber || undefined,
       channel: row.channel || 'csv',
       status: row.status || 'new',
+      metadata: { source: 'csv_import' },
       total: row.total ? toNumber(row.total) : quantity * unitPrice,
       lines: [{ itemId: sku.id, sku: sku.sku, title: sku.title, quantity, unitPrice }],
     };

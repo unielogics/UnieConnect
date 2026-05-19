@@ -4,6 +4,7 @@ import { Chip, ProgressBar, fmt, Loading, ErrorState, EmptyState } from '../ui';
 import { fetchBillingProfit, BillingProfitResponse } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
+import { OptimizationImpact } from '../OptimizationImpact';
 
 const CAT_META: { key: string; label: string; desc: string; refund?: boolean }[] = [
   { key: 'storage', label: 'Storage', desc: 'Long-term tier avoidance, smarter pre-positioning' },
@@ -65,6 +66,8 @@ export const Billing = (_: ScreenProps) => {
           <button className="btn"><Icon name="download" size={13} /> Export</button>
         </div>
       </div>
+
+      <OptimizationImpact screen="billing" title="Cost leak and profit optimization" />
 
       <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 50%)' }}>
         <div className="card-body" style={{ padding: 22 }}>

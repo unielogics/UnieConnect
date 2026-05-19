@@ -1,7 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, Sparkline, ProgressBar, fmt, Loading, ErrorState, EmptyState } from '../ui';
-import { fetchCommandCenter, fetchBusinessDouble, CommandCenterFull, BusinessDoubleResponse } from '../../../lib/oms';
+import {
+  fetchCommandCenter,
+  fetchBusinessDouble,
+  fetchLatestOptimization,
+  runSellerOptimization,
+  CommandCenterFull,
+  BusinessDoubleResponse,
+  IntelligenceReadiness,
+  OmsRecommendation,
+  SellerOptimizationSummary,
+} from '../../../lib/oms';
 import { sparkFrom, deltaDir, severityTone, severityIcon, timeAgo } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 
@@ -11,8 +21,12 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [range, setRange] = useState<Range>('7d');
   const [data, setData] = useState<CommandCenterFull | null>(null);
   const [bd, setBd] = useState<BusinessDoubleResponse | null>(null);
+  const [readiness, setReadiness] = useState<IntelligenceReadiness | null>(null);
+  const [latestOpt, setLatestOpt] = useState<SellerOptimizationSummary | null>(null);
+  const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
 
   const load = (r: Range) => {
     setLoading(true);
@@ -28,7 +42,30 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   }, [range]);
   useEffect(() => {
     fetchBusinessDouble().then(setBd).catch(() => {});
+    fetchLatestOptimization()
+      .then((r) => {
+        setReadiness(r.readiness);
+        setLatestOpt(r.latest || null);
+        setRecommendations(r.recommendations || []);
+      })
+      .catch(() => {});
   }, []);
+
+  const triggerOptimization = async () => {
+    setOptimizing(true);
+    try {
+      const response = await runSellerOptimization({ source: 'command_center' });
+      setReadiness(response.readiness);
+      setLatestOpt(response.optimization);
+      setRecommendations(response.recommendations || []);
+      fetchBusinessDouble().then(setBd).catch(() => {});
+      load(range);
+    } catch (e: any) {
+      setErr(e.message || 'Seller Optimization failed');
+    } finally {
+      setOptimizing(false);
+    }
+  };
 
   const m = data?.metrics;
   const tiles = m
@@ -63,6 +100,9 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
             <button className={range === '30d' ? 'active' : ''} onClick={() => setRange('30d')}>30 days</button>
           </div>
           <button className="btn"><Icon name="download" size={13} /> Export</button>
+          <button className="btn" onClick={triggerOptimization} disabled={optimizing}>
+            <Icon name="sparkle" size={13} /> {optimizing ? 'Running...' : 'Run Seller Optimization'}
+          </button>
           <button className="btn primary" onClick={() => onNavigate('double')}>
             <Icon name="double" size={13} /> Review optimized plan
           </button>
@@ -90,6 +130,11 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="row-2" style={{ marginBottom: 16 }}>
+            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={recommendations} onNavigate={onNavigate} />
+            <OptimizationImpactPanel recommendations={recommendations} onNavigate={onNavigate} />
           </div>
 
           <div className="row-2" style={{ marginBottom: 16 }}>
@@ -242,6 +287,78 @@ const MiniMetric = ({ label, value, sub, tone }: { label: string; value: string;
     <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>{label}</div>
     <div style={{ fontSize: 13, fontWeight: 700, marginTop: 3, color: tone ? `var(--${tone}-text)` : 'var(--text)' }}>{value}</div>
     <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{sub}</div>
+  </div>
+);
+
+const IntelligenceReadinessPanel = ({
+  readiness,
+  latest,
+  recommendations,
+  onNavigate,
+}: {
+  readiness: IntelligenceReadiness | null;
+  latest: SellerOptimizationSummary | null;
+  recommendations: OmsRecommendation[];
+  onNavigate: (target: string) => void;
+}) => {
+  const score = readiness?.score || 0;
+  const tone = score >= 78 ? 'green' : score >= 50 ? 'amber' : 'red';
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div>
+          <div className="card-title"><Icon name="sparkle" size={15} /> AI readiness</div>
+          <div className="card-subtitle">Marketplace first, CSV fallback, WMS truth for execution.</div>
+        </div>
+        <Chip tone={tone as any} dot={false}>{score}%</Chip>
+      </div>
+      <div className="card-body" style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          <MiniMetric label="Primary feed" value={(readiness?.sourceMode || 'manual').replace(/_/g, ' ')} sub={readiness?.primarySource?.replace(/_/g, ' ') || 'setup needed'} />
+          <MiniMetric label="Open recs" value={String(recommendations.length)} sub="current vs optimized" tone="green" />
+          <MiniMetric label="Last run" value={latest ? 'Available' : 'Not run'} sub={latest?.publicId || 'run optimization'} tone={latest ? 'green' : 'red'} />
+        </div>
+        {readiness?.blockers?.length ? (
+          <div style={{ display: 'grid', gap: 6 }}>
+            {readiness.blockers.slice(0, 3).map((blocker) => <Chip key={blocker} tone="amber" dot={false}>{blocker}</Chip>)}
+          </div>
+        ) : (
+          <Chip tone="green" dot={false}>Ready for high-confidence optimization</Chip>
+        )}
+        <button className="btn sm" onClick={() => onNavigate('connections')}>
+          <Icon name="plug" size={12} /> Improve data sources
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const OptimizationImpactPanel = ({ recommendations, onNavigate }: { recommendations: OmsRecommendation[]; onNavigate: (target: string, payload?: string) => void }) => (
+  <div className="card">
+    <div className="card-header">
+      <div>
+        <div className="card-title">Current vs optimized opportunities</div>
+        <div className="card-subtitle">Top recommendations generated by Cortex/OMS intelligence.</div>
+      </div>
+      <Chip tone="purple" dot={false}>{recommendations.length} open</Chip>
+    </div>
+    <div style={{ padding: 0, maxHeight: 245, overflow: 'auto' }}>
+      {recommendations.length === 0 ? (
+        <EmptyState>Run Seller Optimization to generate account-level opportunities.</EmptyState>
+      ) : recommendations.slice(0, 5).map((rec) => (
+        <button
+          key={rec.id}
+          onClick={() => onNavigate(rec.entityType === 'sku' ? 'sku-detail' : rec.entityType === 'business_double' ? 'double' : 'ledger', rec.entityId)}
+          style={{ display: 'grid', width: '100%', gridTemplateColumns: '1fr auto', gap: 12, padding: '12px 16px', border: 0, borderBottom: '1px solid var(--border-subtle)', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}
+        >
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{rec.title}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{rec.summary}</div>
+          </div>
+          <Chip tone={rec.approvalState === 'waiting_approval' ? 'amber' : 'purple'} dot={false}>{rec.wmsTruthState.replace(/_/g, ' ')}</Chip>
+        </button>
+      ))}
+    </div>
   </div>
 );
 

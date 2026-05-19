@@ -14,6 +14,7 @@ import { num, docTone } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 import type { SelSku } from '../SelectionBar';
 import { NewSupplierModal } from '../modals/NewSupplierModal';
+import { OptimizationImpact } from '../OptimizationImpact';
 
 const initials = (n: string) =>
   (n || '?').split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
@@ -157,6 +158,8 @@ export const Suppliers = ({
           <button className="btn primary" onClick={onNewSupplier}><Icon name="plus" size={13} /> Add supplier</button>
         </div>
       </div>
+
+      <OptimizationImpact screen="suppliers" title="Supplier pickup and replenishment optimization" onNavigate={onNavigate} />
 
       {suppliers.length === 0 ? (
         <div className="card">

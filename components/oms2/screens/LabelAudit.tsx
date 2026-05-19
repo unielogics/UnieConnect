@@ -5,6 +5,7 @@ import { useCtxMenu } from '../ContextMenu';
 import { fetchLabelAudit, LabelAuditResponse } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
+import { OptimizationImpact } from '../OptimizationImpact';
 
 type F = LabelAuditResponse['findings'][number];
 
@@ -72,6 +73,8 @@ export const LabelAudit = (_: ScreenProps) => {
           <button className="btn primary"><Icon name="audit" size={13} /> File all refundable</button>
         </div>
       </div>
+
+      <OptimizationImpact screen="labels" title="Carrier audit optimization" />
 
       {err ? (
         <div className="card"><ErrorState message={err} onRetry={load} /></div>

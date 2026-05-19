@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, Sparkline, Loading, ErrorState, EmptyState } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
+import { OptimizationImpact } from '../OptimizationImpact';
 import { fetchOmsSkus, OmsSku } from '../../../lib/oms';
 import { docTone, riskLabel } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -117,6 +118,8 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           <div className="stat-delta up"><span className="arrow">▲</span> with plan applied</div>
         </div>
       </div>
+
+      <OptimizationImpact screen="skus" title="SKU placement optimization" onNavigate={onNavigate} />
 
       {err ? (
         <div className="card"><ErrorState message={err} onRetry={load} /></div>

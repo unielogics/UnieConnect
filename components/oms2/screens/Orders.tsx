@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
+import { OptimizationImpact } from '../OptimizationImpact';
 import { cancelOrder, fetchOmsOrders, OmsOrder, publicEntityId } from '../../../lib/oms';
 import { num, channelColor } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -126,6 +127,8 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
           <div className="stat-delta" style={{ color: 'var(--text-tertiary)' }}>avg cost {fmt.money(avgCost)}</div>
         </div>
       </div>
+
+      <OptimizationImpact screen="orders" title="Order fulfillment optimization" onNavigate={onNavigate} />
 
       <div className="tabs">
         {(['all', 'risk', 'exceptions', 'hold', 'new'] as const).map((t) => (

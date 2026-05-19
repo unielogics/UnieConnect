@@ -391,6 +391,91 @@ export type CopilotContext = {
   latestSignals?: Array<{ title?: string; detail?: string; confidence?: number }>;
 };
 
+export type IntelligenceReadiness = {
+  score: number;
+  posture: 'ready' | 'limited' | 'needs_data' | string;
+  sourceMode: 'marketplace_primary' | 'marketplace_plus_csv' | 'csv_fallback' | 'manual_only' | string;
+  primarySource: string;
+  counts: Record<string, number>;
+  blockers: string[];
+  sourcePriority: string[];
+  cortex?: { configured?: boolean; cortexApiUrl?: string };
+  persistence?: string;
+};
+
+export type OmsRecommendation = {
+  id: string;
+  publicId?: string;
+  runId?: string;
+  recommendationType: string;
+  entityType?: string;
+  entityId?: string;
+  title: string;
+  summary: string;
+  currentValue: Record<string, unknown>;
+  optimizedValue: Record<string, unknown>;
+  estimatedImpact: Record<string, unknown>;
+  requiredAction?: string;
+  approvalState: string;
+  wmsTruthState: string;
+  confidence?: number | null;
+  sourceSummary?: Record<string, unknown>;
+  status: string;
+  rejectionReason?: string;
+  createdAt?: string;
+};
+
+export type IntelligenceRun = {
+  id: string;
+  publicId?: string;
+  runType: string;
+  status: string;
+  sourceSummary?: IntelligenceReadiness;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  confidence?: number | null;
+  cortexStatus?: string;
+  error?: string | null;
+  createdAt?: string;
+  completedAt?: string;
+};
+
+export type ProductResearchResult = {
+  id: string;
+  publicId?: string;
+  runId?: string;
+  itemId?: string | null;
+  sku: string;
+  status: string;
+  input: Record<string, unknown>;
+  result: {
+    sku: string;
+    title?: string;
+    asin?: string | null;
+    opportunityScore?: number;
+    productRisk?: string;
+    marketplaceReadiness?: string;
+    margin?: Record<string, unknown>;
+    fulfillment?: Record<string, unknown>;
+    recommendedAction?: string;
+    missingData?: string[];
+  };
+  confidence?: number | null;
+  createdAt?: string;
+};
+
+export type SellerOptimizationSummary = {
+  id: string;
+  publicId?: string;
+  runId?: string;
+  status: string;
+  summary: Record<string, unknown>;
+  businessDouble?: Record<string, unknown>;
+  inventoryPlan?: Record<string, unknown>;
+  confidence?: number | null;
+  createdAt?: string;
+};
+
 export const fetchCommandCenter = (range: OmsRange) =>
   omsFetch<CommandCenterFull>(`/command-center?range=${range}`);
 
@@ -449,7 +534,63 @@ export const fetchBillingProfit = () => omsFetch<BillingProfitResponse>('/billin
 export const fetchLedger = () => omsFetch<LedgerResponse>('/ledger');
 
 export const fetchCopilotContext = (screen: string) =>
-  omsFetch<CopilotContext>(`/copilot/context?screen=${encodeURIComponent(screen)}`);
+  omsFetch<CopilotContext>(`/intelligence/copilot/context?screen=${encodeURIComponent(screen)}`);
+
+export const fetchIntelligenceReadiness = () =>
+  omsFetch<IntelligenceReadiness>('/intelligence/readiness');
+
+export const runProductResearch = (body: Record<string, unknown>) =>
+  omsFetch<{ run: IntelligenceRun; result: ProductResearchResult; recommendation?: OmsRecommendation }>('/intelligence/product-research/runs', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const runBulkProductResearch = (body: { filename?: string; rows: Array<Record<string, unknown>> }) =>
+  omsFetch<{ runId: string; status: string; rowCount: number; results: ProductResearchResult[] }>('/intelligence/product-research/bulk', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const fetchProductResearchRuns = () =>
+  omsFetch<{ runs: IntelligenceRun[] }>('/intelligence/product-research/runs');
+
+export const fetchProductResearchResult = (skuId: string) =>
+  omsFetch<ProductResearchResult>(`/intelligence/product-research/results/${encodeURIComponent(skuId)}`);
+
+export const runSellerOptimization = (body: Record<string, unknown> = {}) =>
+  omsFetch<{
+    run: IntelligenceRun;
+    optimization: SellerOptimizationSummary;
+    recommendations: OmsRecommendation[];
+    readiness: IntelligenceReadiness;
+  }>('/intelligence/seller-optimization/runs', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const fetchLatestOptimization = () =>
+  omsFetch<{ latest?: SellerOptimizationSummary | null; readiness: IntelligenceReadiness; recommendations: OmsRecommendation[] }>('/intelligence/latest-optimization');
+
+export const fetchRecommendations = (params?: { screen?: string; status?: string; entityType?: string; limit?: number }) => {
+  const qs = new URLSearchParams();
+  if (params?.screen) qs.set('screen', params.screen);
+  if (params?.status) qs.set('status', params.status);
+  if (params?.entityType) qs.set('entityType', params.entityType);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  return omsFetch<{ recommendations: OmsRecommendation[] }>(`/intelligence/recommendations?${qs.toString()}`);
+};
+
+export const approveRecommendation = (id: string, body: Record<string, unknown> = {}) =>
+  omsFetch<{ recommendation: OmsRecommendation }>(`/intelligence/recommendations/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const rejectRecommendation = (id: string, reason: string) =>
+  omsFetch<{ recommendation: OmsRecommendation }>(`/intelligence/recommendations/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
 
 export const createShipmentDraft = (body: unknown) =>
   omsFetch<{ draft: { id: string } & Record<string, unknown>; persistence: string }>('/shipment-wizard/drafts', {
@@ -480,6 +621,8 @@ export type CreateCatalogItemBody = {
   dimensions?: { length?: number; width?: number; height?: number };
   supplierId?: string;
   tags?: string[];
+  attributes?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 };
 
 export const createCatalogItem = async (body: CreateCatalogItemBody) => {

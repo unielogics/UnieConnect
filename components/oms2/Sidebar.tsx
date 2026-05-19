@@ -27,6 +27,7 @@ export const CORE_SCREEN_IDS = new Set([
 export const SCREEN_FEATURES: Record<string, string> = {
   double: 'optimize-suite',
   plan: 'optimize-suite',
+  'product-research': 'product-research',
   billing: 'finance-suite',
   audits: 'finance-suite',
   labels: 'label-audit',
@@ -50,6 +51,7 @@ export const SIDEBAR_NAV: NavCat[] = [
     items: [
       { id: 'double', label: 'Business Double', icon: 'double', desc: 'Current vs. optimized plan', featureId: 'optimize-suite' },
       { id: 'plan', label: 'Inventory Plan', icon: 'studio', desc: '6-month dynamic forward plan', featureId: 'optimize-suite' },
+      { id: 'product-research', label: 'Product Research', icon: 'sparkle', desc: 'Single item + bulk CSV analysis', featureId: 'product-research' },
     ],
   },
   {

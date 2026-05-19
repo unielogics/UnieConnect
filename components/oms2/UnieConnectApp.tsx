@@ -12,6 +12,7 @@ import { TweaksPanel } from './TweaksPanel';
 import { CommandCenter } from './screens/CommandCenter';
 import { BusinessDouble } from './screens/BusinessDouble';
 import { InventoryPlan } from './screens/InventoryPlan';
+import { ProductResearch } from './screens/ProductResearch';
 import { InventoryNetwork } from './screens/InventoryNetwork';
 import { SkuDetail } from './screens/SkuDetail';
 import { Orders } from './screens/Orders';
@@ -294,6 +295,7 @@ export default function UnieConnectApp() {
     command: <CommandCenter {...sp} />,
     double: <BusinessDouble {...sp} />,
     plan: <InventoryPlan {...sp} />,
+    'product-research': <ProductResearch {...sp} />,
     skus: <InventoryNetwork {...sp} />,
     'sku-detail': <SkuDetail {...sp} skuId={skuDetailId} />,
     orders: <Orders {...sp} />,

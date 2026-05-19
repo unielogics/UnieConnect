@@ -14,6 +14,7 @@ import {
 } from '../../../lib/oms';
 import { num, monthShort } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
+import { OptimizationImpact } from '../OptimizationImpact';
 
 export const Shipments = ({ onNavigate }: ScreenProps) => {
   const [plan, setPlan] = useState<InventoryPlanFull | null>(null);
@@ -82,6 +83,8 @@ export const Shipments = ({ onNavigate }: ScreenProps) => {
             <div className="stat"><div className="stat-label">Shared pallets</div><div className="stat-value">{num(plan.proposed?.sharedPalletCandidates)}</div></div>
             <div className="stat warn"><div className="stat-label">Stockout-risk</div><div className="stat-value">{num(plan.proposed?.stockoutRiskSkus)}</div></div>
           </div>
+
+          <OptimizationImpact screen="shipments" title="Shipment and pallet optimization" onNavigate={onNavigate} />
 
           <div className="row-2" style={{ marginBottom: 16 }}>
             <div className="card">

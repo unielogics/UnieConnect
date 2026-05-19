@@ -5,6 +5,7 @@ export const TITLE_MAP: Record<string, [string, string]> = {
   command: ['Command Center', 'Live operating cockpit'],
   double: ['Business Double', 'Current vs. optimized — single approval surface'],
   plan: ['Inventory Plan', '6-month dynamic AI plan'],
+  'product-research': ['Product Research', 'Cortex enrichment for individual products and CSV catalogs'],
   skus: ['SKUs', 'Every product, every warehouse'],
   'sku-detail': ['SKU detail', 'History, billing, channels, shipments'],
   orders: ['Orders', 'Marketplace orders enriched with WMS'],

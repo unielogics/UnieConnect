@@ -5,8 +5,11 @@ import {
   fetchBusinessDouble,
   approveBusinessDouble,
   fetchHeatmap,
+  fetchLatestOptimization,
+  runSellerOptimization,
   BusinessDoubleResponse,
   HeatmapResponse,
+  SellerOptimizationSummary,
 } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -33,10 +36,12 @@ const METRIC_LABELS: Record<string, { label: string; unit?: string; inverse?: bo
 export const BusinessDouble = (_: ScreenProps) => {
   const [bd, setBd] = useState<BusinessDoubleResponse | null>(null);
   const [hm, setHm] = useState<HeatmapResponse | null>(null);
+  const [latestOpt, setLatestOpt] = useState<SellerOptimizationSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [running, setRunning] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -52,7 +57,21 @@ export const BusinessDouble = (_: ScreenProps) => {
   useEffect(() => {
     load();
     fetchHeatmap().then(setHm).catch(() => {});
+    fetchLatestOptimization().then((r) => setLatestOpt(r.latest || null)).catch(() => {});
   }, []);
+
+  const runOptimization = async () => {
+    setRunning(true);
+    try {
+      const response = await runSellerOptimization({ source: 'business_double' });
+      setLatestOpt(response.optimization);
+      load();
+    } catch (e: any) {
+      setErr(e.message || 'Seller Optimization failed');
+    } finally {
+      setRunning(false);
+    }
+  };
 
   const accept = async () => {
     if (!bd?.plan?.id) return;
@@ -102,6 +121,28 @@ export const BusinessDouble = (_: ScreenProps) => {
         <div className="page-actions">
           <button className="btn ghost"><Icon name="save" size={13} /> Save snapshot</button>
           <button className="btn"><Icon name="download" size={13} /> Export deck</button>
+          <button className="btn primary" onClick={runOptimization} disabled={running}>
+            <Icon name="sparkle" size={13} /> {running ? 'Running...' : 'Run Seller Optimization'}
+          </button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, alignItems: 'center', padding: 16 }}>
+          <div>
+            <Chip tone={latestOpt ? 'purple' : 'amber'} dot={false}>{latestOpt ? 'Latest Seller Optimization loaded' : 'No Seller Optimization run yet'}</Chip>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
+              Optimize Suite uses marketplace connections first, CSV/manual data as fallback, and WMS truth for execution readiness.
+            </div>
+          </div>
+          <div className="kv">
+            <div className="kv-label">AI confidence</div>
+            <div className="kv-value">{latestOpt?.confidence != null ? `${Math.round(latestOpt.confidence * 100)}%` : '—'}</div>
+          </div>
+          <div className="kv">
+            <div className="kv-label">Source mode</div>
+            <div className="kv-value" style={{ fontSize: 14 }}>{String((latestOpt?.summary as any)?.sourceMode || 'pending').replace(/_/g, ' ')}</div>
+          </div>
         </div>
       </div>
 

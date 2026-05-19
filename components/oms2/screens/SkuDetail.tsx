@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, StatusChip, ProgressBar, fmt, Loading, ErrorState, EmptyState } from '../ui';
-import { fetchOmsSkuDetail, OmsSkuDetail } from '../../../lib/oms';
+import {
+  fetchOmsSkuDetail,
+  fetchProductResearchResult,
+  fetchRecommendations,
+  OmsRecommendation,
+  OmsSkuDetail,
+  ProductResearchResult,
+} from '../../../lib/oms';
 import { num, docTone, riskLabel, channelColor } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 
@@ -9,6 +16,8 @@ type Tab = 'overview' | 'warehouses' | 'history' | 'channels' | 'billing' | 'ord
 
 export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected }: ScreenProps & { onBack?: () => void }) => {
   const [data, setData] = useState<OmsSkuDetail | null>(null);
+  const [productIntel, setProductIntel] = useState<ProductResearchResult | null>(null);
+  const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
@@ -22,7 +31,13 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
     setLoading(true);
     setErr(null);
     fetchOmsSkuDetail(skuId)
-      .then(setData)
+      .then((detail) => {
+        setData(detail);
+        fetchProductResearchResult(detail.sku).then(setProductIntel).catch(() => setProductIntel(null));
+        fetchRecommendations({ entityType: 'sku', status: 'open', limit: 5 }).then((r) => {
+          setRecommendations((r.recommendations || []).filter((rec) => rec.entityId === detail.id || rec.entityId === detail.sku));
+        }).catch(() => setRecommendations([]));
+      })
       .catch((e) => setErr(e.message || 'Failed to load SKU'))
       .finally(() => setLoading(false));
   };
@@ -120,6 +135,8 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         <KpiTile label="Revenue / 30d" value={fmt.money(rev, { compact: true })} sub={`${fmt.money(gp, { compact: true })} GP`} tone="good" />
       </div>
 
+      <SkuIntelligenceStrip productIntel={productIntel} recommendations={recommendations} onNavigate={onNavigate} />
+
       <div className="tabs" style={{ marginBottom: 16 }}>
         {([
           ['overview', 'Overview', undefined],
@@ -169,6 +186,45 @@ const KpiTile = ({ label, value, unit, sub, tone }: { label: string; value: Reac
     {sub && <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{sub}</div>}
   </div>
 );
+
+const SkuIntelligenceStrip = ({
+  productIntel,
+  recommendations,
+  onNavigate,
+}: {
+  productIntel: ProductResearchResult | null;
+  recommendations: OmsRecommendation[];
+  onNavigate: ScreenProps['onNavigate'];
+}) => {
+  const result = productIntel?.result;
+  return (
+    <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(135deg, var(--purple-soft) 0%, var(--bg-elev) 62%)' }}>
+      <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto', gap: 16, alignItems: 'center', padding: 16 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+            <Chip tone={result ? 'purple' : 'amber'} dot={false}>{result ? 'Cortex enriched' : 'Needs Product Research'}</Chip>
+            {result?.marketplaceReadiness && <Chip dot={false}>{String(result.marketplaceReadiness).replace(/_/g, ' ')}</Chip>}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>Current vs optimized SKU intelligence</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
+            {result?.recommendedAction || 'Run Product Research to enrich opportunity score, pallet footprint, marketplace readiness, and warehouse fit.'}
+          </div>
+        </div>
+        <div className="kv">
+          <div className="kv-label">Opportunity score</div>
+          <div className="kv-value" style={{ color: 'var(--purple-text)' }}>{result?.opportunityScore ?? '—'}</div>
+        </div>
+        <div className="kv">
+          <div className="kv-label">Open recommendations</div>
+          <div className="kv-value">{recommendations.length}</div>
+        </div>
+        <button className="btn primary" onClick={() => onNavigate('product-research')}>
+          <Icon name="sparkle" size={13} /> Open Product Research
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const Overview = ({ data }: { data: OmsSkuDetail }) => (
   <div className="row-2">
