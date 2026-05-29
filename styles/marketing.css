@@ -488,7 +488,7 @@
 .uc-site .mwo-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; background: rgba(139,92,255,0.07); border-top: 1px solid var(--hair); flex-wrap: wrap; }
 .uc-site .mwo-foot .big { font-family: var(--mono); font-size: 24px; font-weight: 600; color: #fff; }
 .uc-site .mwo-foot .big .g { color: var(--green); }
-.uc-site .mwo-side { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.uc-site .mwo-side { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 28px; }
 @media (max-width: 720px) { .uc-site .mwo-side { grid-template-columns: 1fr; } }
 
 /* ============ Final CTA ============ */
