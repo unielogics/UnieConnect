@@ -68,7 +68,7 @@ const Stepper = ({ active }: { active: 1 | 2 | 3 }) => {
   return (
     <div className="stepper">
       {item(1, 'Your store')}<span className={`bar ${active > 1 ? 'fill' : ''}`} />
-      {item(2, 'Origins & data')}<span className={`bar ${active > 2 ? 'fill' : ''}`} />
+      {item(2, 'Supplier origins & data')}<span className={`bar ${active > 2 ? 'fill' : ''}`} />
       {item(3, 'Report')}
     </div>
   );
@@ -182,6 +182,7 @@ export default function AuditPage() {
         company,
         email,
         origins: validOrigins,
+        origin_context: 'manufacturer_supplier_distribution_zip',
         csv: csvName ? { filename: csvName, row_count: csvRows } : null,
         monthly_orders: orders,
         category,
@@ -269,17 +270,18 @@ export default function AuditPage() {
             <Stepper active={2} />
             <div className="step-wrap">
               <div className="step-head">
-                <span className="eyebrow"><span className="dot" /> Step 2 · Origins &amp; data</span>
-                <h1>Where do you <span className="grad-text">ship from?</span></h1>
-                <p>Add every location you ship from. Upload recent orders to sharpen the estimate.</p>
+                <span className="eyebrow"><span className="dot" /> Step 2 · Supplier origins &amp; data</span>
+                <h1>Where does inventory enter your <span className="grad-text">U.S. network?</span></h1>
+                <p>Add the manufacturer, supplier, prep center, 3PL, or warehouse ZIPs where products start moving into U.S. distribution. Multiple ZIPs are expected if inventory comes from more than one place.</p>
               </div>
               <div className="step-card">
                 <div className="field">
-                  <label>Ship-from locations <span className="opt-tag">(add all that apply)</span></label>
+                  <label>Manufacturer / supplier origin ZIPs <span className="opt-tag">(U.S. ZIPs, add all that apply)</span></label>
+                  <p className="field-help">Use the ZIP code for the location that releases inventory into fulfillment: supplier dock, manufacturer, prep center, 3PL, or current warehouse. Cortex uses these ZIPs to model zone exposure and possible warehouse placement.</p>
                   <div className="origins">
                     {origins.map((z, i) => (
                       <div className="origin-row" key={i}>
-                        <input type="text" placeholder={`Ship-from ZIP ${i + 1}`} value={z}
+                        <input type="text" placeholder={`Origin ZIP ${i + 1} · supplier / manufacturer / warehouse`} value={z}
                           inputMode="numeric" onChange={(e) => setOriginAt(i, e.target.value)} />
                         {origins.length > 1 && (
                           <button className="rm" aria-label="Remove" onClick={() => removeOrigin(i)}>✕</button>
@@ -287,7 +289,7 @@ export default function AuditPage() {
                       </div>
                     ))}
                   </div>
-                  <button className="add-origin" onClick={addOrigin}>+ Add another origin</button>
+                  <button className="add-origin" onClick={addOrigin}>+ Add another supplier or warehouse ZIP</button>
                 </div>
 
                 <div className="field">
@@ -337,7 +339,7 @@ export default function AuditPage() {
                   'Validating URL · robots.txt',
                   csvName ? `Reading ${csvName} · weighting real zones` : 'Crawling catalog + product pages',
                   'Cortex estimating pick/pack + labels',
-                  `Optimizing across ${originCount} origin${originCount > 1 ? 's' : ''}`,
+                  `Modeling ${originCount} supplier/distribution origin${originCount > 1 ? 's' : ''}`,
                 ].map((label, idx) => {
                   const cls = scanStep > idx + 1 ? 'done' : scanStep === idx + 1 ? 'active' : '';
                   return (
@@ -394,7 +396,7 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
             <div>
               <h1>{report.company || company || displayUrl}</h1>
               <div className="meta">
-                Cortex audit {report.reference} · {displayUrl} · {products} products · {originN} origin{originN > 1 ? 's' : ''}
+                Cortex audit {report.reference} · {displayUrl} · {products} products · {originN} supplier/distribution origin{originN > 1 ? 's' : ''}
                 {csvName ? ` · ${csvRows.toLocaleString()} orders analyzed` : ''}
               </div>
             </div>
@@ -421,7 +423,7 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
               <span>Demand &amp; warehouse coverage</span>
               <div className="map-legend2">
                 <span><span className="mk" style={{ background: 'rgba(139,92,255,0.7)' }} /> Demand</span>
-                <span><span className="ring" /> Your origin</span>
+                <span><span className="ring" /> Supplier origin</span>
                 <span><span className="ringG" /> Proposed node</span>
               </div>
             </div>
@@ -431,7 +433,7 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
                 <div className="origin-list-mini">
                   {origins.length ? origins.map((origin, i) => (
                     <div className="o" key={i}>
-                      <span className="pin" style={{ background: '#a586ff' }} /> Origin {i + 1} · ZIP {origin.zip}{' '}
+                      <span className="pin" style={{ background: '#a586ff' }} /> Supplier origin {i + 1} · ZIP {origin.zip}{' '}
                       <span style={{ color: 'var(--text-3)' }}>({origin.state || '?'})</span>
                     </div>
                   )) : (
@@ -448,9 +450,9 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
                   <div className="tx">
                     {proposedStates.length ? (
                       <>Adding a node in <b>{proposedStates.join(' & ')}</b> moves inventory closer to unserved
-                      demand — modeled from the public catalog, supplied origins, and any CSV evidence attached to this audit.</>
+                      demand — modeled from the public catalog, supplied supplier/manufacturer ZIPs, and any CSV evidence attached to this audit.</>
                     ) : (
-                      <>Cortex needs more origin and order data before recommending an additional fulfillment region.</>
+                      <>Cortex needs supplier/manufacturer origin ZIPs and order data before recommending an additional fulfillment region.</>
                     )}
                   </div>
                 </div>
@@ -472,8 +474,8 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
               <div className="track"><div className="rng" /><div className="mk" style={{ left: `${lblMk}%` }} /></div>
               <div className="ends"><span>low ${lbl.low}</span><span>high ${lbl.high}</span></div>
               <div className="note">{csvName
-                ? `Weighted by ${csvRows.toLocaleString()} real shipped orders across ${originN} origin${originN > 1 ? 's' : ''}.`
-                : `Modeled across ${originN} origin${originN > 1 ? 's' : ''} and zones 2–8.`}</div>
+                ? `Weighted by ${csvRows.toLocaleString()} real shipped orders across ${originN} supplier/distribution origin${originN > 1 ? 's' : ''}.`
+                : `Modeled across ${originN} supplier/distribution origin${originN > 1 ? 's' : ''} and zones 2–8.`}</div>
             </div>
             <div className="band" style={{ padding: 0 }}>
               <div className="bt" style={{ padding: '20px 20px 0' }}><span>Missing-data blockers</span><span className="src-chip needs">{blockers.length} found</span></div>

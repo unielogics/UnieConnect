@@ -542,6 +542,7 @@
 .uc-site .step-actions .btn { flex: 1; justify-content: center; }
 .uc-site .optional-note { font-size: 12px; color: var(--text-3); text-align: center; margin-top: 14px; }
 .uc-site .opt-tag { font-size: 11px; color: var(--text-3); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.uc-site .field-help { margin: -4px 0 10px; color: var(--text-3); font-size: 12.5px; line-height: 1.55; }
 
 /* Scanning */
 .uc-site .scanning { max-width: 460px; width: 100%; text-align: center; padding-top: 30px; }
