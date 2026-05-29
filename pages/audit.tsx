@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { SiteShell } from '../components/marketing/SiteShell';
 
 const AuditMap = dynamic(() => import('../components/marketing/AuditMap'), {
@@ -62,6 +63,7 @@ const Stepper = ({ active }: { active: 1 | 2 | 3 }) => {
 };
 
 export default function AuditPage() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [url, setUrl] = useState('');
   const [company, setCompany] = useState('');
@@ -75,6 +77,24 @@ export default function AuditPage() {
   const [report, setReport] = useState<ReportData | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
+
+  // Continuation from the landing page (Step 1): prefill inputs and jump to Step 2.
+  useEffect(() => {
+    if (!router.isReady) return;
+    const q = router.query;
+    const s = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
+    const qUrl = s(q.url); const qCompany = s(q.company); const qEmail = s(q.email);
+    const qOrders = s(q.orders); const qZip = s(q.zip);
+    if (q.step === '2' || qUrl || qZip || qOrders) {
+      if (qUrl) setUrl(qUrl.replace(/^https?:\/\//, ''));
+      if (qCompany) setCompany(qCompany);
+      if (qEmail) setEmail(qEmail);
+      if (qOrders) setOrders(qOrders);
+      if (qZip) setOrigins([qZip]);
+      setStep(2);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady]);
 
   const scrollTop = () => { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* */ } };
 

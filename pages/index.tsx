@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { TOKEN_KEY } from '../lib/api';
 import { SiteShell } from '../components/marketing/SiteShell';
 
@@ -533,49 +534,34 @@ function LandingContent() {
 
 // ---------------- Lead form / catalog audit teaser ----------------
 function LeadSection() {
+  const router = useRouter();
   const [url, setUrl] = useState('');
-  const [phase, setPhase] = useState<'idle' | 'scanning' | 'done'>('idle');
-  const [scanStep, setScanStep] = useState(0);
-  const [teaser, setTeaser] = useState<{ products: number; pp: string; lbl: string; conf: number; url: string } | null>(null);
+  const [company, setCompany] = useState('');
+  const [email, setEmail] = useState('');
+  const [orders, setOrders] = useState('');
+  const [zip, setZip] = useState('');
 
-  useEffect(() => {
-    if (phase !== 'scanning') return;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    let i = 0; const total = 4;
-    const advance = () => {
-      if (i < total) { setScanStep(i + 1); i += 1; timers.push(setTimeout(advance, 700 + Math.random() * 500)); }
-      else {
-        const u = url || 'your-store.com';
-        setTeaser({
-          products: 80 + Math.floor(Math.random() * 180),
-          pp: (2.4 + Math.random() * 1.4).toFixed(2),
-          lbl: (6.5 + Math.random() * 3).toFixed(2),
-          conf: 60 + Math.floor(Math.random() * 22),
-          url: u,
-        });
-        setPhase('done');
-      }
-    };
-    timers.push(setTimeout(advance, 400));
-    return () => timers.forEach(clearTimeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
-
-  const steps = [
-    `Validating ${url || 'your-store.com'} · robots.txt`,
-    'Crawling catalog + product pages',
-    'Cortex estimating pick/pack + labels',
-    'Building teaser report',
-  ];
+  // Step 1 of the audit wizard: collect the basics here, then continue into
+  // Step 2 (origins & data) on the dedicated /audit page, carrying the inputs.
+  const continueToAudit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query: Record<string, string> = { step: '2' };
+    if (url.trim()) query.url = url.trim();
+    if (company.trim()) query.company = company.trim();
+    if (email.trim()) query.email = email.trim();
+    if (orders.trim()) query.orders = orders.trim();
+    if (zip.trim()) query.zip = zip.trim();
+    router.push({ pathname: '/audit', query });
+  };
 
   return (
     <section className="section" id="audit">
       <div className="wrap">
         <div className="lead reveal">
           <div className="lead-left">
-            <span className="eyebrow"><span className="dot" /> Free Catalog Audit</span>
+            <span className="eyebrow"><span className="dot" /> Free Catalog Audit · Step 1 of 3</span>
             <h2 style={{ marginTop: 18 }}>See Your Fulfillment Cost in 60 Seconds</h2>
-            <p>Drop in your store URL. Cortex scans your public catalog and estimates pick/pack and shipping label cost bands — then shows you exactly where a command center would save you money.</p>
+            <p>Start here. Drop in your store URL and we&apos;ll continue the audit — next you&apos;ll add your ship-from origins, then Cortex estimates pick/pack and shipping label cost bands and shows where a command center would save you money.</p>
             <div className="lead-feat">
               {['Detects your platform and product catalog', 'Estimate bands with confidence — no fake exact numbers', 'Full SKU-level report unlocks inside UnieConnect', 'Robots.txt-aware · catalog pages only · no checkout scraping'].map((t) => (
                 <div className="li" key={t}><span className="tick">✓</span> {t}</div>
@@ -583,52 +569,21 @@ function LeadSection() {
             </div>
           </div>
           <div className="lead-right">
-            <form onSubmit={(e) => { e.preventDefault(); setScanStep(0); setPhase('scanning'); }}>
+            <form onSubmit={continueToAudit}>
               <div className="field"><label>Website URL</label><input type="text" placeholder="your-store.com" value={url} onChange={(e) => setUrl(e.target.value)} /></div>
               <div className="field-row">
-                <div className="field"><label>Company</label><input type="text" placeholder="Acme Goods" /></div>
-                <div className="field"><label>Work email</label><input type="email" placeholder="you@company.com" /></div>
+                <div className="field"><label>Company</label><input type="text" placeholder="Acme Goods" value={company} onChange={(e) => setCompany(e.target.value)} /></div>
+                <div className="field"><label>Work email</label><input type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
               </div>
               <div className="field-row">
-                <div className="field"><label>Monthly orders (optional)</label><input type="text" placeholder="e.g. 4,200" /></div>
-                <div className="field"><label>Ship-from ZIP (optional)</label><input type="text" placeholder="30301" /></div>
+                <div className="field"><label>Monthly orders (optional)</label><input type="text" placeholder="e.g. 4,200" value={orders} onChange={(e) => setOrders(e.target.value)} /></div>
+                <div className="field"><label>Ship-from ZIP (optional)</label><input type="text" placeholder="30301" value={zip} onChange={(e) => setZip(e.target.value)} /></div>
               </div>
-              <button className="btn btn-primary btn-lg" type="submit" style={{ width: '100%', justifyContent: 'center', marginTop: 6 }}>Run my free catalog audit</button>
+              <button className="btn btn-primary btn-lg" type="submit" style={{ width: '100%', justifyContent: 'center', marginTop: 6 }}>
+                Continue my free audit <span aria-hidden="true">→</span>
+              </button>
             </form>
-            <div style={{ textAlign: 'center', marginTop: 12 }}>
-              <Link href="/audit" style={{ fontSize: 13, color: 'var(--violet-bright)', fontWeight: 600 }}>Open the full audit page →</Link>
-            </div>
-            <div style={{ marginTop: 18 }}>
-              {phase === 'scanning' && (
-                <div className="scan-prog">
-                  {steps.map((s, idx) => {
-                    const cls = scanStep > idx + 1 ? 'done' : scanStep === idx + 1 ? 'active' : '';
-                    return <div className={`scan-step ${cls}`} key={idx}><span className="sdot">{scanStep > idx + 1 ? '✓' : ''}</span> {s}</div>;
-                  })}
-                </div>
-              )}
-              {phase === 'done' && teaser && (
-                <div className="reveal in">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                    <span className="pill g">Scan complete</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-3)' }}>Shopify detected · {teaser.url}</span>
-                  </div>
-                  <div className="teaser-grid">
-                    <div className="teaser-stat"><div className="l">Products scanned</div><div className="n">{teaser.products}</div></div>
-                    <div className="teaser-stat"><div className="l">Catalog confidence</div><div className="n">{teaser.conf}%</div></div>
-                    <div className="teaser-stat"><div className="l">Pick / pack · est</div><div className="n">${teaser.pp}</div></div>
-                    <div className="teaser-stat"><div className="l">Label · est / order</div><div className="n">${teaser.lbl}</div></div>
-                  </div>
-                  <p style={{ fontSize: '12.5px', color: 'var(--text-3)', lineHeight: 1.6, margin: '0 0 16px' }}>
-                    Estimate bands only — exact costs require SKU dimensions, ship-from, and carrier data. Full SKU-by-SKU report unlocks inside your UnieConnect command center.
-                  </p>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <a className="btn btn-primary" href="#demo">Book a demo</a>
-                    <Link className="btn btn-ghost" href="/audit">Open the full report →</Link>
-                  </div>
-                </div>
-              )}
-            </div>
+            <p className="optional-note" style={{ marginTop: 12 }}>Next: add your ship-from origins &amp; optional order CSV, then get your full report.</p>
           </div>
         </div>
       </div>
