@@ -14,7 +14,9 @@ export function getApiOrigin(): string {
   if (typeof window !== 'undefined') {
     if (env) return env.replace(/\/+$/, '');
     const host = window.location.hostname;
-    if (host === 'user.unieconnect.com') return 'https://api.unieconnect.com';
+    if (host === 'user.unieconnect.com' || host === 'unieconnect.com' || host === 'www.unieconnect.com') {
+      return 'https://api.unieconnect.com';
+    }
     // On localhost, use local backend
     if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:4001';
     return window.location.origin;

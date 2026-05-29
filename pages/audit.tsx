@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { SiteShell } from '../components/marketing/SiteShell';
+import { apiUrl } from '../lib/api';
 
 const AuditMap = dynamic(() => import('../components/marketing/AuditMap'), {
   ssr: false,
@@ -156,7 +157,7 @@ export default function AuditPage() {
 
   const pollAudit = async (reference: string) => {
     for (let i = 0; i < 8; i += 1) {
-      const res = await fetch(`/api/v1/public/website-catalog-audit/${encodeURIComponent(reference)}`);
+      const res = await fetch(apiUrl(`/api/v1/public/website-catalog-audit/${encodeURIComponent(reference)}`));
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.detail || data?.error || 'Catalog audit lookup failed');
       if (!['queued', 'running', 'processing'].includes(String(data?.status || '').toLowerCase())) {
@@ -189,7 +190,7 @@ export default function AuditPage() {
         page_path: '/audit',
       };
       setScanStep(2);
-      const res = await fetch('/api/v1/public/website-catalog-audit', {
+      const res = await fetch(apiUrl('/api/v1/public/website-catalog-audit'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
