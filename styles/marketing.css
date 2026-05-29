@@ -310,6 +310,7 @@
 /* ============ Feature cards ============ */
 .uc-site .fcards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .uc-site .fcards.c3 { grid-template-columns: repeat(3, 1fr); }
+.uc-site .fcards.c5 { grid-template-columns: repeat(5, 1fr); }
 .uc-site .fcard {
   background: var(--panel); border: 1px solid var(--border-2); border-radius: 15px;
   padding: 22px; transition: transform 0.2s, border-color 0.2s, box-shadow 0.3s;
@@ -654,7 +655,7 @@
   .uc-site .hero-grid, .uc-site .map-wrap, .uc-site .lead { grid-template-columns: 1fr; }
   .uc-site .cc-mock { max-width: 480px; margin: 0 auto; }
   .uc-site .ba-grid, .uc-site .cmp { grid-template-columns: 1fr; }
-  .uc-site .fcards, .uc-site .fcards.c3, .uc-site .rec-stack, .uc-site .mp-cards { grid-template-columns: 1fr 1fr; }
+  .uc-site .fcards, .uc-site .fcards.c3, .uc-site .fcards.c5, .uc-site .rec-stack, .uc-site .mp-cards { grid-template-columns: 1fr 1fr; }
   .uc-site .intg-wall { grid-template-columns: repeat(3, 1fr); }
   .uc-site .dash-kpis { grid-template-columns: 1fr 1fr; }
   .uc-site .lead-left { border-right: 0; border-bottom: 1px solid var(--hair); }
@@ -667,7 +668,7 @@
   .uc-site .map-body { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
-  .uc-site .fcards, .uc-site .fcards.c3, .uc-site .rec-stack, .uc-site .mp-cards, .uc-site .teaser-grid, .uc-site .field-row { grid-template-columns: 1fr; }
+  .uc-site .fcards, .uc-site .fcards.c3, .uc-site .fcards.c5, .uc-site .rec-stack, .uc-site .mp-cards, .uc-site .teaser-grid, .uc-site .field-row { grid-template-columns: 1fr; }
   .uc-site .intg-wall { grid-template-columns: repeat(2, 1fr); }
   .uc-site .section { padding: 72px 0; }
   .uc-site .hero { padding: 120px 0 60px; }
@@ -675,6 +676,9 @@
   .uc-site .report-summary { grid-template-columns: 1fr; }
   .uc-site .next-grid { grid-template-columns: 1fr; }
   .uc-site .step-card { padding: 22px; }
+  .uc-site .wrap { padding: 0 18px; }
+  .uc-site .lead-left, .uc-site .lead-right { padding: 26px; }
+  .uc-site .flow-step { min-width: 100%; }
 }
 
 /* ============ Print / PDF (Audit report) ============ */

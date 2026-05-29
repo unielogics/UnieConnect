@@ -392,7 +392,7 @@ function LandingContent() {
               <div className="flow-step" key={num as string}><div className="num">{num}</div><h3>{h}</h3><p>{p}</p>{arr && <span className="arr">›</span>}</div>
             ))}
           </div>
-          <div className="fcards reveal d2" style={{ marginTop: 24, gridTemplateColumns: 'repeat(5,1fr)' }}>
+          <div className="fcards c5 reveal d2" style={{ marginTop: 24 }}>
             {[['OMS baseline', 'Creates the business expectation.'], ['WMS truth', 'Confirms physical warehouse activity.'], ['Cortex compares', 'Expectation vs execution, continuously.'], ['One place', 'Recommendations land in your dashboard.'], ['Compounding', 'Better data creates better decisions over time.']].map(([h, p]) => (
               <div className="fcard" key={h}><h3>{h}</h3><p>{p}</p></div>
             ))}
@@ -431,7 +431,7 @@ function LandingContent() {
               <div className="acts"><button className="approve">Approve</button><button className="reject">Reject</button></div>
             </div>
           </div>
-          <div className="fcards reveal d2" style={{ marginTop: 24, gridTemplateColumns: 'repeat(5,1fr)' }}>
+          <div className="fcards c5 reveal d2" style={{ marginTop: 24 }}>
             {[['Inventory placement', 'Where to position stock.'], ['Pricing & SKU optimization', 'Surface margin opportunities.'], ['Supplier & billing audits', 'Catch risk and overcharges.'], ['Carrier audit', 'Recover refunds on late labels.'], ['Human approval workflow', 'You approve every move.']].map(([h, p]) => (
               <div className="fcard" key={h}><h3>{h}</h3><p>{p}</p></div>
             ))}
