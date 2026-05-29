@@ -20,9 +20,40 @@ type AuditProduct = {
   variants?: number | null;
   ship_zone?: string | null;
   source?: 'known' | 'inferred' | 'needs' | string;
+  image_url?: string | null;
+  weight?: string | null;
+  dimensions?: string | null;
+  weight_lb?: number | null;
+  dimensions_in?: { length?: number | null; width?: number | null; height?: number | null } | null;
 };
 type AuditOrigin = { zip: string; state: string };
 type ZoneEstimate = { zone: number; low: number; base: number; high: number };
+type NetworkNode = {
+  id?: string;
+  name?: string;
+  postal?: string | null;
+  state?: string | null;
+  max_trailer_length_ft?: number | null;
+  loading_equipment?: string[];
+  loading_dock_style?: string[];
+};
+type NetworkScenario = {
+  node_count?: number;
+  nodes?: NetworkNode[];
+  per_order?: Record<string, number>;
+  monthly?: Record<string, number>;
+  service_components?: Record<string, any>;
+};
+type NetworkComparison = {
+  node_source?: string;
+  assumptions?: any;
+  warehouse_nodes_consumed?: NetworkNode[];
+  single_origin?: NetworkScenario;
+  multi_node?: NetworkScenario;
+  estimated_monthly_savings?: number;
+  estimated_monthly_delta?: number;
+  recommendation?: string;
+};
 
 type ReportData = {
   reference: string;
@@ -44,6 +75,8 @@ type ReportData = {
   blockers: string[];
   sourceLabels: Record<string, string>;
   nextActions: string[];
+  networkComparison?: NetworkComparison | null;
+  ltlServices?: any;
   monthlyProjection?: {
     orders?: number;
     low?: number;
@@ -149,6 +182,8 @@ export default function AuditPage() {
       blockers: Array.isArray(raw?.blockers) ? raw.blockers : [],
       sourceLabels: raw?.source_labels || {},
       nextActions: Array.isArray(raw?.next_actions) ? raw.next_actions : [],
+      networkComparison: raw?.network_comparison || null,
+      ltlServices: raw?.ltl_services || null,
       monthlyProjection: raw?.monthly_projection || null,
     };
   };
@@ -386,6 +421,12 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
   const displayUrl = (report.website || url).replace(/^https?:\/\//, '');
   const catalogSource = sourceLabels.catalog === 'json_ld_or_product_pages' ? 'catalog crawl' : sourceLabels.catalog || 'catalog evidence';
   const orderSource = sourceLabels.orders === 'csv_weighted' ? 'boosted by CSV' : 'add CSV to raise';
+  const network = report.networkComparison;
+  const single = network?.single_origin;
+  const multi = network?.multi_node;
+  const fmtMoney = (n: any, digits = 0) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits })}`;
+  const fmtPer = (n: any) => `$${Number(n || 0).toFixed(2)}`;
+  const serviceTiers = multi?.service_components?.ltl_linehaul?.service_tiers || report.ltlServices?.service_tiers || {};
 
   return (
     <>
@@ -505,19 +546,80 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
             </div>
           )}
 
+          {network && single && multi && (
+            <div className="next-actions">
+              <div className="rh">
+                <span>Single warehouse vs Cortex multi-node model</span>
+                <span className="src-chip inferred">{String(network.node_source || 'cortex nodes').replace(/_/g, ' ')}</span>
+              </div>
+              <div className="report-cols" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 12 }}>
+                {[['Current single-origin', single], ['Cortex multi-node', multi]].map(([label, scenario]: any) => (
+                  <div className="band" key={label}>
+                    <div className="bt"><span>{label}</span><span className="src-chip known">{scenario.node_count || 0} node{scenario.node_count === 1 ? '' : 's'}</span></div>
+                    <div className="big">{fmtPer(scenario.per_order?.total)}<span>/ order</span></div>
+                    <div className="note">Monthly modeled total: <b>{fmtMoney(scenario.monthly?.total)}</b></div>
+                    <div className="blockers" style={{ padding: 0, borderTop: '1px solid var(--line)' }}>
+                      <div className="bl"><span className="sev" style={{ background: '#a586ff' }} /><div><div className="bt" style={{ fontSize: '12.5px', margin: 0 }}>Pick/pack {fmtPer(scenario.per_order?.pick_pack)}</div><div className="bd">Rate-card picking + packaging/routing/dispatch fees</div></div></div>
+                      <div className="bl"><span className="sev" style={{ background: '#36e0a8' }} /><div><div className="bt" style={{ fontSize: '12.5px', margin: 0 }}>Parcel label {fmtPer(scenario.per_order?.parcel_label)}</div><div className="bd">Best Cortex carrier estimate from active node to 48-state demand proxy</div></div></div>
+                      <div className="bl"><span className="sev" style={{ background: '#60a5fa' }} /><div><div className="bt" style={{ fontSize: '12.5px', margin: 0 }}>Inbound receiving {fmtPer(scenario.per_order?.inbound_receiving)}</div><div className="bd">ASN + unit receive + pallet-share receiving fees</div></div></div>
+                      <div className="bl"><span className="sev" style={{ background: '#f59e0b' }} /><div><div className="bt" style={{ fontSize: '12.5px', margin: 0 }}>LTL linehaul {fmtPer(scenario.per_order?.ltl_linehaul)}</div><div className="bd">Pallet-aware supplier-origin to warehouse-node transfer model</div></div></div>
+                    </div>
+                    <div className="origin-list-mini" style={{ marginTop: 12 }}>
+                      {(scenario.nodes || []).slice(0, 4).map((node: NetworkNode) => (
+                        <div className="o" key={`${node.id}-${node.postal}`}>
+                          <span className="pin" style={{ border: '2px solid #36e0a8', background: 'transparent' }} />
+                          {node.name || node.id} · ZIP {node.postal || '—'} {node.state ? `(${node.state})` : ''}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="scenario" style={{ marginTop: 12 }}>
+                <div className="sc"><div className="l">Estimated monthly delta</div><div className={`n ${Number(network.estimated_monthly_delta || 0) > 0 ? 'g' : ''}`}>{fmtMoney(network.estimated_monthly_delta)}</div></div>
+                <div className="sc"><div className="l">Modeled savings</div><div className="n g">{fmtMoney(network.estimated_monthly_savings)}</div></div>
+                <div className="sc"><div className="l">Avg weight</div><div className="n">{Number(network.assumptions?.avg_weight_lb || 0).toFixed(1)} lb</div></div>
+                <div className="sc"><div className="l">Avg package</div><div className="n">{Number(network.assumptions?.avg_dimensions_in?.length || 0).toFixed(0)}×{Number(network.assumptions?.avg_dimensions_in?.width || 0).toFixed(0)}×{Number(network.assumptions?.avg_dimensions_in?.height || 0).toFixed(0)} in</div></div>
+              </div>
+              {Object.keys(serviceTiers).length > 0 && (
+                <div className="next-grid" style={{ marginTop: 12 }}>
+                  {Object.entries(serviceTiers).map(([tier, value]: any) => (
+                    <div className="next-card" key={tier}>
+                      <span>{tier.slice(0, 2).toUpperCase()}</span>
+                      {tier}: {fmtMoney(value.monthly)} / mo · {value.note}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="disc" style={{ marginTop: 12 }}>{network.recommendation}</div>
+            </div>
+          )}
+
           <div className="report-2col">
             <div className="report-table-wrap">
               <div className="rh"><span>Sample discovered products</span><span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 400 }}>{products} total · {sampleProducts.length} shown</span></div>
               <table className="rtable">
-                <thead><tr><th>Product</th><th>Price</th><th className="num">Variants</th><th>Source</th></tr></thead>
+                <thead><tr><th>Product</th><th>Price</th><th>Size / weight</th><th>Source</th></tr></thead>
                 <tbody>
                   {sampleProducts.length ? sampleProducts.map((product) => {
                     const source = ['known', 'inferred', 'needs'].includes(String(product.source)) ? String(product.source) as keyof typeof SRC_LABEL : 'inferred';
                     return (
                       <tr key={product.title}>
-                        <td className="pn">{product.title}</td>
+                        <td className="pn">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            {product.image_url ? (
+                              <img src={product.image_url} alt="" loading="lazy" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--panel-2)' }} />
+                            ) : (
+                              <div style={{ width: 44, height: 44, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--panel-2)' }} />
+                            )}
+                            <span>{product.title}</span>
+                          </div>
+                        </td>
                         <td className="mono">{product.price || '—'}</td>
-                        <td className="num mono">{product.variants || 1}</td>
+                        <td className="mono">
+                          <div>{product.dimensions || 'dimensions needed'}</div>
+                          <div style={{ color: 'var(--text-3)', fontSize: 12 }}>{product.weight || (product.weight_lb ? `${product.weight_lb} lb` : 'weight needed')}</div>
+                        </td>
                         <td><span className={`src-chip ${source}`}>{SRC_LABEL[source]}</span></td>
                       </tr>
                     );
