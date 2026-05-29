@@ -17,6 +17,8 @@ export default function Signup() {
   const [validating, setValidating] = useState(true);
   const [valid, setValid] = useState<boolean | null>(null);
   const [inviteRole, setInviteRole] = useState<string | null>(null);
+  const [auditReference, setAuditReference] = useState<string | null>(null);
+  const [auditCompany, setAuditCompany] = useState<string | null>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -55,6 +57,10 @@ export default function Signup() {
         if (cancelled) return;
         setValid(data.valid === true);
         setInviteRole(data.role || null);
+        const metadata = data.metadata || {};
+        setAuditReference(metadata.audit_reference || null);
+        setAuditCompany(metadata.company || null);
+        if (metadata.email) setEmail(String(metadata.email));
       } catch {
         if (!cancelled) setValid(false);
       } finally {
@@ -115,7 +121,8 @@ export default function Signup() {
       if (data.token) {
         localStorage.setItem(TOKEN_KEY, data.token);
         setStatusMessage('Account created. Redirecting…');
-        window.location.href = '/dashboard';
+        const ref = data.auditReference || auditReference;
+        window.location.href = ref ? `/dashboard?audit=${encodeURIComponent(ref)}&source=public_audit` : '/dashboard';
         return;
       }
       setError('Unexpected response. Please try again.');
@@ -172,7 +179,9 @@ export default function Signup() {
               <div className="eyebrow">You&apos;re invited</div>
               <div className="title">Create your account</div>
               <div className="muted">
-                {inviteRole ? `You will be added as ${ROLE_LABELS[inviteRole] || inviteRole}.` : 'Complete the form below.'}
+                {auditReference
+                  ? `Complete your account to unlock the full OMS workflow for ${auditCompany || 'your'} ${auditReference} snapshot.`
+                  : inviteRole ? `You will be added as ${ROLE_LABELS[inviteRole] || inviteRole}.` : 'Complete the form below.'}
               </div>
             </div>
           </div>

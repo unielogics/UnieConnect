@@ -401,6 +401,7 @@ export default function AuditPage() {
             report={report}
             url={cleanUrl(url)}
             company={company}
+            email={email}
             csvName={csvName}
             csvRows={csvRows}
             onRedo={() => { setStep(1); scrollTop(); }}
@@ -412,10 +413,12 @@ export default function AuditPage() {
 }
 
 // ================= REPORT =================
-function Report({ report, url, company, csvName, csvRows, onRedo }: {
-  report: ReportData; url: string; company: string; csvName: string; csvRows: number; onRedo: () => void;
+function Report({ report, url, company, email, csvName, csvRows, onRedo }: {
+  report: ReportData; url: string; company: string; email: string; csvName: string; csvRows: number; onRedo: () => void;
 }) {
   const { orders, origins, originStates, proposedStates, products, conf, pp, lbl, ppMk, lblMk, blockers, sourceLabels, sampleProducts, zoneEstimates, monthlyProjection, nextActions } = report;
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [signupError, setSignupError] = useState('');
   const originN = origins.length || 1;
   const print = () => window.print();
   const displayUrl = (report.website || url).replace(/^https?:\/\//, '');
@@ -427,6 +430,55 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
   const fmtMoney = (n: any, digits = 0) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits })}`;
   const fmtPer = (n: any) => `$${Number(n || 0).toFixed(2)}`;
   const serviceTiers = multi?.service_components?.ltl_linehaul?.service_tiers || report.ltlServices?.service_tiers || {};
+  const knownSignals = [
+    `Website: ${displayUrl}`,
+    `${products.toLocaleString()} public product signal${products === 1 ? '' : 's'}`,
+    sampleProducts.some((p) => p.image_url) ? 'Product images discovered' : 'Product images not found publicly',
+    sampleProducts.some((p) => p.price) ? 'Public prices discovered' : 'Public prices incomplete',
+    origins.length ? `${origins.length} supplied U.S. inventory-entry ZIP${origins.length === 1 ? '' : 's'}` : 'No origin ZIPs supplied',
+  ];
+  const modeledSignals = [
+    'Pick/pack fee bands',
+    'Parcel label bands by zone',
+    'LTL linehaul to Cortex warehouse nodes',
+    'Single-origin vs multi-node comparison',
+    'Modeled savings opportunity',
+  ];
+  const exactnessNeeds = [
+    'Marketplace order history and destination ZIPs',
+    'SKU dimensions and weights',
+    'Carrier rate cards and billed labels',
+    'Current warehouse and supplier rules',
+    'WMS inventory truth and pallet readiness',
+  ];
+  const startSignup = async () => {
+    setSignupError('');
+    const normalizedEmail = (email || '').trim();
+    if (!normalizedEmail) {
+      setSignupError('Add a work email to this audit before creating a UnieConnect account.');
+      return;
+    }
+    setSignupLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/v1/public/audit-signup/start'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference: report.reference,
+          email: normalizedEmail,
+          company: report.company || company,
+          website: report.website || displayUrl,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.detail || 'Could not start signup from this audit.');
+      window.location.href = data.inviteLink || `/signup?token=${encodeURIComponent(data.token || '')}`;
+    } catch (err: any) {
+      setSignupError(err?.message || 'Could not start signup from this audit.');
+    } finally {
+      setSignupLoading(false);
+    }
+  };
 
   return (
     <>
@@ -446,8 +498,9 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
           <div className="report-cta">
             <button className="btn btn-ghost" onClick={onRedo}>Run another</button>
             <button className="btn btn-ghost" onClick={print}>⬇ Download PDF</button>
-            <Link className="btn btn-primary" href="/#demo">Book a demo</Link>
+            <button className="btn btn-primary" onClick={startSignup} disabled={signupLoading}>{signupLoading ? 'Creating link…' : 'Create UnieConnect account'}</button>
           </div>
+          {signupError && <div className="signup-error">{signupError}</div>}
         </div>
 
         <div className="report">
@@ -491,7 +544,7 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
                   <div className="hd">✦ Cortex recommendation</div>
                   <div className="tx">
                     {proposedStates.length ? (
-                      <>Adding a node in <b>{proposedStates.join(' & ')}</b> moves inventory closer to unserved
+                      <>Adding a node in <b>{proposedStates.join(' & ')}</b> moves inventory closer to underserved
                       demand — modeled from the public catalog, supplied supplier/manufacturer ZIPs, and any CSV evidence attached to this audit.</>
                     ) : (
                       <>Cortex needs supplier/manufacturer origin ZIPs and order data before recommending an additional fulfillment region.</>
@@ -653,11 +706,33 @@ function Report({ report, url, company, csvName, csvRows, onRedo }: {
             </div>
           )}
 
+          <div className="next-actions">
+            <div className="rh"><span>Known vs modeled</span><span className="src-chip inferred">Public fulfillment snapshot</span></div>
+            <div className="next-grid">
+              <div className="next-card audit-evidence-card">
+                <span>KN</span>
+                <b>Known from public or supplied data</b>
+                <ul>{knownSignals.map((item) => <li key={item}>{item}</li>)}</ul>
+              </div>
+              <div className="next-card audit-evidence-card">
+                <span>MD</span>
+                <b>Modeled by Cortex</b>
+                <ul>{modeledSignals.map((item) => <li key={item}>{item}</li>)}</ul>
+              </div>
+              <div className="next-card audit-evidence-card">
+                <span>EX</span>
+                <b>Needed to become exact</b>
+                <ul>{exactnessNeeds.map((item) => <li key={item}>{item}</li>)}</ul>
+              </div>
+            </div>
+          </div>
+
           <div className="report-foot">
             <div className="disc">Estimate bands only — exact costs require SKU dimensions and carrier/marketplace data. Website data is discovered evidence, not execution-ready truth.</div>
             <div className="report-cta">
               <button className="btn btn-ghost btn-lg" onClick={print}>⬇ Download PDF</button>
-              <Link className="btn btn-primary btn-lg" href="/oms">Open full SKU-level report →</Link>
+              <Link className="btn btn-ghost btn-lg" href="/#demo">Talk to fulfillment expert</Link>
+              <button className="btn btn-primary btn-lg" onClick={startSignup} disabled={signupLoading}>{signupLoading ? 'Creating link…' : 'Create UnieConnect account →'}</button>
             </div>
           </div>
         </div>

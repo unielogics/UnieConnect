@@ -605,9 +605,13 @@
 .uc-site .next-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px; }
 .uc-site .next-card { border-radius: 12px; border: 1px solid var(--hair); background: rgba(255,255,255,0.03); padding: 14px; color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
 .uc-site .next-card span { display: block; color: var(--violet-bright); font-family: var(--mono); font-size: 11px; margin-bottom: 7px; }
+.uc-site .audit-evidence-card { min-height: 178px; }
+.uc-site .audit-evidence-card b { display: block; color: var(--text); margin-bottom: 8px; }
+.uc-site .audit-evidence-card ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
 .uc-site .report-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 18px 0 0; border-top: 1px solid var(--hair); margin-top: 4px; }
 .uc-site .report-foot .disc { font-size: 12px; color: var(--text-3); max-width: 560px; line-height: 1.6; }
 .uc-site .report-cta { display: flex; gap: 10px; flex-wrap: wrap; }
+.uc-site .signup-error { width: 100%; color: #ff8a8a; font-size: 12px; text-align: right; margin-top: -4px; }
 
 /* Multi-origin + CSV */
 .uc-site .origins { display: flex; flex-direction: column; gap: 8px; }
