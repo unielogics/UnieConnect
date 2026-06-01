@@ -208,9 +208,14 @@ export default function UnieConnectApp() {
   );
 
   const toggleSelect = useCallback((sku: SelSku & { supplierId?: string | null }) => {
-    setSelectedSkus((prev) =>
-      prev.find((s) => s.id === sku.id) ? prev.filter((s) => s.id !== sku.id) : [...prev, { id: sku.id, name: sku.name }]
-    );
+    setSelectedSkus((prev) => {
+      const existing = prev.find((s) => s.id === sku.id);
+      if (!existing) return [...prev, { ...sku, name: sku.name || sku.sku || sku.id }];
+      if (sku.fbaIntent && !existing.fbaIntent) {
+        return prev.map((s) => (s.id === sku.id ? { ...s, ...sku, name: sku.name || s.name || sku.sku || sku.id, fbaIntent: true } : s));
+      }
+      return prev.filter((s) => s.id !== sku.id);
+    });
     if ('supplierId' in sku) setSkuSupplierMap((m) => ({ ...m, [sku.id]: sku.supplierId ?? null }));
   }, []);
 

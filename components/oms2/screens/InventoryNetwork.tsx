@@ -3,9 +3,10 @@ import { Icon } from '../icons';
 import { Chip, Sparkline, Loading, ErrorState, EmptyState } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
 import { OptimizationImpact } from '../OptimizationImpact';
-import { fetchOmsSkus, OmsSku } from '../../../lib/oms';
+import { fetchOmsSkus, refreshAmazonItem, syncAmazonItems, OmsSku } from '../../../lib/oms';
 import { docTone, riskLabel } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
+import { AmazonListingModal } from '../modals/AmazonListingModal';
 
 const DocCell = ({ days }: { days: number }) => {
   const tone = docTone(days);
@@ -34,12 +35,33 @@ const FillScore = ({ value }: { value: number }) => {
   );
 };
 
+const AmazonBadges = ({ sku }: { sku: OmsSku }) => {
+  const amazon = sku.amazon;
+  if (!amazon) return <Chip tone="amber">Needs listing</Chip>;
+  const statusTone = amazon.listingStatus === 'sync_error'
+    ? 'red'
+    : amazon.listingStatus === 'needs_listing'
+      ? 'amber'
+      : 'green';
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <Chip tone={statusTone}>{amazon.listingStatus === 'needs_listing' ? 'Needs listing' : amazon.listingStatus}</Chip>
+      {amazon.fulfillmentChannel === 'AMAZON' || amazon.fulfillmentChannel === 'FBA' ? <Chip tone="purple">FBA</Chip> : null}
+      {amazon.fulfillmentChannel === 'MERCHANT' || amazon.fulfillmentChannel === 'FBM' ? <Chip tone="blue">FBM</Chip> : null}
+      {amazon.syncStatus === 'sync_error' ? <Chip tone="red">Sync error</Chip> : null}
+    </div>
+  );
+};
+
 export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewProduct, onImportCsv }: ScreenProps) => {
   const [view, setView] = useState<'table' | 'heatmap' | 'treemap'>('table');
   const [search, setSearch] = useState('');
+  const [amazonFilter, setAmazonFilter] = useState<'all' | 'listed' | 'fba' | 'needs_listing' | 'sync_error'>('all');
   const [skus, setSkus] = useState<OmsSku[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncingAmazon, setSyncingAmazon] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [listingItem, setListingItem] = useState<OmsSku | null>(null);
   const ctx = useCtxMenu();
 
   const load = () => {
@@ -54,18 +76,51 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
 
   const filtered = useMemo(
     () =>
-      skus.filter(
-        (s) =>
+      skus.filter((s) => {
+        const matchesSearch =
           !search ||
           s.sku?.toLowerCase().includes(search.toLowerCase()) ||
-          (s.title || '').toLowerCase().includes(search.toLowerCase())
-      ),
-    [skus, search]
+          (s.title || '').toLowerCase().includes(search.toLowerCase()) ||
+          (s.amazon?.asin || '').toLowerCase().includes(search.toLowerCase()) ||
+          (s.amazon?.sellerSku || '').toLowerCase().includes(search.toLowerCase());
+        const matchesAmazon =
+          amazonFilter === 'all' ||
+          (amazonFilter === 'listed' && Boolean(s.amazon?.asin)) ||
+          (amazonFilter === 'fba' && Boolean(s.amazon?.fbaEligible || s.amazon?.fulfillmentChannel === 'AMAZON' || s.amazon?.fulfillmentChannel === 'FBA')) ||
+          (amazonFilter === 'needs_listing' && (!s.amazon || s.amazon.listingStatus === 'needs_listing')) ||
+          (amazonFilter === 'sync_error' && s.amazon?.syncStatus === 'sync_error');
+        return matchesSearch && matchesAmazon;
+      }),
+    [skus, search, amazonFilter]
   );
 
   const atRisk = skus.filter((s) => s.daysOfCover < 14).length;
+  const amazonMapped = skus.filter((s) => s.amazon?.asin).length;
+  const fbaEligible = skus.filter((s) => s.amazon?.fbaEligible).length;
   const avgDoc = skus.length ? Math.round(skus.reduce((a, s) => a + (s.daysOfCover || 0), 0) / skus.length) : 0;
   const avgFill = skus.length ? Math.round(skus.reduce((a, s) => a + (s.fillPercent || 0), 0) / skus.length) : 0;
+
+  const syncAmazon = async () => {
+    setSyncingAmazon(true);
+    setErr(null);
+    try {
+      await syncAmazonItems();
+      load();
+    } catch (e: any) {
+      setErr(e.message || 'Failed to sync Amazon items');
+    } finally {
+      setSyncingAmazon(false);
+    }
+  };
+
+  const refreshAmazon = async (sku: OmsSku) => {
+    try {
+      await refreshAmazonItem(sku.id);
+      load();
+    } catch (e: any) {
+      setErr(e.message || 'Failed to refresh Amazon item');
+    }
+  };
 
   return (
     <div className="page fade-in">
@@ -91,6 +146,9 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           <button className="btn" onClick={() => onImportCsv?.('skus')}>
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
           </button>
+          <button className="btn" onClick={syncAmazon} disabled={syncingAmazon}>
+            <Icon name="refresh" size={13} /> {syncingAmazon ? 'Syncing' : 'Sync Amazon'}
+          </button>
           <button className="btn"><Icon name="download" size={13} /> Export</button>
           <button className="btn primary" onClick={onNewProduct}><Icon name="plus" size={13} /> New product</button>
         </div>
@@ -113,9 +171,9 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           <div className="stat-delta" style={{ color: 'var(--text-tertiary)' }}>network-wide</div>
         </div>
         <div className="stat ai">
-          <div className="stat-label">Avg pallet fill</div>
-          <div className="stat-value">{avgFill}%</div>
-          <div className="stat-delta up"><span className="arrow">▲</span> with plan applied</div>
+          <div className="stat-label">Amazon mapped</div>
+          <div className="stat-value">{amazonMapped}</div>
+          <div className="stat-delta up"><span className="arrow">▲</span> {fbaEligible} FBA-ready</div>
         </div>
       </div>
 
@@ -137,7 +195,18 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                 style={{ width: '100%', height: 28, padding: '0 10px 0 28px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 12 }}
               />
             </div>
-            <button className="filter-chip"><Icon name="filter" size={11} /> Channel: All</button>
+            <select
+              className="filter-chip"
+              value={amazonFilter}
+              onChange={(e) => setAmazonFilter(e.target.value as any)}
+              style={{ height: 28 }}
+            >
+              <option value="all">Amazon: All</option>
+              <option value="listed">Listed</option>
+              <option value="fba">FBA eligible</option>
+              <option value="needs_listing">Needs listing</option>
+              <option value="sync_error">Sync error</option>
+            </select>
             <button className="filter-chip applied"><Icon name="filter" size={11} /> Warehouse: All <Icon name="x" size={10} /></button>
             <button className="filter-chip"><Icon name="filter" size={11} /> DOC range</button>
             <button className="filter-chip"><Icon name="filter" size={11} /> Risk</button>
@@ -154,6 +223,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                   <th style={{ width: 28 }} />
                   <th>SKU</th>
                   <th>Product</th>
+                  <th>Amazon</th>
                   <th className="num">Available</th>
                   <th className="num">Inbound</th>
                   <th className="num">Velocity / 30d</th>
@@ -161,6 +231,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                   <th className="num">Proposed units</th>
                   <th>Pallet fill</th>
                   <th>Service tier</th>
+                  <th>Amazon actions</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -188,6 +259,17 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                             title: sel ? 'Remove from shipment' : 'Add to shipment plan',
                             onClick: () => toggleSelect({ id: s.id, name: s.title || s.sku, ...(s as any) }),
                           },
+                          {
+                            icon: 'box',
+                            title: s.amazon?.fbaEligible ? 'Create FBA shipment' : 'FBA blocked until Amazon profile is eligible',
+                            onClick: () => s.amazon?.fbaEligible && toggleSelect({ id: s.id, name: s.title || s.sku, ...(s as any), fbaIntent: true }),
+                          },
+                          {
+                            icon: 'arrowRight',
+                            title: s.amazon?.asin ? 'Update Amazon listing' : 'List on Amazon',
+                            onClick: () => setListingItem(s),
+                          },
+                          { icon: 'refresh', title: 'Refresh Amazon item', onClick: () => refreshAmazon(s) },
                           { icon: 'tag', title: 'View supplier', onClick: () => onNavigate('suppliers') },
                           { divider: true },
                           { icon: 'refresh', title: 'Re-sync from WMS', shortcut: '⌘R', onClick: load },
@@ -207,6 +289,9 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                       <td>
                         <span style={{ color: 'var(--text)' }}>{s.title || '—'}</span>
                       </td>
+                      <td>
+                        <AmazonBadges sku={s} />
+                      </td>
                       <td className="num mono strong">{(s.available ?? 0).toLocaleString()}</td>
                       <td className="num mono muted">{s.inbound > 0 ? s.inbound.toLocaleString() : '—'}</td>
                       <td className="num mono">{(s.velocity30d ?? 0).toLocaleString()}</td>
@@ -218,6 +303,21 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                         <FillScore value={s.fillPercent ?? 0} />
                       </td>
                       <td className="mono muted" style={{ textTransform: 'capitalize' }}>{s.serviceTier}</td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button className="btn ghost sm" onClick={() => setListingItem(s)}>
+                            {s.amazon?.asin ? 'Update' : 'List'}
+                          </button>
+                          <button
+                            className="btn ghost sm"
+                            disabled={!s.amazon?.fbaEligible}
+                            onClick={() => toggleSelect({ id: s.id, name: s.title || s.sku, ...(s as any), fbaIntent: true })}
+                            title={s.amazon?.fbaEligible ? 'Create Amazon FBA shipment' : 'Complete Amazon listing/FBA readiness first'}
+                          >
+                            FBA
+                          </button>
+                        </div>
+                      </td>
                       <td>
                         <Chip tone={rl.tone}>{rl.label}</Chip>
                       </td>
@@ -242,6 +342,16 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           </div>
         </div>
       )}
+      {listingItem ? (
+        <AmazonListingModal
+          item={listingItem}
+          onClose={() => setListingItem(null)}
+          onSaved={() => {
+            setListingItem(null);
+            load();
+          }}
+        />
+      ) : null}
     </div>
   );
 };

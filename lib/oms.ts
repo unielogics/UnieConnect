@@ -88,6 +88,29 @@ export type OmsSku = {
   fillPercent: number;
   serviceTier: 'priority' | 'standard' | 'economy' | string;
   recommendation: string;
+  amazon?: AmazonItemProfile | null;
+};
+
+export type AmazonItemProfile = {
+  id: string;
+  itemId?: string;
+  channelConnectionId?: string | null;
+  marketplaceId: string;
+  sellerSku: string;
+  asin?: string | null;
+  title?: string | null;
+  listingStatus: 'listed' | 'active' | 'needs_listing' | 'publish_pending' | 'sync_error' | string;
+  fulfillmentChannel: 'AMAZON' | 'FBA' | 'FBM' | 'MERCHANT' | 'UNKNOWN' | string;
+  availableFbaQty: number;
+  inboundWorkingQty: number;
+  inboundShippedQty: number;
+  inboundReceivingQty: number;
+  reservedQty: number;
+  syncStatus: string;
+  lastAmazonSyncAt?: string;
+  blockers: string[];
+  fbaEligible: boolean;
+  identityState: string;
 };
 
 export type InventoryPlan = {
@@ -175,6 +198,7 @@ export type OmsSkuDetail = {
     revenue30d?: number;
     grossProfit30d?: number;
   };
+  amazon?: AmazonItemProfile | null;
   nextShipments: Array<{ id: string; date: string; origin: string; destination: string; quantity: number; status: string; cube?: number; mode?: string }>;
   warehouses: Array<{ code: string; name?: string; region?: string; available: number; inbound: number; daysOfCover: number; storageCost?: number; velocityPerDay?: number; status?: string }>;
   history: Array<{ ts: string; type: string; actor: string; subject: string; impact?: number | null }>;
@@ -494,6 +518,49 @@ export const fetchOmsSkus = () => omsFetch<{ skus: OmsSku[]; total: number }>('/
 
 export const fetchOmsSkuDetail = (skuId: string) =>
   omsFetch<OmsSkuDetail>(`/skus/${encodeURIComponent(skuId)}`);
+
+export const fetchAmazonItems = (params?: { filter?: string; q?: string }) => {
+  const qs = new URLSearchParams();
+  if (params?.filter) qs.set('filter', params.filter);
+  if (params?.q) qs.set('q', params.q);
+  return apiFetch<{ items: AmazonItemProfile[] }>(`/amazon/items${qs.toString() ? `?${qs.toString()}` : ''}`);
+};
+
+export const syncAmazonItems = (body: Record<string, unknown> = {}) =>
+  apiFetch<{ synced: number; providerStatus: string; items: AmazonItemProfile[] }>('/amazon/items/sync', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const refreshAmazonItem = (itemId: string, body: Record<string, unknown> = {}) =>
+  apiFetch<{ item: AmazonItemProfile | null }>(`/amazon/items/${encodeURIComponent(itemId)}/refresh`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const createAmazonListingDraft = (body: Record<string, unknown>) =>
+  apiFetch<{ draft: Record<string, unknown>; validation: { errors: string[]; warnings: string[] } }>('/amazon/listings/drafts', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const validateAmazonListingDraft = (draftId: string, body: Record<string, unknown> = {}) =>
+  apiFetch<{ draft: Record<string, unknown>; validation: { errors: string[]; warnings: string[] } }>(`/amazon/listings/drafts/${encodeURIComponent(draftId)}/validate`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const publishAmazonListingDraft = (draftId: string, body: Record<string, unknown> = {}) =>
+  apiFetch<{ draft: Record<string, unknown>; submissionResult: Record<string, unknown> }>(`/amazon/listings/drafts/${encodeURIComponent(draftId)}/publish`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const createAmazonFbaWorkflow = (body: Record<string, unknown>) =>
+  apiFetch<{ workflowId: string; workflow: Record<string, unknown>; selectedItems: Array<Record<string, unknown>> }>('/amazon/fba/workflows', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 
 export const fetchOmsOrders = () => omsFetch<{ orders: OmsOrder[] }>('/orders');
 

@@ -1,7 +1,15 @@
 import React from 'react';
 import { Icon } from './icons';
 
-export type SelSku = { id: string; name: string };
+export type SelSku = {
+  id: string;
+  name: string;
+  supplierId?: string | null;
+  sku?: string;
+  amazon?: unknown;
+  fbaIntent?: boolean;
+  [key: string]: unknown;
+};
 
 export const SelectionBar = ({
   count,
