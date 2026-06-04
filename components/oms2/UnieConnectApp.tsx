@@ -50,6 +50,7 @@ export interface ScreenProps {
   onNavigate: NavFn;
   toggleSelect: (sku: SelSku) => void;
   isSelected: (id: string) => boolean;
+  selectedSkus?: SelSku[];
   onOpenOrder?: (o: OmsOrder) => void;
   onCreateShipmentWithSupplier?: (supplierId: string, skus: SelSku[]) => void;
   onNewProduct?: () => void;
@@ -217,7 +218,7 @@ export default function UnieConnectApp() {
 
   const toggleSelect = useCallback((sku: SelSku & { supplierId?: string | null }) => {
     setSelectedSkus((prev) =>
-      prev.find((s) => s.id === sku.id) ? prev.filter((s) => s.id !== sku.id) : [...prev, { id: sku.id, name: sku.name }]
+      prev.find((s) => s.id === sku.id) ? prev.filter((s) => s.id !== sku.id) : [...prev, sku]
     );
     if ('supplierId' in sku) setSkuSupplierMap((m) => ({ ...m, [sku.id]: sku.supplierId ?? null }));
   }, []);
@@ -304,6 +305,7 @@ export default function UnieConnectApp() {
     onNavigate: navigate,
     toggleSelect,
     isSelected,
+    selectedSkus,
     onOpenOrder: setOrderModal,
     onCreateShipmentWithSupplier: createShipmentForSupplier,
     onNewProduct: () => setNewProductOpen(true),

@@ -16,13 +16,14 @@ import { num, monthShort } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 import { OptimizationImpact } from '../OptimizationImpact';
 
-export const Shipments = ({ onNavigate }: ScreenProps) => {
+export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus = [] }: ScreenProps) => {
   const [plan, setPlan] = useState<InventoryPlanFull | null>(null);
   const [asns, setAsns] = useState<OmsAsn[]>([]);
   const [ctx, setCtx] = useState<CopilotContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
+  const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -44,6 +45,26 @@ export const Shipments = ({ onNavigate }: ScreenProps) => {
   const months = plan?.months || [];
   const maxUnits = Math.max(1, ...months.map((m) => num(m.projectedUnits)));
   const openAsns = asns.filter((a) => !['cancelled', 'stopped', 'received', 'closed'].includes(String(a.status || '').toLowerCase()));
+  const selectedSupplierKey = (() => {
+    const keys = selectedSkus.map((s) => s.supplierId || '__unassigned__');
+    return keys.length ? keys[0] : null;
+  })();
+  const selectedInboundCount = inbound.filter((s) => isSelected(s.id)).length;
+  const selectInboundSku = (s: InventoryPlanFull['skus'][number]) => {
+    setSelectionNotice(null);
+    if (!isSelected(s.id) && selectedSupplierKey) {
+      const nextKey = s.supplierId || '__unassigned__';
+      if (nextKey !== selectedSupplierKey) {
+        setSelectionNotice(
+          s.supplierId
+            ? 'Shipment plans can only group SKUs from the same supplier. Clear the current selection or choose another SKU from that supplier.'
+            : 'This SKU has no supplier assigned. Clear the current supplier selection or assign a supplier before grouping it.'
+        );
+        return;
+      }
+    }
+    toggleSelect({ id: s.id, name: s.title || s.sku, ...(s as any) });
+  };
   const mutateAsn = async (asn: OmsAsn, action: 'cancel' | 'stop') => {
     const reason = action === 'stop' ? 'Stopped before warehouse execution from OMS' : 'Cancelled from OMS shipment screen';
     setActing(`${action}:${asn.id}`);
@@ -89,8 +110,11 @@ export const Shipments = ({ onNavigate }: ScreenProps) => {
           <div className="row-2" style={{ marginBottom: 16 }}>
             <div className="card">
               <div className="card-header">
-                <div className="card-title">
-                  Planned inbound <Chip dot={false}>{inbound.length}</Chip>
+                <div>
+                  <div className="card-title">
+                    Planned inbound <Chip dot={false}>{inbound.length}</Chip>
+                  </div>
+                  <div className="card-subtitle">Click rows to stage SKUs for a shipment plan. Multi-select requires the same supplier.</div>
                 </div>
                 <div className="seg">
                   <button className="active">All</button>
@@ -98,33 +122,71 @@ export const Shipments = ({ onNavigate }: ScreenProps) => {
                   <button>Received</button>
                 </div>
               </div>
+              {selectionNotice && (
+                <div className="inline-banner warn" style={{ margin: '0 16px 12px' }}>
+                  <Icon name="warning" size={13} /> {selectionNotice}
+                </div>
+              )}
+              {selectedInboundCount > 0 && (
+                <div className="inline-banner" style={{ margin: '0 16px 12px' }}>
+                  <Icon name="shipments" size={13} /> {selectedInboundCount} planned inbound SKU{selectedInboundCount === 1 ? '' : 's'} staged. Use the bottom selection bar to create the shipment plan.
+                </div>
+              )}
               {inbound.length === 0 ? (
                 <EmptyState>No inbound shipments in the current plan.</EmptyState>
               ) : (
                 <table className="data">
                   <thead>
                     <tr>
+                      <th style={{ width: 28 }} />
                       <th>SKU</th>
                       <th>Product</th>
+                      <th>Supplier</th>
                       <th className="num">Inbound</th>
                       <th className="num">Proposed</th>
                       <th className="num">Pallet ft³</th>
                       <th>Tier</th>
                       <th>Recommendation</th>
+                      <th className="num">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {inbound.map((s) => (
-                      <tr key={s.id} className="clickable" onClick={() => onNavigate('sku-detail', s.id)}>
-                        <td className="mono strong">{s.sku}</td>
-                        <td>{s.title || '—'}</td>
-                        <td className="num mono">{num(s.inbound).toLocaleString()}</td>
-                        <td className="num mono strong">{num(s.proposedUnits).toLocaleString()}</td>
-                        <td className="num mono">{num(s.palletCubeFt)}</td>
-                        <td className="mono muted" style={{ textTransform: 'capitalize' }}>{s.serviceTier}</td>
-                        <td style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.recommendation || '—'}</td>
-                      </tr>
-                    ))}
+                    {inbound.map((s) => {
+                      const sel = isSelected(s.id);
+                      return (
+                        <tr
+                          key={s.id}
+                          className="clickable"
+                          onClick={() => selectInboundSku(s)}
+                          style={{
+                            background: sel ? 'var(--accent-soft)' : undefined,
+                            boxShadow: sel ? 'inset 3px 0 0 var(--accent)' : undefined,
+                          }}
+                        >
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              className="row-check"
+                              checked={sel}
+                              onChange={() => selectInboundSku(s)}
+                            />
+                          </td>
+                          <td className="mono strong">{s.sku}</td>
+                          <td>{s.title || '—'}</td>
+                          <td className="mono muted">{s.supplierId || 'Unassigned'}</td>
+                          <td className="num mono">{num(s.inbound).toLocaleString()}</td>
+                          <td className="num mono strong">{num(s.proposedUnits).toLocaleString()}</td>
+                          <td className="num mono">{num(s.palletCubeFt)}</td>
+                          <td className="mono muted" style={{ textTransform: 'capitalize' }}>{s.serviceTier}</td>
+                          <td style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.recommendation || '—'}</td>
+                          <td className="num" onClick={(e) => e.stopPropagation()}>
+                            <button className="btn ghost sm" onClick={() => onNavigate('sku-detail', s.id)} data-hint="Open SKU detail">
+                              <Icon name="eye" size={12} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
