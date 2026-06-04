@@ -286,7 +286,7 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
             </button>
             <button type="button" className="oms-top-button" onClick={() => setCopilotOpen((value) => !value)}>
               <Brain size={16} />
-              <span>AI Dock</span>
+              <span>Cortex</span>
             </button>
             <Link href="/profile" className="oms-profile">
               {(currentUser?.email || 'UC').slice(0, 2).toUpperCase()}
@@ -297,13 +297,13 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
       </main>
 
       {copilotOpen && (
-        <aside className="oms-copilot" aria-label="AI Copilot">
+        <aside className="oms-copilot" aria-label="Cortex">
           <div className="oms-copilot-head">
             <div>
-              <div className="oms-eyebrow">Cortex Copilot</div>
+              <div className="oms-eyebrow">Cortex</div>
               <h2>Business Double advisor</h2>
             </div>
-            <button type="button" onClick={() => setCopilotOpen(false)} aria-label="Close AI dock">
+            <button type="button" onClick={() => setCopilotOpen(false)} aria-label="Close Cortex">
               <X size={18} />
             </button>
           </div>
