@@ -139,7 +139,7 @@ const ConnectNewModal = ({
         window.location.href = String(data.url);
         return;
       }
-      setMessage(data?.message || `${kind.toUpperCase()} connection was staged. Complete provider configuration to finish authorization.`);
+      setMessage(data?.message || `${kind.toUpperCase()} authorization started. Complete the provider consent screen to finish connecting.`);
       onConnected();
     } catch (err: any) {
       setError(err?.message || 'Connection failed');
@@ -178,7 +178,7 @@ const ConnectNewModal = ({
 
   const options = [
     { id: 'shopify', label: 'Shopify', desc: 'Orders, customers, products, and inventory sync' },
-    { id: 'amazon', label: 'Amazon', desc: 'SP-API authorization staging' },
+    { id: 'amazon', label: 'Amazon', desc: 'Seller Central SP-API authorization' },
     { id: 'ebay', label: 'eBay', desc: 'OAuth authorization and marketplace sync' },
     { id: 'wms', label: 'WMS warehouse', desc: 'Connect WMS execution truth with a one-time warehouse code' },
   ] as const;
@@ -266,7 +266,7 @@ const ConnectNewModal = ({
               <div className="empty" style={{ textAlign: 'left' }}>
                 {kind === 'ebay'
                   ? 'eBay starts an OAuth authorization request. If provider keys are missing, Cortex will stage the connection as needing configuration.'
-                  : 'Amazon SP-API authorization is staged here until Seller Central app credentials are fully configured.'}
+                  : 'Amazon redirects to Seller Central authorization. After consent, UnieConnect stores the SP-API refresh token and marks catalog, order, and inventory sync as pending.'}
               </div>
             )}
           </div>
