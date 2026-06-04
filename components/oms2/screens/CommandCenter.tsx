@@ -447,7 +447,7 @@ const OptimizationImpactPanel = ({
     <div className="card-header">
       <div>
         <div className="card-title">Current vs suggested decisions</div>
-        <div className="card-subtitle">Column 1 is current state. Column 2 is the Cortex suggestion. Accept or deny each decision.</div>
+        <div className="card-subtitle">Current state, Cortex suggestion, traceable impact, and the action to take. Approvals are reserved for concrete changes.</div>
       </div>
       <Chip tone="purple" dot={false}>{recommendations.length} open</Chip>
     </div>

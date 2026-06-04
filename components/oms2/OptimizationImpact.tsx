@@ -46,7 +46,7 @@ export const OptimizationImpact = ({
       <div className="card-header">
         <div>
           <div className="card-title"><Icon name="sparkle" size={15} /> {title}</div>
-          <div className="card-subtitle">Column 1 is current state. Column 2 is the suggested action. Accept or deny each decision.</div>
+          <div className="card-subtitle">Current state, Cortex suggestion, traceable impact, and the action to take. Missing-data items show as tasks, not approvals.</div>
         </div>
         <Chip tone="purple" dot={false}>{items.length} signals</Chip>
       </div>
