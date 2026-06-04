@@ -571,11 +571,24 @@
 
 .uc-shell .sku-details-card .card-header { padding-bottom: 10px; }
 .uc-shell .sku-detail-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; padding: 0 16px 16px; }
-.uc-shell .sku-detail-field { min-height: 58px; padding: 10px 12px; border: 1px solid var(--border-subtle); background: var(--bg-elev); display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.uc-shell .sku-detail-field { position: relative; min-height: 58px; padding: 10px 12px; border: 1px solid var(--border-subtle); background: var(--bg-elev); display: flex; flex-direction: column; justify-content: center; gap: 4px; text-align: left; color: var(--text); }
+.uc-shell button.sku-detail-field { width: 100%; cursor: pointer; border-radius: 0; }
+.uc-shell button.sku-detail-field:hover { border-color: var(--accent-border); background: var(--accent-soft); }
+.uc-shell button.sku-detail-field:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .uc-shell .sku-detail-field .kv-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .uc-shell .sku-detail-field.missing { border-color: rgba(180,35,24,0.28); background: var(--red-soft); }
 .uc-shell .sku-detail-field.missing .kv-label,
 .uc-shell .sku-detail-field.missing .kv-value { color: var(--red-text); }
+.uc-shell .sku-detail-field .field-edit-icon { position: absolute; top: 9px; right: 9px; color: var(--text-tertiary); opacity: 0; transition: opacity .12s ease; }
+.uc-shell button.sku-detail-field:hover .field-edit-icon,
+.uc-shell button.sku-detail-field:focus-visible .field-edit-icon { opacity: 1; }
+.uc-shell .sku-detail-field.editing { min-height: 132px; justify-content: flex-start; gap: 7px; z-index: 1; }
+.uc-shell .sku-field-input { width: 100%; min-width: 0; height: 32px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); padding: 0 9px; font-size: 12px; outline: 0; }
+.uc-shell .sku-field-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.uc-shell .sku-field-input.textarea { min-height: 58px; height: auto; resize: vertical; padding-top: 8px; line-height: 1.35; }
+.uc-shell .sku-field-help { font-size: 10.5px; color: var(--text-tertiary); line-height: 1.2; }
+.uc-shell .sku-field-error { font-size: 11px; line-height: 1.25; color: var(--red-text); }
+.uc-shell .sku-field-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .uc-shell .sku-intel-minibar { margin-bottom: 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-elev); }
 .uc-shell .sku-intel-minibar-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; }
 .uc-shell .sku-intel-copy { min-width: 0; display: grid; gap: 6px; }

@@ -6,8 +6,10 @@ import {
   fetchProductResearchResult,
   fetchRecommendations,
   OmsRecommendation,
+  OmsSkuEnrichmentUpdate,
   OmsSkuDetail,
   ProductResearchResult,
+  updateOmsSkuEnrichment,
 } from '../../../lib/oms';
 import { num, docTone, riskLabel, channelColor } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -142,7 +144,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         </div>
       </div>
 
-      <ItemDetailsPanel data={data} />
+      <ItemDetailsPanel data={data} onSaved={setData} />
 
       <div className="stat-grid cols-5" style={{ marginBottom: 16 }}>
         <KpiTile label="On hand" value={num(intel.available).toLocaleString()} unit="u" sub={`across ${data.warehouses.length} WHs`} />
@@ -225,42 +227,159 @@ const dimText = (dimensions?: OmsSkuDetail['dimensions'] | null) => {
   return l && w && h ? `${l} x ${w} x ${h} in` : '';
 };
 
-const ItemDetailsPanel = ({ data }: { data: OmsSkuDetail }) => {
+type DetailFieldKind = 'text' | 'textarea' | 'number' | 'dimensions' | 'identity' | 'images' | 'category';
+type DetailField = {
+  key: string;
+  label: string;
+  value: string;
+  missing: boolean;
+  kind: DetailFieldKind;
+  payload: (value: string) => OmsSkuEnrichmentUpdate;
+};
+
+const parseNumberOrNull = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const ItemDetailsPanel = ({ data, onSaved }: { data: OmsSkuDetail; onSaved: (detail: OmsSkuDetail) => void }) => {
   const attrs = data.attributes || {};
   const meta = data.metadata || {};
   const images = [data.image, ...(data.images || [])].filter(Boolean);
-  const fields = [
-    { label: 'Subtitle', value: firstValue(data.subtitle, meta.subtitle, meta.subTitle) },
-    { label: 'Brand', value: firstValue(data.brand, meta.brand, attrs.brand) },
-    { label: 'Description', value: firstValue(data.description, meta.description, attrs.description) },
-    { label: 'Size', value: firstValue(attrs.size, meta.size, attrs.variant, meta.variant) },
-    { label: 'Weight', value: data.weight ? `${num(data.weight)} lb` : '' },
-    { label: 'Dimensions', value: dimText(data.dimensions) },
-    { label: 'UPC / EAN / ASIN', value: [data.upc, data.ean, data.asin].filter(Boolean).join(' / ') },
-    { label: 'Images', value: images.length ? `${images.length} image${images.length === 1 ? '' : 's'}` : '' },
-    { label: 'Price', value: data.price != null ? `$${num(data.price).toFixed(2)}` : '' },
-    { label: 'Category', value: [data.category, data.subCategory].filter(Boolean).join(' / ') },
-    { label: 'Supplier', value: data.supplierId || '' },
-    { label: 'Marketplace source', value: firstValue(meta.source, meta.importSource, meta.channel, data.asin ? 'Amazon enriched' : '') },
+  const identityValue = [data.upc, data.ean, data.asin].filter(Boolean).join(' / ');
+  const categoryValue = [data.category, data.subCategory].filter(Boolean).join(' / ');
+  const fields: DetailField[] = [
+    { key: 'subtitle', label: 'Subtitle', value: firstValue(data.subtitle, meta.subtitle, meta.subTitle), missing: !firstValue(data.subtitle, meta.subtitle, meta.subTitle), kind: 'text', payload: (value) => ({ subtitle: value }) },
+    { key: 'brand', label: 'Brand', value: firstValue(data.brand, meta.brand, attrs.brand), missing: !firstValue(data.brand, meta.brand, attrs.brand), kind: 'text', payload: (value) => ({ brand: value }) },
+    { key: 'description', label: 'Description', value: firstValue(data.description, meta.description, attrs.description), missing: !firstValue(data.description, meta.description, attrs.description), kind: 'textarea', payload: (value) => ({ description: value }) },
+    { key: 'size', label: 'Size', value: firstValue(attrs.size, meta.size, attrs.variant, meta.variant), missing: !firstValue(attrs.size, meta.size, attrs.variant, meta.variant), kind: 'text', payload: (value) => ({ size: value }) },
+    { key: 'weight', label: 'Weight', value: data.weight ? `${num(data.weight)} lb` : '', missing: !data.weight, kind: 'number', payload: (value) => ({ weight: parseNumberOrNull(value) }) },
+    { key: 'dimensions', label: 'Dimensions', value: dimText(data.dimensions), missing: !dimText(data.dimensions), kind: 'dimensions', payload: (value) => {
+      const [length, width, height] = value.split(/[x,]/i).map((part) => parseNumberOrNull(part));
+      return { dimensions: { length, width, height } };
+    } },
+    { key: 'identity', label: 'UPC / EAN / ASIN', value: identityValue, missing: !identityValue, kind: 'identity', payload: (value) => {
+      const [upc = '', ean = '', asin = ''] = value.split(/[|/]/).map((part) => part.trim());
+      return { upc, ean, asin };
+    } },
+    { key: 'images', label: 'Images', value: images.length ? `${images.length} image${images.length === 1 ? '' : 's'}` : '', missing: !images.length, kind: 'images', payload: (value) => ({ images: value.split(/\r?\n/).map((url) => url.trim()).filter(Boolean) }) },
+    { key: 'price', label: 'Price', value: data.price != null ? `$${num(data.price).toFixed(2)}` : '', missing: data.price == null, kind: 'number', payload: (value) => ({ price: parseNumberOrNull(value) }) },
+    { key: 'category', label: 'Category', value: categoryValue, missing: !categoryValue, kind: 'category', payload: (value) => {
+      const [category = '', subCategory = ''] = value.split(/[|/]/).map((part) => part.trim());
+      return { category, subCategory };
+    } },
+    { key: 'supplierId', label: 'Supplier', value: data.supplierId || '', missing: !data.supplierId, kind: 'text', payload: (value) => ({ supplierId: value }) },
+    { key: 'marketplaceSource', label: 'Marketplace source', value: firstValue(meta.source, meta.importSource, meta.channel, data.asin ? 'Amazon enriched' : ''), missing: !firstValue(meta.source, meta.importSource, meta.channel, data.asin ? 'Amazon enriched' : ''), kind: 'text', payload: (value) => ({ marketplaceSource: value }) },
   ];
-  const missing = fields.filter((field) => !field.value).length;
+  const missing = fields.filter((field) => field.missing).length;
   const complete = Math.round(((fields.length - missing) / fields.length) * 100);
   return (
     <div className="card sku-details-card" style={{ marginBottom: 16 }}>
       <div className="card-header">
         <div>
           <div className="card-title"><Icon name="box" size={15} /> Item details</div>
-          <div className="card-subtitle">Amazon-style enrichment fields. Missing values are marked red for cleanup.</div>
+          <div className="card-subtitle">Click any field to edit. Missing values are marked red for cleanup.</div>
         </div>
         <Chip tone={missing ? 'red' : 'green'} dot={false}>{complete}% enriched</Chip>
       </div>
       <div className="sku-detail-grid">
         {fields.map((field) => (
-          <div key={field.label} className={`sku-detail-field ${field.value ? '' : 'missing'}`}>
-            <div className="kv-label">{field.label}</div>
-            <div className="kv-value">{field.value || 'Missing'}</div>
-          </div>
+          <EditableDetailField key={field.key} skuId={data.id} field={field} images={images as string[]} dimensions={data.dimensions} identifiers={{ upc: data.upc || '', ean: data.ean || '', asin: data.asin || '' }} category={{ category: data.category || '', subCategory: data.subCategory || '' }} onSaved={onSaved} />
         ))}
+      </div>
+    </div>
+  );
+};
+
+const editableInitialValue = (
+  field: DetailField,
+  options: {
+    images: string[];
+    dimensions?: OmsSkuDetail['dimensions'] | null;
+    identifiers: { upc: string; ean: string; asin: string };
+    category: { category: string; subCategory: string };
+  },
+) => {
+  if (field.kind === 'images') return options.images.join('\n');
+  if (field.kind === 'dimensions') {
+    const d = options.dimensions || {};
+    return [d.length, d.width, d.height].map((v) => (v == null ? '' : String(v))).join(' x ');
+  }
+  if (field.kind === 'identity') return [options.identifiers.upc, options.identifiers.ean, options.identifiers.asin].join(' / ');
+  if (field.kind === 'category') return [options.category.category, options.category.subCategory].join(' / ');
+  if (field.kind === 'number') return field.value.replace(/[$,]| lb/g, '');
+  return field.value;
+};
+
+const EditableDetailField = ({
+  skuId,
+  field,
+  images,
+  dimensions,
+  identifiers,
+  category,
+  onSaved,
+}: {
+  skuId: string;
+  field: DetailField;
+  images: string[];
+  dimensions?: OmsSkuDetail['dimensions'] | null;
+  identifiers: { upc: string; ean: string; asin: string };
+  category: { category: string; subCategory: string };
+  onSaved: (detail: OmsSkuDetail) => void;
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const begin = () => {
+    setValue(editableInitialValue(field, { images, dimensions, identifiers, category }));
+    setError('');
+    setEditing(true);
+  };
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const next = await updateOmsSkuEnrichment(skuId, field.payload(value));
+      onSaved(next);
+      setEditing(false);
+    } catch (e: any) {
+      setError(e.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <button type="button" onClick={begin} className={`sku-detail-field editable ${field.missing ? 'missing' : ''}`} data-hint={`Edit ${field.label}`}>
+        <div className="kv-label">{field.label}</div>
+        <div className="kv-value">{field.value || 'Missing'}</div>
+        <Icon name="settings" size={11} className="field-edit-icon" />
+      </button>
+    );
+  }
+
+  return (
+    <div className={`sku-detail-field editing ${field.missing ? 'missing' : ''}`}>
+      <div className="kv-label">{field.label}</div>
+      {field.kind === 'textarea' || field.kind === 'images' ? (
+        <textarea className="sku-field-input textarea" value={value} onChange={(e) => setValue(e.target.value)} rows={field.kind === 'images' ? 3 : 2} />
+      ) : (
+        <input className="sku-field-input" value={value} onChange={(e) => setValue(e.target.value)} />
+      )}
+      {(field.kind === 'dimensions' || field.kind === 'identity' || field.kind === 'category') && (
+        <div className="sku-field-help">
+          {field.kind === 'dimensions' ? 'length x width x height' : field.kind === 'identity' ? 'UPC / EAN / ASIN' : 'Category / Sub-category'}
+        </div>
+      )}
+      {error && <div className="sku-field-error">{error}</div>}
+      <div className="sku-field-actions">
+        <button className="btn primary sm" onClick={save} disabled={saving}><Icon name="check" size={11} /> {saving ? 'Saving' : 'Save'}</button>
+        <button className="btn sm" onClick={() => setEditing(false)} disabled={saving}>Cancel</button>
       </div>
     </div>
   );

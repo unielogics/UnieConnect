@@ -607,6 +607,31 @@ export const fetchOmsSkus = (filter?: MarketplaceFilterParams) => {
 export const fetchOmsSkuDetail = (skuId: string) =>
   omsFetch<OmsSkuDetail>(`/skus/${encodeURIComponent(skuId)}`);
 
+export type OmsSkuEnrichmentUpdate = {
+  title?: string | null;
+  subtitle?: string | null;
+  brand?: string | null;
+  description?: string | null;
+  size?: string | null;
+  weight?: number | null;
+  dimensions?: { length?: number | null; width?: number | null; height?: number | null };
+  upc?: string | null;
+  ean?: string | null;
+  asin?: string | null;
+  images?: string[];
+  price?: number | null;
+  category?: string | null;
+  subCategory?: string | null;
+  supplierId?: string | null;
+  marketplaceSource?: string | null;
+};
+
+export const updateOmsSkuEnrichment = (skuId: string, payload: OmsSkuEnrichmentUpdate) =>
+  omsFetch<OmsSkuDetail>(`/skus/${encodeURIComponent(skuId)}/enrichment`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+
 export const fetchOmsOrders = (filter?: MarketplaceFilterParams) => {
   const qs = marketplaceQuery(filter);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
