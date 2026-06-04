@@ -1,5 +1,4 @@
-import { apiUrl } from './api';
-import { TOKEN_KEY } from './api';
+import { apiUrl, authFetch, getStoredToken, TOKEN_KEY } from './api';
 
 export type UserRole = 'super_admin' | 'management' | 'ecommerce_client' | 'billing';
 
@@ -23,7 +22,7 @@ function parseRole(value: unknown): UserRole | undefined {
 /** Decode role from JWT payload (fallback when /me is unavailable) */
 export function getRoleFromToken(): UserRole | undefined {
   if (typeof window === 'undefined') return undefined;
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = getStoredToken();
   if (!token) return undefined;
   try {
     const parts = token.split('.');
@@ -40,11 +39,10 @@ export function canManageUsers(role: UserRole | undefined): boolean {
 }
 
 export async function fetchCurrentUser(): Promise<CurrentUser | null> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-  if (!token) return null;
+  const token = getStoredToken();
   try {
-    const res = await fetch(apiUrl('/api/v1/auth/me'), {
-      headers: { Authorization: `Bearer ${token}` },
+    const res = await authFetch(apiUrl('/api/v1/auth/me'), {
+      headers: {},
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -61,7 +59,7 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
     return current;
   } catch {
     const role = getRoleFromToken();
-    if (!role) return null;
+    if (!role || !token) return null;
     const parts = token.split('.');
     const payload = parts[1] ? JSON.parse(atob(parts[1])) : {};
     return { userId: payload.userId, email: payload.email || '', role };

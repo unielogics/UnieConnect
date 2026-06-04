@@ -169,7 +169,14 @@ export default function UnieConnectApp() {
     };
   }, []);
 
-  useEffect(() => reloadUserFeatures(), [reloadUserFeatures]);
+  useEffect(() => {
+    if (!userLoadComplete) return;
+    if (!currentUser) {
+      setFeatureLoadComplete(true);
+      return;
+    }
+    return reloadUserFeatures();
+  }, [currentUser, reloadUserFeatures, userLoadComplete]);
 
   const setTweak = useCallback(<K extends keyof Tweaks>(k: K, v: Tweaks[K]) => {
     setTweaks((prev) => {
@@ -278,6 +285,25 @@ export default function UnieConnectApp() {
     el.style.setProperty('--accent', tweaks.accent);
     el.style.setProperty('--accent-hover', tweaks.accent);
   }, [tweaks]);
+
+  useEffect(() => {
+    if (!userLoadComplete || currentUser) return;
+    window.location.href = '/login';
+  }, [currentUser, userLoadComplete]);
+
+  if (!userLoadComplete) {
+    return (
+      <div className="uc-shell" ref={shellRef} data-theme={tweaks.theme} data-density={tweaks.density}>
+        <div className="app">
+          <div className="workspace">
+            <div className="loading-state">Loading account...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) return null;
 
   const sp: ScreenProps = {
     onNavigate: navigate,

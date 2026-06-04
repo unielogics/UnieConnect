@@ -6,7 +6,7 @@ type IconName =
   | 'sparkle' | 'chevron' | 'chevronDown' | 'chevronUp' | 'plus' | 'download' | 'filter'
   | 'columns' | 'play' | 'check' | 'x' | 'arrowUp' | 'arrowDown' | 'arrowRight' | 'bolt'
   | 'target' | 'warning' | 'info' | 'refresh' | 'map' | 'box' | 'tag' | 'moon' | 'sun'
-  | 'panelRight' | 'layers' | 'flame' | 'eye' | 'save' | 'list';
+  | 'panelRight' | 'layers' | 'flame' | 'eye' | 'save' | 'list' | 'logout';
 
 export const Icon = ({
   name,
@@ -79,6 +79,7 @@ export const Icon = ({
     eye: <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
     save: <><path d="M5 3h11l4 4v14H5z" /><path d="M8 3v6h8V3" /><path d="M8 14h8v7H8z" /></>,
     list: <><path d="M3 6h3M3 12h3M3 18h3" /><path d="M9 6h12M9 12h12M9 18h12" /></>,
+    logout: <><path d="M10 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v2" /><path d="M15 7l5 5-5 5" /><path d="M8 12h12" /></>,
   };
   return <svg {...props}>{paths[name] || null}</svg>;
 };

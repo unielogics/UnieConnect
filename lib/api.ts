@@ -1,5 +1,50 @@
 export const TOKEN_KEY = 'unie-token';
 
+export function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token && token.trim() ? token.trim() : null;
+}
+
+export function clearStoredToken() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(TOKEN_KEY);
+  document.cookie = `${TOKEN_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
+  document.cookie = `${TOKEN_KEY}=; Max-Age=0; Path=/; Domain=.unieconnect.com; SameSite=None; Secure`;
+}
+
+export function authHeaders(extra?: HeadersInit): HeadersInit {
+  const token = getStoredToken();
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(extra || {}),
+  };
+}
+
+export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const token = getStoredToken();
+  const headers: HeadersInit = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(init.headers || {}),
+  };
+  const res = await fetch(input, {
+    ...init,
+    credentials: init.credentials || 'include',
+    headers,
+  });
+
+  if (res.status !== 401 || !token) return res;
+
+  const retryHeaders = new Headers(init.headers || {});
+  retryHeaders.delete('Authorization');
+  retryHeaders.delete('authorization');
+  return fetch(input, {
+    ...init,
+    credentials: init.credentials || 'include',
+    headers: retryHeaders,
+  });
+}
+
 /**
  * Resolve the API origin for browser requests.
  *
@@ -14,9 +59,7 @@ export function getApiOrigin(): string {
   if (typeof window !== 'undefined') {
     if (env) return env.replace(/\/+$/, '');
     const host = window.location.hostname;
-    if (host === 'user.unieconnect.com' || host === 'unieconnect.com' || host === 'www.unieconnect.com') {
-      return 'https://api.unieconnect.com';
-    }
+    if (host === 'user.unieconnect.com') return 'https://api.unieconnect.com';
     // On localhost, use local backend
     if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:4001';
     return window.location.origin;
@@ -60,4 +103,3 @@ export function oauthApiUrl(path: string): string {
   const b = path.startsWith('/') ? path : `/${path}`;
   return `${a}${b}`;
 }
-

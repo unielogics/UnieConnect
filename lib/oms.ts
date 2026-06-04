@@ -1,15 +1,13 @@
-import { apiUrl, TOKEN_KEY } from './api';
+import { apiUrl, authFetch } from './api';
 
 export type OmsRange = 'today' | '7d' | '30d';
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-  const res = await fetch(apiUrl(`/api/v1${path}`), {
+  const res = await authFetch(apiUrl(`/api/v1${path}`), {
     ...options,
     headers: {
       Accept: 'application/json',
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
   });
@@ -21,13 +19,11 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 }
 
 export async function omsFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-  const res = await fetch(apiUrl(`/api/v1/oms${path}`), {
+  const res = await authFetch(apiUrl(`/api/v1/oms${path}`), {
     ...options,
     headers: {
       Accept: 'application/json',
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
   });

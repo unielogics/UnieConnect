@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
 import type { CurrentUser } from '../../lib/user';
+import { apiUrl, authFetch, clearStoredToken } from '../../lib/api';
 
 export type NavItem = {
   id: string;
@@ -181,6 +182,7 @@ export const Sidebar = ({
   user?: CurrentUser | null;
 }) => {
   const [openCat, setOpenCat] = useState<string | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
   const railRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -192,30 +194,54 @@ export const Sidebar = ({
   }, [nav, openCat]);
 
   useEffect(() => {
-    if (!openCat) return;
+    if (!openCat && !accountOpen) return;
     const onClick = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (!t.closest('.sidebar-rail') && !t.closest('.sb-panel')) setOpenCat(null);
+      if (!t.closest('.sidebar-rail') && !t.closest('.sb-panel') && !t.closest('.account-menu')) {
+        setOpenCat(null);
+        setAccountOpen(false);
+      }
     };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpenCat(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpenCat(null);
+      setAccountOpen(false);
+    };
     document.addEventListener('mousedown', onClick);
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onClick);
       document.removeEventListener('keydown', onKey);
     };
-  }, [openCat]);
+  }, [openCat, accountOpen]);
 
   const activeCat = nav.find((c) => c.items.some((it) => it.id === active))?.id;
 
   const handleCatClick = (cat: NavCat) => {
     onInteract?.();
+    setAccountOpen(false);
     if (cat.items.length === 1) {
       onNavigate(cat.items[0].id);
       setOpenCat(null);
     } else {
       setOpenCat(openCat === cat.id ? null : cat.id);
     }
+  };
+
+  const openProfile = () => {
+    setAccountOpen(false);
+    window.location.href = '/profile';
+  };
+
+  const logout = async () => {
+    clearStoredToken();
+    setAccountOpen(false);
+    try {
+      await authFetch(apiUrl('/api/v1/auth/logout'), { method: 'POST' });
+    } catch {
+      /* local cleanup is enough to leave the app */
+    }
+    window.location.href = '/login';
   };
 
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim();
@@ -257,7 +283,17 @@ export const Sidebar = ({
             <Icon name="info" size={18} />
             <span className="sb-label">Help</span>
           </button>
-          <button className="sb-item avatar-btn" data-hint={displayName}>
+          <button
+            className={`sb-item avatar-btn ${accountOpen ? 'expanded' : ''}`}
+            data-hint={displayName}
+            aria-label="Account menu"
+            aria-expanded={accountOpen}
+            onClick={() => {
+              onInteract?.();
+              setOpenCat(null);
+              setAccountOpen((open) => !open);
+            }}
+          >
             <div className="avatar">
               {user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials}
             </div>
@@ -275,6 +311,28 @@ export const Sidebar = ({
           }}
           onClose={() => setOpenCat(null)}
         />
+      ) : null}
+
+      {accountOpen ? (
+        <div className="account-menu fade-in" role="menu">
+          <div className="account-menu-head">
+            <div className="avatar sm">
+              {user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div className="account-menu-name">{displayName}</div>
+              {email ? <div className="account-menu-email">{email}</div> : null}
+            </div>
+          </div>
+          <button type="button" onClick={openProfile} role="menuitem">
+            <Icon name="settings" size={14} />
+            <span>Profile settings</span>
+          </button>
+          <button type="button" onClick={logout} role="menuitem" className="danger">
+            <Icon name="logout" size={14} />
+            <span>Log out</span>
+          </button>
+        </div>
       ) : null}
     </>
   );

@@ -1,4 +1,4 @@
-import { apiUrl, TOKEN_KEY } from './api';
+import { apiUrl, authFetch, TOKEN_KEY } from './api';
 
 export interface Feature {
   id: string;
@@ -133,17 +133,13 @@ export async function fetchFeature(idOrSlug: string): Promise<Feature> {
 
 export async function fetchUserFeatures(): Promise<{ features: Feature[] }> {
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
 
   const url = apiUrl('/api/v1/user/features');
-  const res = await fetch(url, {
+  const res = await authFetch(url, {
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token.trim()}`,
+      ...(token ? { Authorization: `Bearer ${token.trim()}` } : {}),
     },
-    credentials: 'include',
   });
 
   if (!res.ok) {
