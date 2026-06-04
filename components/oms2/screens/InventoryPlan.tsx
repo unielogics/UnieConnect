@@ -324,28 +324,39 @@ const ForecastChart = ({ months, sku }: { months: InventoryPlanFull['months']; s
   const W = 920;
   const H = 280;
   const P = { l: 56, r: 16, t: 24, b: 36 };
-  const demand = months.map((m) => num(m.projectedUnits));
+  const finite = (v: unknown) => {
+    const n = num(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const demand = months.map((m) => finite(m.projectedUnits));
   const current: number[] = [];
   let s = num(sku.available);
   months.forEach((m, i) => {
-    s -= num(m.projectedUnits);
-    if (i === Math.floor(N / 2)) s += num(sku.inbound);
-    current.push(s);
+    s -= finite(m.projectedUnits);
+    if (i === Math.floor(N / 2)) s += finite(sku.inbound);
+    current.push(Number.isFinite(s) ? s : 0);
   });
   const planSeries: number[] = [];
   let p = num(sku.available);
   months.forEach((m) => {
-    p += num(m.proposedReplenishment);
-    p -= num(m.projectedUnits) * 0.97;
-    planSeries.push(p);
+    p += finite(m.proposedReplenishment);
+    p -= finite(m.projectedUnits) * 0.97;
+    planSeries.push(Number.isFinite(p) ? p : 0);
   });
-  const max = Math.max(...current, ...planSeries, ...demand, 1) * 1.1;
-  const min = Math.min(...current, 0);
+  const max = Math.max(1, ...current, ...planSeries, ...demand) * 1.1;
+  const min = Math.min(0, ...current.filter(Number.isFinite));
   const xStep = (W - P.l - P.r) / Math.max(1, N - 1);
-  const yScale = (v: number) => H - P.b - ((v - min) / (max - min || 1)) * (H - P.t - P.b);
+  const yScale = (v: number) => {
+    const safe = Number.isFinite(v) ? v : 0;
+    return H - P.b - ((safe - min) / (max - min || 1)) * (H - P.t - P.b);
+  };
   const yZero = yScale(0);
-  const linePath = (vals: number[]) => vals.map((v, i) => `${i ? 'L' : 'M'}${P.l + i * xStep} ${yScale(v)}`).join(' ');
-  const areaPath = (vals: number[]) => `${linePath(vals)} L${P.l + (N - 1) * xStep} ${yZero} L${P.l} ${yZero} Z`;
+  const linePath = (vals: number[]) =>
+    vals.length >= 2 ? vals.map((v, i) => `${i ? 'L' : 'M'}${P.l + i * xStep} ${yScale(v)}`).join(' ') : '';
+  const areaPath = (vals: number[]) => {
+    const line = linePath(vals);
+    return line ? `${line} L${P.l + (N - 1) * xStep} ${yZero} L${P.l} ${yZero} Z` : '';
+  };
 
   return (
     <div className="card">

@@ -192,17 +192,25 @@ const RevenueTrendCard = ({ data, bd }: { data: CommandCenterFull; bd: BusinessD
       : data.range === '7d'
       ? ['Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed']
       : Array.from({ length: 6 }, (_, i) => `W${i + 1}`);
-  const actual = sparkFrom(revenue / N, data.metrics.revenueDeltaPct, N).map((v) => Math.max(0, v));
+  const actualRaw = sparkFrom(revenue / N, data.metrics.revenueDeltaPct, N).map((v) => Math.max(0, v));
+  const actual = actualRaw.length >= 2 ? actualRaw : Array.from({ length: N }, () => 0);
   const optimized = actual.map((v) => v * optMult);
 
   const W = 720;
   const H = 220;
   const P = { l: 50, r: 12, t: 16, b: 28 };
-  const max = Math.max(...optimized) * 1.05 || 1;
-  const xStep = (W - P.l - P.r) / (N - 1);
-  const yScale = (v: number) => H - P.b - (v / max) * (H - P.t - P.b);
-  const linePath = (vals: number[]) => vals.map((v, i) => `${i ? 'L' : 'M'}${P.l + i * xStep} ${yScale(v)}`).join(' ');
-  const areaPath = (vals: number[]) => `${linePath(vals)} L${P.l + (N - 1) * xStep} ${H - P.b} L${P.l} ${H - P.b} Z`;
+  const max = Math.max(1, ...optimized.filter(Number.isFinite)) * 1.05;
+  const xStep = (W - P.l - P.r) / Math.max(1, N - 1);
+  const yScale = (v: number) => {
+    const n = Number.isFinite(v) ? v : 0;
+    return H - P.b - (n / max) * (H - P.t - P.b);
+  };
+  const linePath = (vals: number[]) =>
+    vals.length >= 2 ? vals.map((v, i) => `${i ? 'L' : 'M'}${P.l + i * xStep} ${yScale(v)}`).join(' ') : '';
+  const areaPath = (vals: number[]) => {
+    const line = linePath(vals);
+    return line ? `${line} L${P.l + (N - 1) * xStep} ${H - P.b} L${P.l} ${H - P.b} Z` : '';
+  };
   const totalActual = revenue;
   const totalOpt = revenue * optMult;
 

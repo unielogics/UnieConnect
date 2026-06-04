@@ -56,7 +56,7 @@ export const Heatmap = ({ onSelectState }: ScreenProps) => {
         <div>
           <h1 className="page-title">US Heatmap</h1>
           <p className="page-subtitle">
-            Demand and warehouse coverage by state. Hover a state for detail, click it to drill in. Plan acceptance updates this map daily.
+            Account-wide demand, orders, revenue, and warehouse coverage by state across all SKUs. Hover a state for detail, click it to drill in.
           </p>
         </div>
         <div className="page-actions">

@@ -272,19 +272,10 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
             </table>
           )}
         </div>
+      ) : view === 'heatmap' ? (
+        <SkuHeatmapView skus={filtered} recommendations={recBySku} onOpenSku={(id) => onNavigate('sku-detail', id)} />
       ) : (
-        <div className="card">
-          <div className="card-body">
-            <EmptyState>
-              {view === 'heatmap' ? 'Warehouse × region coverage' : 'Margin treemap'} is rendered on the dedicated screen.
-              <div style={{ marginTop: 12 }}>
-                <button className="btn sm" onClick={() => onNavigate('heatmap')}>
-                  <Icon name="map" size={12} /> Open US Heatmap
-                </button>
-              </div>
-            </EmptyState>
-          </div>
-        </div>
+        <SkuMarginView skus={filtered} onOpenSku={(id) => onNavigate('sku-detail', id)} />
       )}
       {selectedRec && <RecommendationDrawer rec={selectedRec} onClose={() => setSelectedRec(null)} onChanged={load} />}
       {amazonSku && <AmazonListingDrawer sku={amazonSku} onClose={() => setAmazonSku(null)} />}
@@ -376,6 +367,135 @@ const CompareBlock = ({ label, value, edit, onChange, tone }: { label: string; v
     )}
   </div>
 );
+
+const skuNumber = (sku: OmsSku, ...keys: string[]) => {
+  for (const key of keys) {
+    const value = (sku as any)[key] ?? (sku as any).attributes?.[key] ?? (sku as any).metadata?.[key];
+    const n = typeof value === 'string' ? Number.parseFloat(value) : Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return 0;
+};
+
+const HeatCell = ({ value, label }: { value: number; label: string }) => {
+  const tone = value >= 75 ? 'green' : value >= 45 ? 'amber' : 'red';
+  return (
+    <div title={label} style={{ height: 26, borderRadius: 5, background: `var(--${tone}-soft)`, color: `var(--${tone}-text)`, display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 800 }}>
+      {Math.round(value)}
+    </div>
+  );
+};
+
+const SkuHeatmapView = ({
+  skus,
+  recommendations,
+  onOpenSku,
+}: {
+  skus: OmsSku[];
+  recommendations: Map<string, OmsRecommendation>;
+  onOpenSku: (id: string) => void;
+}) => {
+  const maxVelocity = Math.max(1, ...skus.map((sku) => sku.velocity30d || 0));
+  return (
+    <div className="table-wrap">
+      <div className="table-toolbar">
+        <span style={{ fontSize: 12, fontWeight: 800 }}>SKU heatmap</span>
+        <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Inline coverage by product. Account-wide order heatmap remains in US Heatmap.</span>
+      </div>
+      {skus.length === 0 ? (
+        <EmptyState>No SKUs match this view.</EmptyState>
+      ) : (
+        <table className="data">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Product</th>
+              <th className="num">DOC</th>
+              <th>Cover</th>
+              <th>Fill</th>
+              <th>Velocity</th>
+              <th>Optimization</th>
+            </tr>
+          </thead>
+          <tbody>
+            {skus.map((sku) => {
+              const docScore = Math.min(100, Math.max(0, ((sku.daysOfCover || 0) / 60) * 100));
+              const fill = Math.min(100, Math.max(0, sku.fillPercent || 0));
+              const velocityScore = Math.min(100, Math.max(0, ((sku.velocity30d || 0) / maxVelocity) * 100));
+              const rec = recommendations.get(sku.id) || recommendations.get(sku.sku);
+              return (
+                <tr key={sku.id} className="clickable" onClick={() => onOpenSku(sku.id)}>
+                  <td className="mono strong">{sku.sku}</td>
+                  <td>{sku.title || sku.sku}</td>
+                  <td className="num mono strong">{Math.round(sku.daysOfCover || 0)}d</td>
+                  <td><HeatCell value={docScore} label="Days of cover" /></td>
+                  <td><HeatCell value={fill} label="Pallet fill" /></td>
+                  <td><HeatCell value={velocityScore} label="Velocity signal" /></td>
+                  <td>{rec ? <Chip tone="purple" dot={false}><Icon name="sparkle" size={11} /> Cortex</Chip> : <Chip dot={false}>No signal</Chip>}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+};
+
+const SkuMarginView = ({ skus, onOpenSku }: { skus: OmsSku[]; onOpenSku: (id: string) => void }) => {
+  const rows = skus.map((sku) => {
+    const price = skuNumber(sku, 'price', 'unitPrice', 'sellingPrice');
+    const cost = skuNumber(sku, 'cost', 'unitCost');
+    const margin = price > 0 && cost > 0 ? (price - cost) / price : null;
+    return { sku, price, cost, margin };
+  });
+  return (
+    <div className="table-wrap">
+      <div className="table-toolbar">
+        <span style={{ fontSize: 12, fontWeight: 800 }}>SKU margin</span>
+        <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Margin stays inside the SKU tab. Missing cost/price is shown as enrichment needed.</span>
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState>No SKUs match this view.</EmptyState>
+      ) : (
+        <table className="data">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Product</th>
+              <th className="num">Price</th>
+              <th className="num">Cost</th>
+              <th>Margin</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ sku, price, cost, margin }) => {
+              const tone = margin == null ? 'amber' : margin >= 0.3 ? 'green' : margin >= 0.18 ? 'amber' : 'red';
+              return (
+                <tr key={sku.id} className="clickable" onClick={() => onOpenSku(sku.id)}>
+                  <td className="mono strong">{sku.sku}</td>
+                  <td>{sku.title || sku.sku}</td>
+                  <td className="num mono">{price ? `$${price.toFixed(2)}` : '—'}</td>
+                  <td className="num mono">{cost ? `$${cost.toFixed(2)}` : '—'}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className="bar" style={{ width: 120, height: 7 }}>
+                        <div className={`bar-fill ${tone}`} style={{ width: `${Math.max(4, Math.min(100, (margin ?? 0) * 100))}%` }} />
+                      </div>
+                      <span className="mono strong">{margin == null ? '—' : `${Math.round(margin * 100)}%`}</span>
+                    </div>
+                  </td>
+                  <td><Chip tone={tone} dot={false}>{margin == null ? 'Needs enrichment' : margin >= 0.3 ? 'Healthy' : margin >= 0.18 ? 'Thin' : 'At risk'}</Chip></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+};
 
 export const AmazonListingDrawer = ({ sku, onClose }: { sku: Pick<OmsSku, 'id' | 'sku' | 'title'>; onClose: () => void }) => {
   const [form, setForm] = useState({
