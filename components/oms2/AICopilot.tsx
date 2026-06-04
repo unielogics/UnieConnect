@@ -2,13 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from './icons';
 import { Chip, Confidence } from './ui';
 import {
-  completeCortexTask,
-  dismissCortexTask,
   fetchCopilotContext,
   fetchCortexTasks,
   sendCortexChat,
   CopilotContext,
-  CortexTask,
 } from '../../lib/oms';
 
 type Msg = { role: 'ai' | 'user'; body: React.ReactNode; degraded?: boolean };
@@ -53,7 +50,7 @@ export const AICopilot = ({
 }) => {
   const [ctx, setCtx] = useState<CopilotContext | null>(null);
   const [history, setHistory] = useState<Msg[]>([]);
-  const [tasks, setTasks] = useState<CortexTask[]>([]);
+  const [taskCount, setTaskCount] = useState(0);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -71,23 +68,9 @@ export const AICopilot = ({
         setHistory([{ role: 'ai', body: 'Cortex context is temporarily unavailable. Operating views remain fully functional.', degraded: true }]);
       });
     fetchCortexTasks({ status: 'open', screen: section, refresh: true, limit: 8 })
-      .then((r) => setTasks(r.tasks || []))
-      .catch(() => setTasks([]));
+      .then((r) => setTaskCount((r.tasks || []).length))
+      .catch(() => setTaskCount(0));
   }, [section]);
-
-  const refreshTasks = () => {
-    fetchCortexTasks({ status: 'open', screen: section, limit: 8 }).then((r) => setTasks(r.tasks || [])).catch(() => {});
-  };
-
-  const decideTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
-    try {
-      if (action === 'done') await completeCortexTask(task.id);
-      else await dismissCortexTask(task.id);
-      refreshTasks();
-    } catch {
-      /* keep drawer usable if a task action fails */
-    }
-  };
 
   const send = async (q: string) => {
     if (!q) return;
@@ -96,7 +79,7 @@ export const AICopilot = ({
     try {
       const res = await sendCortexChat({ screen: section, message: q, threadId });
       if (res.thread?.id) setThreadId(res.thread.id);
-      if (res.context?.tasks) setTasks(res.context.tasks);
+      if (res.context?.tasks) setTaskCount(res.context.tasks.length);
       setHistory((h) => [
         ...h,
         {
@@ -145,25 +128,12 @@ export const AICopilot = ({
           </div>
         ))}
 
-        {tasks.length > 0 && (
-          <div className="ai-card cortex-task-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-              <h4>Active Cortex tasks</h4>
-              <Chip tone="purple" dot={false}>{tasks.length}</Chip>
+        {taskCount > 0 && (
+          <div className="ai-card cortex-context-card">
+            <h4>Account context</h4>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+              {taskCount} open readiness item{taskCount === 1 ? '' : 's'} are available in notifications. Ask Cortex about them, or use the bell for the task inbox.
             </div>
-            {tasks.slice(0, 5).map((task) => (
-              <div key={task.id} className="cortex-task-mini">
-                <div>
-                  <strong>{task.title}</strong>
-                  {task.detail && <div>{task.detail}</div>}
-                  <span className={`task-priority ${task.priority}`}>{task.priority}</span>
-                </div>
-                <div className="task-mini-actions">
-                  <button className="icon-btn" data-hint="Mark done" onClick={() => decideTask(task, 'done')}><Icon name="check" size={13} /></button>
-                  <button className="icon-btn" data-hint="Dismiss" onClick={() => decideTask(task, 'dismiss')}><Icon name="x" size={13} /></button>
-                </div>
-              </div>
-            ))}
           </div>
         )}
 
