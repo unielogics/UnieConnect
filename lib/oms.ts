@@ -87,6 +87,11 @@ export type OmsSku = {
   amazon?: AmazonItemProfile | null;
 };
 
+export type MarketplaceFilterParams = {
+  channel?: string;
+  channelAccountId?: string;
+};
+
 export type AmazonItemProfile = {
   id: string;
   itemId?: string;
@@ -507,10 +512,24 @@ export const approveBusinessDouble = (planId: string) =>
     body: JSON.stringify({}),
   });
 
-export const fetchInventoryPlan = (horizon: '6m' | '3m' = '6m') =>
-  omsFetch<InventoryPlanFull>(`/inventory-plan?horizon=${horizon}`);
+const marketplaceQuery = (params?: MarketplaceFilterParams) => {
+  const qs = new URLSearchParams();
+  if (params?.channel) qs.set('channel', params.channel);
+  if (params?.channelAccountId) qs.set('channelAccountId', params.channelAccountId);
+  return qs;
+};
 
-export const fetchOmsSkus = () => omsFetch<{ skus: OmsSku[]; total: number }>('/skus');
+export const fetchInventoryPlan = (horizon: '6m' | '3m' = '6m', filter?: MarketplaceFilterParams) => {
+  const qs = marketplaceQuery(filter);
+  qs.set('horizon', horizon);
+  return omsFetch<InventoryPlanFull>(`/inventory-plan?${qs.toString()}`);
+};
+
+export const fetchOmsSkus = (filter?: MarketplaceFilterParams) => {
+  const qs = marketplaceQuery(filter);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return omsFetch<{ skus: OmsSku[]; total: number }>(`/skus${suffix}`);
+};
 
 export const fetchOmsSkuDetail = (skuId: string) =>
   omsFetch<OmsSkuDetail>(`/skus/${encodeURIComponent(skuId)}`);
@@ -558,7 +577,11 @@ export const createAmazonFbaWorkflow = (body: Record<string, unknown>) =>
     body: JSON.stringify(body),
   });
 
-export const fetchOmsOrders = () => omsFetch<{ orders: OmsOrder[] }>('/orders');
+export const fetchOmsOrders = (filter?: MarketplaceFilterParams) => {
+  const qs = marketplaceQuery(filter);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return omsFetch<{ orders: OmsOrder[] }>(`/orders${suffix}`);
+};
 
 export const fetchOmsAsns = () => omsFetch<{ asns: OmsAsn[] }>('/asns');
 

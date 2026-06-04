@@ -1,3 +1,6 @@
+import { useEffect, useMemo, useState } from 'react';
+import { apiUrl, authFetch } from '../lib/api';
+
 interface ChannelFilterProps {
   value: string;
   onChange: (value: string) => void;
@@ -7,6 +10,25 @@ interface ChannelFilterProps {
   style?: React.CSSProperties;
 }
 
+type Account = {
+  id?: string;
+  _id?: string;
+  channel: string;
+  status?: string;
+  displayName?: string;
+  shopDomain?: string;
+  sellingPartnerId?: string;
+  marketplaceId?: string;
+  label?: string;
+};
+
+const labelForChannel = (channel: string) => {
+  if (channel === 'shopify') return 'Shopify';
+  if (channel === 'amazon') return 'Amazon';
+  if (channel === 'ebay') return 'eBay';
+  return channel;
+};
+
 export default function ChannelFilter({
   value,
   onChange,
@@ -15,6 +37,40 @@ export default function ChannelFilter({
   className = '',
   style,
 }: ChannelFilterProps) {
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  useEffect(() => {
+    let live = true;
+    authFetch(apiUrl('/api/v1/channel-accounts'))
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (live) setAccounts(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (live) setAccounts([]);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const accountOptions = useMemo(
+    () =>
+      accounts
+        .filter((account) => account.status !== 'archived' && account.status !== 'disconnected')
+        .map((account) => ({
+          id: account.id || account._id || '',
+          channel: account.channel,
+          label:
+            account.displayName ||
+            account.shopDomain ||
+            account.sellingPartnerId ||
+            account.marketplaceId ||
+            account.label ||
+            labelForChannel(account.channel),
+        }))
+        .filter((account) => account.id),
+    [accounts],
+  );
+
   return (
     <select
       id={id}
@@ -36,6 +92,12 @@ export default function ChannelFilter({
       <option value="amazon">Amazon</option>
       <option value="ebay">eBay</option>
       {includeUnmapped && <option value="unmapped">Unmapped</option>}
+      {accountOptions.length > 0 && <option disabled>──────────</option>}
+      {accountOptions.map((account) => (
+        <option key={account.id} value={`account:${account.id}`}>
+          {labelForChannel(account.channel)} · {account.label}
+        </option>
+      ))}
     </select>
   );
 }

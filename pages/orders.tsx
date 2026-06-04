@@ -39,7 +39,8 @@ type OrderDetail = Order & {
 
 async function fetchOrders(token: string, channel?: string): Promise<Order[]> {
   const url = new URL(apiUrl('/api/v1/orders'));
-  if (channel) url.searchParams.set('channel', channel);
+  if (channel?.startsWith('account:')) url.searchParams.set('channelAccountId', channel.replace(/^account:/, ''));
+  else if (channel) url.searchParams.set('channel', channel);
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });

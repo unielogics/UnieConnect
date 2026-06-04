@@ -6,6 +6,7 @@ import { OptimizationImpact } from '../OptimizationImpact';
 import { cancelOrder, fetchOmsOrders, OmsOrder, publicEntityId } from '../../../lib/oms';
 import { num, channelColor } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
+import { MarketplaceFilter, MarketplaceFilterValue } from '../MarketplaceFilter';
 
 const ChannelTag = ({ ch }: { ch: string }) => (
   <span
@@ -28,6 +29,7 @@ const ChannelTag = ({ ch }: { ch: string }) => (
 
 export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: ScreenProps) => {
   const [orders, setOrders] = useState<OmsOrder[]>([]);
+  const [marketplaceFilter, setMarketplaceFilter] = useState<MarketplaceFilterValue>({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<'all' | 'risk' | 'exceptions' | 'hold' | 'new'>('all');
@@ -39,12 +41,12 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
   const load = () => {
     setLoading(true);
     setErr(null);
-    fetchOmsOrders()
+    fetchOmsOrders(marketplaceFilter)
       .then((d) => setOrders(d.orders || []))
       .catch((e) => setErr(e.message || 'Failed to load orders'))
       .finally(() => setLoading(false));
   };
-  useEffect(load, []);
+  useEffect(load, [marketplaceFilter.channel, marketplaceFilter.channelAccountId]);
 
   const norm = (o: OmsOrder) => ({
     ...o,
@@ -146,7 +148,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
       ) : (
         <div className="table-wrap">
           <div className="table-toolbar">
-            <button className="filter-chip applied">Channel: All <Icon name="x" size={10} /></button>
+            <MarketplaceFilter value={marketplaceFilter} onChange={setMarketplaceFilter} />
             <button className="filter-chip">Warehouse</button>
             <button className="filter-chip">Date</button>
             <button className="filter-chip">Carrier</button>

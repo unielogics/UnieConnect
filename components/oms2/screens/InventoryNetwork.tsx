@@ -7,6 +7,7 @@ import { fetchOmsSkus, refreshAmazonItem, syncAmazonItems, OmsSku } from '../../
 import { docTone, riskLabel } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 import { AmazonListingModal } from '../modals/AmazonListingModal';
+import { MarketplaceFilter, MarketplaceFilterValue } from '../MarketplaceFilter';
 
 const DocCell = ({ days }: { days: number }) => {
   const tone = docTone(days);
@@ -57,6 +58,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
   const [view, setView] = useState<'table' | 'heatmap' | 'treemap'>('table');
   const [search, setSearch] = useState('');
   const [amazonFilter, setAmazonFilter] = useState<'all' | 'listed' | 'fba' | 'needs_listing' | 'sync_error'>('all');
+  const [marketplaceFilter, setMarketplaceFilter] = useState<MarketplaceFilterValue>({});
   const [skus, setSkus] = useState<OmsSku[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingAmazon, setSyncingAmazon] = useState(false);
@@ -67,12 +69,12 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
   const load = () => {
     setLoading(true);
     setErr(null);
-    fetchOmsSkus()
+    fetchOmsSkus(marketplaceFilter)
       .then((d) => setSkus(d.skus || []))
       .catch((e) => setErr(e.message || 'Failed to load SKUs'))
       .finally(() => setLoading(false));
   };
-  useEffect(load, []);
+  useEffect(load, [marketplaceFilter.channel, marketplaceFilter.channelAccountId]);
 
   const filtered = useMemo(
     () =>
@@ -207,6 +209,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
               <option value="needs_listing">Needs listing</option>
               <option value="sync_error">Sync error</option>
             </select>
+            <MarketplaceFilter value={marketplaceFilter} onChange={setMarketplaceFilter} includeUnmapped />
             <button className="filter-chip applied"><Icon name="filter" size={11} /> Warehouse: All <Icon name="x" size={10} /></button>
             <button className="filter-chip"><Icon name="filter" size={11} /> DOC range</button>
             <button className="filter-chip"><Icon name="filter" size={11} /> Risk</button>

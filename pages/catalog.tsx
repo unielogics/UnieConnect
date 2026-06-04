@@ -49,7 +49,8 @@ async function fetchItems(
 ): Promise<CatalogItem[]> {
   const url = new URL(apiUrl('/api/v1/items'));
   url.searchParams.set('includeMappings', '1');
-  if (channel) url.searchParams.set('channel', channel);
+  if (channel?.startsWith('account:')) url.searchParams.set('channelAccountId', channel.replace(/^account:/, ''));
+  else if (channel) url.searchParams.set('channel', channel);
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
