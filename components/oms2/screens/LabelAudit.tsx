@@ -110,6 +110,8 @@ export const LabelAudit = (_: ScreenProps) => {
   const lateCount = num(data?.summary?.lateDeliveries) || findings.filter((f) => /late/i.test(f.issue || f.findingType || '')).length;
   const refundable = findings.filter((f) => ref(f) > 0).length;
   const latestRun = runs[0];
+  const cortexAvailable = data?.cortex?.available !== false;
+  const cortexMessage = data?.cortex?.message || 'Cortex Intelligence is not available for this account. Contact support or your account manager to enable Cortex shipment label audit.';
 
   const submitCsv = async (filename: string, rows: LabelAuditCsvRow[]) => {
     setUploading(true);
@@ -148,7 +150,9 @@ export const LabelAudit = (_: ScreenProps) => {
           </p>
         </div>
         <div className="page-actions">
-          <button className="btn primary" onClick={() => setUploadOpen(true)}><Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Upload CSV</button>
+          <button className="btn primary" disabled={!cortexAvailable} title={!cortexAvailable ? cortexMessage : undefined} onClick={() => setUploadOpen(true)}>
+            <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Upload CSV
+          </button>
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Re-scan all labels</button>
           <button className="btn"><Icon name="audit" size={13} /> File all refundable</button>
         </div>
@@ -162,6 +166,17 @@ export const LabelAudit = (_: ScreenProps) => {
         <div className="card"><Loading rows={6} /></div>
       ) : (
         <>
+          {!cortexAvailable && (
+            <div className="card" style={{ borderColor: 'rgba(245, 158, 11, .35)', background: 'rgba(245, 158, 11, .07)' }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <Icon name="sparkle" size={16} style={{ color: 'var(--amber)', marginTop: 2 }} />
+                <div>
+                  <div style={{ fontWeight: 800 }}>Cortex shipment audit unavailable</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>{cortexMessage}</div>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="stat-grid">
             <div className="stat">
               <div className="stat-label">Labels audited</div>

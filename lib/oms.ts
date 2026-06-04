@@ -29,7 +29,8 @@ export async function omsFetch<T>(path: string, options: RequestInit = {}): Prom
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error || `OMS request failed (${res.status})`);
+    const details = Array.isArray(err?.details?.errors) && err.details.errors.length ? ` ${err.details.errors.slice(0, 5).join(' ')}` : '';
+    throw new Error(`${err?.error || `OMS request failed (${res.status})`}${details}`);
   }
   return res.json();
 }
@@ -388,6 +389,14 @@ export type LabelAuditResponse = {
     runId?: string;
   }>;
   summary: { openFindings?: number; estimatedRefunds?: number; optimizedServiceSavings?: number; labels30d?: number; lateDeliveries?: number };
+  cortex?: {
+    available?: boolean;
+    status?: string;
+    featureEnabled?: boolean;
+    credentialActive?: boolean;
+    configured?: boolean;
+    message?: string;
+  };
 };
 
 export type LabelAuditCsvRow = Record<string, string | number | null | undefined>;
