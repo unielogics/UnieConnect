@@ -55,7 +55,7 @@ export const Billing = (_: ScreenProps) => {
       <div className="page-header">
         <div>
           <h1 className="page-title">Billing &amp; Profit</h1>
-          <p className="page-subtitle">Cost of operation today vs. cost if you operate on the AI plan. Every line reconciled against WMS truth.</p>
+          <p className="page-subtitle">Cost of operation today vs. suggested AI plan. Every line reconciled against WMS truth.</p>
         </div>
         <div className="page-actions">
           <div className="seg">
@@ -101,7 +101,7 @@ export const Billing = (_: ScreenProps) => {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <div>
-            <div className="card-title">Cost breakdown — current vs. optimized</div>
+            <div className="card-title">Cost breakdown — current vs. suggested</div>
             <div className="card-subtitle">Every line reconciled against WMS-allocated charges.</div>
           </div>
           <div style={{ display: 'flex', gap: 12, fontSize: 11.5 }}>
@@ -130,7 +130,7 @@ export const Billing = (_: ScreenProps) => {
                   {(['current', 'optimized'] as const).map((sel) => (
                     <div key={sel} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 10.5, color: sel === 'optimized' ? 'var(--purple-text)' : 'var(--text-tertiary)', width: 50, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: sel === 'optimized' ? 700 : 600 }}>
-                        {sel === 'optimized' ? 'Plan' : 'Now'}
+                        {sel === 'optimized' ? 'Suggested' : 'Current'}
                       </span>
                       <div className="bar" style={{ flex: 1, height: 16 }}>
                         <div
@@ -181,7 +181,7 @@ export const Billing = (_: ScreenProps) => {
                 <th>Warehouse</th>
                 <th>Region</th>
                 <th className="num">Current</th>
-                <th className="num">Optimized</th>
+                <th className="num">Suggested</th>
                 <th className="num">Savings</th>
                 <th>Impact</th>
               </tr>

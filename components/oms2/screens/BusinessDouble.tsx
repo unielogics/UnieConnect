@@ -41,6 +41,7 @@ export const BusinessDouble = (_: ScreenProps) => {
   const [err, setErr] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [denied, setDenied] = useState(false);
   const [running, setRunning] = useState(false);
 
   const load = () => {
@@ -50,6 +51,7 @@ export const BusinessDouble = (_: ScreenProps) => {
       .then((d) => {
         setBd(d);
         setAccepted(d.plan?.status === 'approved' || !!d.latestApproved);
+        setDenied(false);
       })
       .catch((e) => setErr(e.message || 'Failed to load business double'))
       .finally(() => setLoading(false));
@@ -214,8 +216,13 @@ export const BusinessDouble = (_: ScreenProps) => {
       <ApprovalSurface
         savings={savings}
         accepted={accepted}
+        denied={denied}
         accepting={accepting}
         onAccept={accept}
+        onDeny={() => {
+          setAccepted(false);
+          setDenied(true);
+        }}
         plan={plan}
       />
     </div>
@@ -415,20 +422,27 @@ const AREA_ICON: Record<string, { icon: string; color: string }> = {
 const ApprovalSurface = ({
   savings,
   accepted,
+  denied,
   accepting,
   onAccept,
+  onDeny,
   plan,
 }: {
   savings: number;
   accepted: boolean;
+  denied: boolean;
   accepting: boolean;
   onAccept: () => void;
+  onDeny: () => void;
   plan: BusinessDoubleResponse['plan'];
 }) => {
   const areas = (plan.autonomousAfterApproval || []).map((a) => {
     const key = Object.keys(AREA_ICON).find((k) => a.toLowerCase().includes(k)) || 'cortex';
     return { area: a, ...AREA_ICON[key] };
   });
+  const cur = plan.currentMetrics || {};
+  const opt = plan.optimizedMetrics || {};
+  const state = accepted ? 'approved' : denied ? 'denied' : 'no decision';
 
   return (
     <div
@@ -437,39 +451,47 @@ const ApprovalSurface = ({
         marginTop: 16,
         background: accepted
           ? 'linear-gradient(180deg, var(--green-soft) 0%, var(--bg-elev) 60%)'
-          : 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 60%)',
-        border: accepted ? '1px solid var(--green-soft)' : '1px solid var(--purple-soft)',
+          : denied
+            ? 'linear-gradient(180deg, var(--red-soft) 0%, var(--bg-elev) 60%)'
+            : 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 60%)',
+        border: accepted ? '1px solid var(--green-soft)' : denied ? '1px solid var(--red-soft)' : '1px solid var(--purple-soft)',
       }}
     >
       <div className="card-body" style={{ padding: 24 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 28, alignItems: 'center' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr .7fr auto auto', gap: 14, alignItems: 'stretch' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <Chip tone={accepted ? 'green' : 'purple'} dot={false}>{accepted ? 'PLAN ACTIVE' : 'READY TO ACCEPT'}</Chip>
-              <span className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                {plan.id} · {plan.status}
-              </span>
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', marginBottom: 4 }}>
-              {accepted ? 'The plan is running autonomously' : 'Accept the plan — everything below executes on its own'}
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              {accepted
-                ? 'WMS, TMS, procurement, audits, and Cortex re-planning are all live. You will be notified only if reality drifts from forecast.'
-                : 'Once accepted, no further approvals are required. Cortex re-plans daily.'}
+            <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Current</div>
+            <div style={{ fontSize: 15, fontWeight: 800 }}>Current operating model</div>
+            <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', marginTop: 6 }}>
+              {`Cost: ${fmt.money(num(cur.monthlyCost ?? cur.freight))}\nWarehouses: ${num(cur.warehouseNodes)}\nSLA: ${num(cur.averageDeliveryDays ?? cur.sla ?? cur.slaDays).toFixed(1)} days`}
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-              30-DAY UPSIDE
-            </span>
+          <div>
+            <div style={{ fontSize: 10.5, color: 'var(--purple-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Suggested</div>
+            <div style={{ fontSize: 15, fontWeight: 800 }}>{plan.title || 'Optimized operating model'}</div>
+            <div className="mono" style={{ fontSize: 11.5, color: 'var(--purple-text)', whiteSpace: 'pre-wrap', marginTop: 6, fontWeight: 700 }}>
+              {`Cost: ${fmt.money(num(opt.monthlyCost ?? opt.freight))}\nWarehouses: ${num(opt.warehouseNodes)}\nSLA: ${num(opt.averageDeliveryDays ?? opt.sla ?? opt.slaDays).toFixed(1)} days`}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Improvement</div>
             <div style={{ fontSize: 38, fontWeight: 700, color: 'var(--green-text)', letterSpacing: '-0.02em', lineHeight: 1 }}>
               +{fmt.money(Math.abs(savings))}
             </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>30-day upside</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Status</div>
+            <Chip tone={accepted ? 'green' : denied ? 'red' : 'default'} dot={false}>{state}</Chip>
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>
+              {plan.id} · {plan.status}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8, justifyContent: 'center' }}>
             <button
               className={`btn ${accepted ? '' : 'primary'} lg`}
               onClick={onAccept}
-              disabled={accepting || accepted}
+              disabled={accepting || accepted || denied}
               style={{ marginTop: 8, height: 44, fontSize: 14 }}
             >
               {accepted ? (
@@ -481,6 +503,9 @@ const ApprovalSurface = ({
                   <Icon name="bolt" size={15} /> {accepting ? 'Accepting…' : 'Accept this plan'}
                 </>
               )}
+            </button>
+            <button className="btn lg" disabled={accepting || accepted || denied} onClick={onDeny} style={{ height: 40, fontSize: 14 }}>
+              {denied ? 'Plan denied' : 'Deny plan'}
             </button>
           </div>
         </div>

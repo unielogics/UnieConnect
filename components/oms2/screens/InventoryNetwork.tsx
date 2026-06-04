@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, Sparkline, Loading, ErrorState, EmptyState } from '../ui';
+import { DecisionComparison } from '../DecisionComparison';
 import { useCtxMenu } from '../ContextMenu';
 import {
   approveRecommendation,
@@ -336,22 +337,18 @@ export const RecommendationDrawer = ({ rec, onClose, onChanged }: { rec: OmsReco
       title="Cortex optimization"
       subtitle={rec.title}
       onClose={onClose}
-      footer={
-        <>
-          <button className="btn" onClick={() => setEdit((v) => !v)}><Icon name="save" size={12} /> {edit ? 'Preview' : 'Edit'}</button>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn" disabled={!!busy} onClick={() => act('reject')}>Deny</button>
-            <button className="btn primary" disabled={!!busy || rec.approvalState === 'blocked'} onClick={() => act('approve')}><Icon name="check" size={12} /> Approve</button>
-          </div>
-        </>
-      }
+      footer={<button className="btn" onClick={() => setEdit((v) => !v)}><Icon name="save" size={12} /> {edit ? 'Preview' : 'Edit JSON'}</button>}
     >
       <div style={{ display: 'grid', gap: 14 }}>
-        <Chip tone={rec.approvalState === 'waiting_approval' ? 'amber' : 'purple'} dot={false}>{String(rec.approvalState || 'open').replace(/_/g, ' ')}</Chip>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{rec.summary}</div>
-        <CompareBlock label="Before" value={current} edit={edit} onChange={setCurrent} />
-        <CompareBlock label="After" value={optimized} edit={edit} onChange={setOptimized} tone="purple" />
-        <CompareBlock label="Impact" value={JSON.stringify(rec.estimatedImpact || {}, null, 2)} edit={false} tone="green" />
+        <DecisionComparison rec={rec} busy={!!busy} onApprove={() => act('approve')} onDeny={() => act('reject')} />
+        {edit && (
+          <>
+            <CompareBlock label="Current JSON" value={current} edit={edit} onChange={setCurrent} />
+            <CompareBlock label="Suggested JSON" value={optimized} edit={edit} onChange={setOptimized} tone="purple" />
+          </>
+        )}
+        <CompareBlock label="Impact details" value={JSON.stringify(rec.estimatedImpact || {}, null, 2)} edit={false} tone="green" />
       </div>
     </DrawerShell>
   );

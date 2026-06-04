@@ -540,6 +540,28 @@
 .uc-shell .row-check:checked { background: var(--accent); border-color: var(--accent); }
 .uc-shell .row-check:checked::after { content: ""; position: absolute; left: 3px; top: 0px; width: 4px; height: 8px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
 
+/* Current vs suggested decision pattern */
+.uc-shell .decision-row { width: 100%; display: grid; grid-template-columns: minmax(190px, 1.1fr) minmax(150px, 0.9fr) minmax(150px, 0.9fr) minmax(92px, 0.45fr) auto auto; gap: 10px; align-items: stretch; padding: 12px; border: 1px solid var(--border-subtle); border-left: 4px solid transparent; border-radius: var(--radius); background: var(--bg-elev); color: var(--text); text-align: left; }
+.uc-shell button.decision-row { cursor: pointer; }
+.uc-shell button.decision-row:hover { border-color: var(--border); background: var(--bg-subtle); }
+.uc-shell .decision-row + .decision-row { margin-top: 10px; }
+.uc-shell .decision-row.decision-green { border-left-color: var(--green); background: linear-gradient(90deg, var(--green-soft), var(--bg-elev) 34%); }
+.uc-shell .decision-row.decision-red { border-left-color: var(--red); background: linear-gradient(90deg, var(--red-soft), var(--bg-elev) 34%); }
+.uc-shell .decision-row.compact { grid-template-columns: minmax(170px, 1fr) minmax(120px, 0.75fr) minmax(120px, 0.75fr) minmax(80px, 0.4fr) auto; padding: 10px 12px; }
+.uc-shell .decision-main, .uc-shell .decision-cell, .uc-shell .decision-impact, .uc-shell .decision-status, .uc-shell .decision-actions { min-width: 0; }
+.uc-shell .decision-title { font-size: 13px; font-weight: 800; color: var(--text); }
+.uc-shell .decision-summary { font-size: 12px; color: var(--text-secondary); line-height: 1.45; margin-top: 3px; }
+.uc-shell .decision-label { font-size: 10.5px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 800; margin-bottom: 5px; }
+.uc-shell .decision-cell pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: 11.5px; line-height: 1.45; color: var(--text-secondary); }
+.uc-shell .decision-cell.suggested pre { color: var(--purple-text); font-weight: 700; }
+.uc-shell .decision-impact strong { font-family: var(--mono); font-size: 12px; color: var(--green-text); }
+.uc-shell .decision-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+@media (max-width: 1100px) {
+  .uc-shell .decision-row, .uc-shell .decision-row.compact { grid-template-columns: 1fr 1fr; }
+  .uc-shell .decision-main, .uc-shell .decision-actions { grid-column: 1 / -1; }
+  .uc-shell .decision-actions { justify-content: flex-start; }
+}
+
 /* ============================= KPI / stat tiles ============================= */
 .uc-shell .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
 .uc-shell .stat-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
