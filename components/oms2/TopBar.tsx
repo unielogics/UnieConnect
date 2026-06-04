@@ -7,6 +7,7 @@ export const TITLE_MAP: Record<string, [string, string]> = {
   plan: ['Inventory Plan', '6-month dynamic AI plan'],
   'product-research': ['Product Research', 'Cortex enrichment for individual products and CSV catalogs'],
   skus: ['SKUs', 'Every product, every warehouse'],
+  warehouses: ['Warehouses', 'Inventory, WMS activity, and Cortex signals'],
   'sku-detail': ['SKU detail', 'History, billing, channels, shipments'],
   orders: ['Orders', 'Marketplace orders enriched with WMS'],
   customers: ['Customers', 'Unified buyer profiles + LTV'],

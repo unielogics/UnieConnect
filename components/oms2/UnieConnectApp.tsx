@@ -13,6 +13,7 @@ import { BusinessDouble } from './screens/BusinessDouble';
 import { InventoryPlan } from './screens/InventoryPlan';
 import { ProductResearch } from './screens/ProductResearch';
 import { InventoryNetwork } from './screens/InventoryNetwork';
+import { Warehouses } from './screens/Warehouses';
 import { SkuDetail } from './screens/SkuDetail';
 import { Orders } from './screens/Orders';
 import { Shipments } from './screens/Shipments';
@@ -322,6 +323,7 @@ export default function UnieConnectApp() {
     plan: <InventoryPlan {...sp} />,
     'product-research': <ProductResearch {...sp} />,
     skus: <InventoryNetwork {...sp} />,
+    warehouses: <Warehouses {...sp} />,
     'sku-detail': <SkuDetail {...sp} skuId={skuDetailId} />,
     orders: <Orders {...sp} />,
     customers: <Customers {...sp} />,

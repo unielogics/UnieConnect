@@ -2,12 +2,53 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
-import { fetchLabelAudit, LabelAuditResponse } from '../../../lib/oms';
+import {
+  createLabelAuditRun,
+  fetchLabelAudit,
+  fetchLabelAuditRun,
+  fetchLabelAuditRuns,
+  LabelAuditCsvRow,
+  LabelAuditResponse,
+  LabelAuditRun,
+} from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 import { OptimizationImpact } from '../OptimizationImpact';
 
 type F = LabelAuditResponse['findings'][number];
+
+const splitCsvLine = (line: string) => {
+  const out: string[] = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (quoted && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else quoted = !quoted;
+    } else if (ch === ',' && !quoted) {
+      out.push(cur);
+      cur = '';
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out;
+};
+
+const parseCsv = (text: string): LabelAuditCsvRow[] => {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length < 2) return [];
+  const headers = splitCsvLine(lines[0]).map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const cells = splitCsvLine(line);
+    return headers.reduce<LabelAuditCsvRow>((acc, h, i) => {
+      acc[h] = cells[i]?.trim() || '';
+      return acc;
+    }, {});
+  });
+};
 
 const issueChip = (f: F) => {
   const issue = f.issue || f.findingType || '—';
@@ -20,7 +61,11 @@ const issueChip = (f: F) => {
 
 export const LabelAudit = (_: ScreenProps) => {
   const [data, setData] = useState<LabelAuditResponse | null>(null);
+  const [runs, setRuns] = useState<LabelAuditRun[]>([]);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [runDetail, setRunDetail] = useState<{ run: LabelAuditRun; findings: LabelAuditResponse['findings'] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'late' | 'refund' | 'ontime'>('all');
   const ctx = useCtxMenu();
@@ -28,8 +73,14 @@ export const LabelAudit = (_: ScreenProps) => {
   const load = () => {
     setLoading(true);
     setErr(null);
-    fetchLabelAudit()
-      .then(setData)
+    Promise.all([
+      fetchLabelAudit(),
+      fetchLabelAuditRuns().catch(() => ({ runs: [] })),
+    ])
+      .then(([audit, runData]) => {
+        setData(audit);
+        setRuns(runData.runs || []);
+      })
       .catch((e) => setErr(e.message || 'Failed to load label audit'))
       .finally(() => setLoading(false));
   };
@@ -58,6 +109,34 @@ export const LabelAudit = (_: ScreenProps) => {
   const labelSavings = currentTotal - optimizedTotal;
   const lateCount = num(data?.summary?.lateDeliveries) || findings.filter((f) => /late/i.test(f.issue || f.findingType || '')).length;
   const refundable = findings.filter((f) => ref(f) > 0).length;
+  const latestRun = runs[0];
+
+  const submitCsv = async (filename: string, rows: LabelAuditCsvRow[]) => {
+    setUploading(true);
+    setErr(null);
+    try {
+      const res = await createLabelAuditRun({ filename, rows });
+      if (res.run) {
+        setRunDetail({ run: res.run, findings: res.findings || [] });
+      }
+      setUploadOpen(false);
+      await load();
+    } catch (e: any) {
+      setErr(e.message || 'CSV audit failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const openRun = async (run: LabelAuditRun) => {
+    setRunDetail({ run, findings: [] });
+    try {
+      const detail = await fetchLabelAuditRun(run.id);
+      setRunDetail(detail);
+    } catch {
+      setRunDetail({ run, findings: [] });
+    }
+  };
 
   return (
     <div className="page fade-in">
@@ -69,8 +148,9 @@ export const LabelAudit = (_: ScreenProps) => {
           </p>
         </div>
         <div className="page-actions">
+          <button className="btn primary" onClick={() => setUploadOpen(true)}><Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Upload CSV</button>
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Re-scan all labels</button>
-          <button className="btn primary"><Icon name="audit" size={13} /> File all refundable</button>
+          <button className="btn"><Icon name="audit" size={13} /> File all refundable</button>
         </div>
       </div>
 
@@ -104,6 +184,24 @@ export const LabelAudit = (_: ScreenProps) => {
               <div className="stat-delta">{currentTotal ? ((labelSavings / currentTotal) * 100).toFixed(1) : 0}% lower / label</div>
             </div>
           </div>
+
+          {latestRun && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <div>
+                  <div className="card-title">Latest CSV audit run</div>
+                  <div className="card-subtitle">{latestRun.filename || 'Uploaded CSV'} · {latestRun.rowCount.toLocaleString()} rows analyzed</div>
+                </div>
+                <button className="btn sm" onClick={() => openRun(latestRun)}><Icon name="eye" size={12} /> View run</button>
+              </div>
+              <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                <MiniRunStat label="Findings" value={latestRun.findingsCount} />
+                <MiniRunStat label="Refunds" value={fmt.money(latestRun.estimatedRefunds)} />
+                <MiniRunStat label="Service savings" value={fmt.money(latestRun.optimizedServiceSavings)} />
+                <MiniRunStat label="Missing evidence" value={latestRun.missingEvidenceCount} />
+              </div>
+            </div>
+          )}
 
           <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 60%)' }}>
             <div className="card-body" style={{ padding: 18, display: 'grid', gridTemplateColumns: '1fr 60px 1fr 1fr', gap: 20, alignItems: 'center' }}>
@@ -207,7 +305,10 @@ export const LabelAudit = (_: ScreenProps) => {
                         <td className="num mono strong" style={{ color: ref(l) > 0 ? 'var(--green-text)' : 'var(--text-tertiary)' }}>
                           {ref(l) > 0 ? `+$${ref(l).toFixed(2)}` : '—'}
                         </td>
-                        <td>{l.auditStatus || l.status ? <StatusChip status={l.auditStatus || l.status!} /> : <span className="muted">—</span>}</td>
+                        <td>
+                          {l.auditStatus || l.status ? <StatusChip status={l.auditStatus || l.status!} /> : <span className="muted">—</span>}
+                          {l.source === 'csv_upload' && <div style={{ marginTop: 3 }}><Chip dot={false}>CSV</Chip></div>}
+                        </td>
                         <td>
                           {l.optimizedCarrier ? (
                             <div>
@@ -227,8 +328,145 @@ export const LabelAudit = (_: ScreenProps) => {
               </table>
             )}
           </div>
+
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="card-header">
+              <div className="card-title">CSV audit runs</div>
+              <button className="btn ghost sm" onClick={() => setUploadOpen(true)}><Icon name="plus" size={12} /> New upload</button>
+            </div>
+            {runs.length === 0 ? (
+              <EmptyState>No CSV audit runs yet.</EmptyState>
+            ) : (
+              <table className="data">
+                <thead><tr><th>Run</th><th>File</th><th className="num">Rows</th><th className="num">Findings</th><th className="num">Refunds</th><th className="num">Savings</th><th>Status</th></tr></thead>
+                <tbody>
+                  {runs.map((run) => (
+                    <tr key={run.id} className="clickable" onClick={() => openRun(run)}>
+                      <td className="mono strong">{run.publicId}</td>
+                      <td>{run.filename || 'CSV upload'}</td>
+                      <td className="num mono">{run.rowCount.toLocaleString()}</td>
+                      <td className="num mono">{run.findingsCount.toLocaleString()}</td>
+                      <td className="num mono strong">{fmt.money(run.estimatedRefunds)}</td>
+                      <td className="num mono">{fmt.money(run.optimizedServiceSavings)}</td>
+                      <td><StatusChip status={run.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </>
       )}
+      {uploadOpen && <LabelAuditUploadModal busy={uploading} onClose={() => setUploadOpen(false)} onSubmit={submitCsv} />}
+      {runDetail && <RunDetailDrawer detail={runDetail} onClose={() => setRunDetail(null)} />}
     </div>
   );
 };
+
+const MiniRunStat = ({ label, value }: { label: string; value: string | number }) => (
+  <div>
+    <div className="stat-label">{label}</div>
+    <div style={{ fontSize: 18, fontWeight: 800, marginTop: 3 }}>{value}</div>
+  </div>
+);
+
+const LabelAuditUploadModal = ({
+  busy,
+  onClose,
+  onSubmit,
+}: {
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (filename: string, rows: LabelAuditCsvRow[]) => void;
+}) => {
+  const [filename, setFilename] = useState('');
+  const [rows, setRows] = useState<LabelAuditCsvRow[]>([]);
+  const [message, setMessage] = useState('');
+  const handleFile = async (file: File | null) => {
+    if (!file) return;
+    const text = await file.text();
+    const parsed = parseCsv(text);
+    setFilename(file.name);
+    setRows(parsed);
+    setMessage(parsed.length ? `${parsed.length.toLocaleString()} rows ready for Cortex-style audit.` : 'CSV needs a header row and at least one data row.');
+  };
+  const sample = rows.slice(0, 5);
+  const columns = rows[0] ? Object.keys(rows[0]) : [];
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ width: 'min(760px, 92vw)' }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>Upload label audit CSV</div>
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>Recommended columns: order, tracking number, carrier, service, shipped, delivered, promised, weight, dimensions, zone, cost, state, ZIP.</div>
+          </div>
+          <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+        </div>
+        <div className="modal-body" style={{ display: 'grid', gap: 14 }}>
+          <label style={{ padding: 18, border: '1px dashed var(--border)', borderRadius: 8, background: 'var(--bg-subtle)', cursor: 'pointer' }}>
+            <input type="file" accept=".csv,text/csv" style={{ display: 'none' }} disabled={busy} onChange={(e) => handleFile(e.target.files?.[0] || null)} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Icon name="download" size={18} style={{ transform: 'rotate(180deg)' }} />
+              <div>
+                <div style={{ fontWeight: 800 }}>{filename || 'Choose CSV file'}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{message || 'Rows are audited for refunds, late delivery, evidence gaps, and optimized carrier/service alternatives.'}</div>
+              </div>
+            </div>
+          </label>
+          {sample.length > 0 && (
+            <div className="table-wrap">
+              <table className="data">
+                <thead><tr>{columns.slice(0, 8).map((c) => <th key={c}>{c}</th>)}</tr></thead>
+                <tbody>
+                  {sample.map((row, i) => (
+                    <tr key={i}>{columns.slice(0, 8).map((c) => <td key={c}>{String(row[c] ?? '')}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <div className="modal-foot">
+          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn primary" disabled={busy || rows.length === 0} onClick={() => onSubmit(filename || 'label-audit.csv', rows)}>
+            <Icon name="sparkle" size={13} /> {busy ? 'Auditing...' : 'Run audit'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RunDetailDrawer = ({ detail, onClose }: { detail: { run: LabelAuditRun; findings: LabelAuditResponse['findings'] }; onClose: () => void }) => (
+  <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
+    <div className="modal" style={{ width: 'min(52vw, 820px)', minWidth: 560, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal-head">
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>{detail.run.publicId} · {detail.run.filename || 'CSV upload'}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{detail.run.rowCount.toLocaleString()} rows · {detail.run.findingsCount.toLocaleString()} findings · {fmt.money(detail.run.estimatedRefunds)} refunds</div>
+        </div>
+        <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+      </div>
+      <div className="modal-body">
+        {detail.findings.length === 0 ? (
+          <Loading rows={4} />
+        ) : (
+          <table className="data">
+            <thead><tr><th>Tracking</th><th>Order</th><th>Issue</th><th className="num">Refund</th><th>Recommendation</th></tr></thead>
+            <tbody>
+              {detail.findings.map((f) => (
+                <tr key={f.id}>
+                  <td className="mono strong">{f.trackingNumber || f.tracking || '—'}</td>
+                  <td className="mono">{f.order || '—'}</td>
+                  <td>{issueChip(f)}</td>
+                  <td className="num mono strong">{num(f.refundAmount ?? f.refund) ? fmt.money(num(f.refundAmount ?? f.refund)) : '—'}</td>
+                  <td>{f.recommendation || 'Review carrier evidence.'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  </div>
+);

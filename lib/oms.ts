@@ -156,6 +156,39 @@ export type InventoryPlanFull = {
   warehouses: Array<{ id: string; code?: string; name?: string; city?: string; state?: string }>;
 };
 
+export type OmsWarehouseOverview = {
+  id: string;
+  warehouseCode: string;
+  code: string;
+  name?: string;
+  status: string;
+  facilityId?: string | null;
+  facilityCode?: string | null;
+  facilityName?: string | null;
+  city?: string | null;
+  state?: string | null;
+  region?: string | null;
+  inventoryUnits: number;
+  activeSkus: number;
+  orders: number;
+  asns: number;
+  activityCount: number;
+  lastWmsEventAt?: string | null;
+  lastWmsEventType?: string | null;
+  connectedAt?: string;
+};
+
+export type OmsWarehouseDetail = {
+  warehouse: OmsWarehouseOverview;
+  inventory: Array<{ id: string; sku: string; title?: string; available: number; inbound: number; received: number; orders: number; shippedToday: number; openAsnsCount: number; receiving: number; updatedAt?: string }>;
+  orders: Array<{ id: string; publicId?: string; orderNumber?: string; customer?: string | null; channel?: string; status?: string; total?: number; placedAt?: string; createdAt?: string }>;
+  asns: Array<{ id: string; publicId?: string; asnNumber?: string; status?: string; shipmentPlanId?: string; shipmentTitle?: string; units?: number; createdAt?: string; updatedAt?: string }>;
+  shipmentPlans: Array<{ id: string; publicId?: string; title?: string; status?: string; units?: number; estimatedArrivalDate?: string; updatedAt?: string }>;
+  wmsEvents: Array<{ id: string; eventType?: string; entityType?: string; entityId?: string; status?: string; payload?: Record<string, unknown>; receivedAt?: string }>;
+  ledger: Array<{ id: string; entity_type?: string; entity_id?: string; event_type?: string; source_system?: string; summary?: string; payload?: Record<string, unknown>; confidence?: number; createdAt?: string }>;
+  cortex: { readiness?: string; signals?: string[]; recommendations?: string[] };
+};
+
 export type OmsSkuDetail = {
   id: string;
   sku: string;
@@ -351,8 +384,28 @@ export type LabelAuditResponse = {
     recommendation?: string;
     optimizedCarrier?: string;
     optimizedCost?: number;
+    source?: string;
+    runId?: string;
   }>;
   summary: { openFindings?: number; estimatedRefunds?: number; optimizedServiceSavings?: number; labels30d?: number; lateDeliveries?: number };
+};
+
+export type LabelAuditCsvRow = Record<string, string | number | null | undefined>;
+
+export type LabelAuditRun = {
+  id: string;
+  publicId: string;
+  filename?: string | null;
+  status: string;
+  rowCount: number;
+  findingsCount: number;
+  estimatedRefunds: number;
+  optimizedServiceSavings: number;
+  missingEvidenceCount: number;
+  inputSummary?: Record<string, unknown>;
+  resultSummary?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type BillingProfitResponse = {
@@ -569,7 +622,23 @@ export const fetchOmsSupplierActivity = (supplierId: string) =>
 
 export const fetchHeatmap = () => omsFetch<HeatmapResponse>('/heatmap');
 
+export const fetchWarehouseOverview = () => omsFetch<{ warehouses: OmsWarehouseOverview[]; total: number }>('/warehouses/overview');
+
+export const fetchWarehouseDetail = (warehouseCode: string) =>
+  omsFetch<OmsWarehouseDetail>(`/warehouses/${encodeURIComponent(warehouseCode)}/detail`);
+
 export const fetchLabelAudit = () => omsFetch<LabelAuditResponse>('/label-audit');
+
+export const createLabelAuditRun = (body: { filename?: string; rows: LabelAuditCsvRow[] }) =>
+  omsFetch<{ run: LabelAuditRun; findings: LabelAuditResponse['findings'] }>('/label-audit/runs', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const fetchLabelAuditRuns = () => omsFetch<{ runs: LabelAuditRun[] }>('/label-audit/runs');
+
+export const fetchLabelAuditRun = (id: string) =>
+  omsFetch<{ run: LabelAuditRun; findings: LabelAuditResponse['findings'] }>(`/label-audit/runs/${encodeURIComponent(id)}`);
 
 export const fetchBillingProfit = () => omsFetch<BillingProfitResponse>('/billing-profit');
 

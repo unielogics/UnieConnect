@@ -16,6 +16,7 @@ export type NavCat = { id: string; label: string; icon: string; badge?: string; 
 export const CORE_SCREEN_IDS = new Set([
   'command',
   'skus',
+  'warehouses',
   'suppliers',
   'shipments',
   'orders',
@@ -62,6 +63,7 @@ export const SIDEBAR_NAV: NavCat[] = [
     icon: 'inventory',
     items: [
       { id: 'skus', label: 'SKUs', icon: 'box', desc: 'Every product, every warehouse' },
+      { id: 'warehouses', label: 'Warehouses', icon: 'inventory', desc: 'Inventory, orders, ASNs, and WMS activity' },
       { id: 'suppliers', label: 'Suppliers', icon: 'tag', desc: 'Vendor terms, lead times, ratings' },
       { id: 'shipments', label: 'Shipment Plans', icon: 'shipments', desc: 'Inbound to warehouses' },
       { id: 'heatmap', label: 'US Heatmap', icon: 'map', desc: 'Demand & warehouse coverage', featureId: 'inventory-heatmap' },
