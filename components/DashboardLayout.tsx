@@ -284,7 +284,7 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
               <History size={16} />
               <span>Ledger</span>
             </button>
-            <button type="button" className="oms-top-button" onClick={() => setCopilotOpen((value) => !value)}>
+            <button type="button" className="oms-top-button" onClick={() => router.push('/oms?view=command&openCortex=1')}>
               <Brain size={16} />
               <span>Cortex</span>
             </button>

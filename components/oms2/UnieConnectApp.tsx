@@ -199,7 +199,8 @@ export default function UnieConnectApp() {
     const v = (router.query.view as string) || 'command';
     setSection(v);
     if (v === 'sku-detail') setSkuDetailId((router.query.sku as string) || null);
-  }, [router.isReady, router.query.view, router.query.sku]);
+    if (router.query.openCortex === '1') setCopilotOpen(true);
+  }, [router.isReady, router.query.view, router.query.sku, router.query.openCortex]);
 
   const navigate: NavFn = useCallback(
     (target, payload) => {
