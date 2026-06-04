@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Loading, ErrorState, EmptyState, Modal } from '../ui';
-import { fetchMarketplaceFeatures, enableFeature, disableFeature, Feature } from '../../../lib/features';
+import { fetchMarketplaceFeatures, enableFeature, Feature } from '../../../lib/features';
 import type { ScreenProps } from '../UnieConnectApp';
 import { AppStudioModal } from './AppStudioModal';
+import { useCtxMenu } from '../ContextMenu';
 
 const COLORS = ['#6d28d9', '#3157f6', '#0d9488', '#f59e0b', '#b42318', '#db2777', '#10b981', '#0369a1'];
 const colorFor = (id: string) => COLORS[[...id].reduce((s, c) => s + c.charCodeAt(0), 0) % COLORS.length];
@@ -100,15 +101,18 @@ Idempotency-Key: wms-inventory-123
 
 export const Marketplace = (props: ScreenProps) => {
   const router = useRouter();
+  const ctx = useCtxMenu();
   const [features, setFeatures] = useState<Feature[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [cat, setCat] = useState('all');
-  const [installView, setInstallView] = useState<'all' | 'installed' | 'available'>('all');
+  const [status, setStatus] = useState<'all' | 'installed' | 'available'>('all');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [studioOpen, setStudioOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
+  const [selected, setSelected] = useState<Feature | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -123,7 +127,8 @@ export const Marketplace = (props: ScreenProps) => {
   };
   useEffect(load, []);
 
-  const install = async (f: Feature) => {
+  const toggle = async (f: Feature) => {
+    if (f.isEnabled) return;
     setBusy(f.id);
     try {
       await enableFeature(f.id);
@@ -136,47 +141,36 @@ export const Marketplace = (props: ScreenProps) => {
     }
   };
 
-  const uninstall = async (f: Feature) => {
-    if (!window.confirm(`Uninstall ${f.name}? Its screens will be removed from this account until installed again.`)) return;
-    setBusy(f.id);
-    try {
-      await disableFeature(f.id);
-      setFeatures((prev) => prev.map((x) => (x.id === f.id ? { ...x, isEnabled: false, userStatus: 'disabled' } : x)));
-      props.onFeaturesChanged?.();
-    } catch (e) {
-      /* surfaced via reload */
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return features.filter((f) => {
       if (cat !== 'all' && f.category !== cat) return false;
-      if (installView === 'installed') return Boolean(f.isEnabled);
-      if (installView === 'available') return !f.isEnabled;
+      if (status === 'installed' && !f.isEnabled) return false;
+      if (status === 'available' && f.isEnabled) return false;
+      if (q && !`${f.name} ${f.description} ${f.category} ${(f.tags || []).join(' ')}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [features, cat, installView]);
+  }, [cat, features, search, status]);
   const installFocus = typeof router.query.install === 'string' ? router.query.install : '';
-  const focused = installFocus ? features.find((f) => f.id === installFocus || f.slug === installFocus) : undefined;
-  const featured = focused || features.find((f) => !f.isEnabled && (f.tags || []).includes('featured')) || features.find((f) => !f.isEnabled) || features[0];
   const installedCount = features.filter((f) => f.isEnabled).length;
-  const availableCount = features.length - installedCount;
 
   const catTabs = [{ id: 'all', label: 'All' }, ...categories.map((c) => ({ id: c, label: c }))];
+
+  useEffect(() => {
+    if (!installFocus || selected) return;
+    const target = features.find((f) => f.id === installFocus || f.slug === installFocus);
+    if (target) setSelected(target);
+  }, [features, installFocus, selected]);
 
   return (
     <div className="page fade-in">
       <div className="page-header">
         <div>
           <h1 className="page-title">Marketplace</h1>
-          <p className="page-subtitle">
-            Extend UnieConnect with AI bots, automations, accounting connectors, and analytics widgets — installed in one click.
-          </p>
+          <p className="page-subtitle">Apps, automations, and connectors for this account.</p>
         </div>
         <div className="page-actions">
-          <button className="btn" onClick={() => setInstallView('installed')}>
+          <button className="btn" onClick={() => setStatus('installed')}>
             <Icon name="settings" size={13} /> Manage installed ({installedCount})
           </button>
           <button className="btn primary" onClick={() => setStudioOpen(true)}><Icon name="studio" size={13} /> Open App Studio</button>
@@ -191,185 +185,85 @@ export const Marketplace = (props: ScreenProps) => {
         <div className="card"><EmptyState>No marketplace apps available yet.</EmptyState></div>
       ) : (
         <>
-          {featured && (
-            <div
-              className="card"
-              style={{
-                marginBottom: 18,
-                background: `linear-gradient(135deg, ${colorFor(featured.id)}15 0%, var(--bg-elev) 60%)`,
-                border: `1px solid ${colorFor(featured.id)}40`,
-              }}
-            >
-              <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 24, alignItems: 'center' }}>
-                <div style={{ width: 72, height: 72, borderRadius: 16, background: colorFor(featured.id), color: 'white', display: 'grid', placeItems: 'center', boxShadow: `0 8px 24px ${colorFor(featured.id)}40` }}>
-                  <Icon name={iconFor(featured)} size={32} />
-                </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Chip tone="purple" dot={false}>FEATURED</Chip>
-                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{featured.category}</span>
-                  </div>
-                  <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', marginBottom: 4 }}>{featured.name}</div>
-                  <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 10 }}>{featured.description}</div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {(featured.tags || []).slice(0, 4).map((c) => (
-                      <Chip key={c} dot={false} tone="outline">
-                        {c}
-                      </Chip>
-                    ))}
-                  </div>
-                  {unlockedScreens(featured).length > 0 && (
-                    <div className="app-unlocks">
-                      Unlocks: {unlockedScreens(featured).map((screen) => screen.replace(/-/g, ' ')).join(', ')}
-                    </div>
-                  )}
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>{priceLabel(featured)}</div>
-                  <button
-                    className={`btn lg ${featured.isEnabled ? '' : 'primary'}`}
-                    onClick={() => (featured.isEnabled ? uninstall(featured) : install(featured))}
-                    disabled={busy === featured.id}
-                  >
-                    {featured.isEnabled ? (
-                      <>
-                        <Icon name="x" size={13} /> Uninstall
-                      </>
-                    ) : (
-                      'Install'
-                    )}
-                  </button>
-                </div>
+          <div className="table-wrap">
+            <div className="table-toolbar">
+              <div style={{ position: 'relative', flex: '0 1 320px' }}>
+                <Icon name="search" size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search apps"
+                  style={{ width: '100%', height: 28, padding: '0 10px 0 28px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 12 }}
+                />
               </div>
+              <select value={status} onChange={(e) => setStatus(e.target.value as any)} style={{ height: 28, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12 }}>
+                <option value="all">All statuses</option>
+                <option value="installed">Installed</option>
+                <option value="available">Available</option>
+              </select>
+              <select value={cat} onChange={(e) => setCat(e.target.value)} style={{ height: 28, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, textTransform: 'capitalize' }}>
+                {catTabs.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+              <div className="spacer" />
+              <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{filtered.length} apps</span>
             </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-            {[
-              { id: 'all', label: 'All apps', count: features.length },
-              { id: 'installed', label: 'Installed', count: installedCount },
-              { id: 'available', label: 'Available', count: availableCount },
-            ].map((view) => {
-              const active = installView === view.id;
-              return (
-                <button
-                  key={view.id}
-                  onClick={() => setInstallView(view.id as typeof installView)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 14px',
-                    borderRadius: 8,
-                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                    background: active ? 'var(--accent-soft)' : 'var(--bg-elev)',
-                    color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {view.label}
-                  <span style={{ background: active ? 'var(--accent)' : 'var(--bg-active)', color: active ? 'white' : 'var(--text-tertiary)', padding: '0 6px', borderRadius: 999, fontSize: 10.5, fontWeight: 800 }}>
-                    {view.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-            {catTabs.map((c) => {
-              const count = c.id === 'all'
-                ? filtered.length
-                : features.filter((f) => f.category === c.id && (installView === 'all' || (installView === 'installed' ? f.isEnabled : !f.isEnabled))).length;
-              const active = cat === c.id;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setCat(c.id)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 14px',
-                    borderRadius: 8,
-                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                    background: active ? 'var(--accent-soft)' : 'var(--bg-elev)',
-                    color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    textTransform: 'capitalize',
-                  }}
-                >
-                  {c.label}
-                  <span style={{ background: active ? 'var(--accent)' : 'var(--bg-active)', color: active ? 'white' : 'var(--text-tertiary)', padding: '0 6px', borderRadius: 999, fontSize: 10.5, fontWeight: 700 }}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {filtered.length === 0 ? (
-            <div className="card">
-              <EmptyState>{installView === 'installed' ? 'No marketplace apps installed for this account yet.' : 'No apps match this marketplace filter.'}</EmptyState>
-            </div>
-          ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 14 }}>
-            {filtered.map((app) => (
-              <div key={app.id} className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 230 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: colorFor(app.id), color: 'white', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-                      <Icon name={iconFor(app)} size={18} />
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {app.name}
-                      </div>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'capitalize' }}>{app.category}</div>
-                    </div>
-                  </div>
-                  {app.isEnabled && (
-                    <Chip tone="green" dot={false}>
-                      Installed
-                    </Chip>
-                  )}
-                </div>
-                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, flex: 1 }}>{app.description}</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {(app.tags || []).slice(0, 3).map((c) => (
-                    <span key={c} style={{ fontSize: 10.5, color: 'var(--text-secondary)', background: 'var(--bg-sunken)', padding: '3px 7px', borderRadius: 4 }}>
-                      {c}
-                    </span>
+            {filtered.length === 0 ? (
+              <EmptyState>No marketplace apps match these filters.</EmptyState>
+            ) : (
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>App</th>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th>Unlocks</th>
+                    <th>Price</th>
+                    <th className="num">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((app) => (
+                    <tr
+                      key={app.id}
+                      className="clickable"
+                      onClick={() => setSelected(app)}
+                      onContextMenu={(e) =>
+                        ctx.open(e, [
+                          { label: app.name },
+                          { icon: 'eye', title: 'Open details', onClick: () => setSelected(app) },
+                          ...(app.isEnabled ? [] : [{ icon: 'plus', title: 'Install app', onClick: () => toggle(app) }]),
+                          { icon: 'studio', title: 'Open App Studio', onClick: () => setStudioOpen(true) },
+                        ])
+                      }
+                    >
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          <div style={{ width: 30, height: 30, borderRadius: 7, background: colorFor(app.id), color: 'white', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                            <Icon name={iconFor(app)} size={15} />
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis' }}>{app.name}</div>
+                            <div className="muted" style={{ maxWidth: 460, overflow: 'hidden', textOverflow: 'ellipsis' }}>{app.description}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ textTransform: 'capitalize' }}>{app.category}</td>
+                      <td><Chip tone={app.isEnabled ? 'green' : 'default'} dot={false}>{app.isEnabled ? 'Installed' : 'Available'}</Chip></td>
+                      <td className="muted">{unlockedScreens(app).length ? unlockedScreens(app).map((s) => s.replace(/-/g, ' ')).join(', ') : '—'}</td>
+                      <td>{priceLabel(app)}</td>
+                      <td className="num" onClick={(e) => e.stopPropagation()}>
+                        <button className={`btn sm ${app.isEnabled ? '' : 'primary'}`} onClick={() => (app.isEnabled ? setSelected(app) : toggle(app))} disabled={busy === app.id}>
+                          {app.isEnabled ? 'Details' : busy === app.id ? 'Installing...' : 'Install'}
+                        </button>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-                {unlockedScreens(app).length > 0 && (
-                  <div className="app-unlocks">
-                    <Icon name="check" size={11} /> Unlocks {unlockedScreens(app).map((screen) => screen.replace(/-/g, ' ')).join(', ')}
-                  </div>
-                )}
-                {requiredConnections(app).length > 0 && (
-                  <div className="app-unlocks muted">
-                    <Icon name="plug" size={11} /> Needs {requiredConnections(app).join(', ')}
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600 }}>{priceLabel(app)}</div>
-                  <button
-                    className={`btn ${app.isEnabled ? '' : 'primary'} sm`}
-                    onClick={() => (app.isEnabled ? uninstall(app) : install(app))}
-                    disabled={busy === app.id}
-                  >
-                    {app.isEnabled ? 'Uninstall' : 'Install'}
-                  </button>
-                </div>
-              </div>
-            ))}
+                </tbody>
+              </table>
+            )}
           </div>
-          )}
 
           <div className="card" style={{ marginTop: 18, background: 'var(--bg-sunken)' }}>
             <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 22 }}>
@@ -388,6 +282,39 @@ export const Marketplace = (props: ScreenProps) => {
         </>
       )}
       {studioOpen && <AppStudioModal onClose={() => setStudioOpen(false)} />}
+      {selected && (
+        <Modal
+          title={selected.name}
+          subtitle={selected.category}
+          onClose={() => setSelected(null)}
+          width="min(460px, calc(100vw - 96px))"
+          footer={
+            <>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{priceLabel(selected)}</div>
+              <button className={`btn ${selected.isEnabled ? '' : 'primary'}`} onClick={() => (selected.isEnabled ? setSelected(null) : toggle(selected))} disabled={selected.isEnabled || busy === selected.id}>
+                {selected.isEnabled ? 'Installed' : 'Install'}
+              </button>
+            </>
+          }
+        >
+          <div style={{ display: 'grid', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 10, background: colorFor(selected.id), color: 'white', display: 'grid', placeItems: 'center' }}>
+                <Icon name={iconFor(selected)} size={20} />
+              </div>
+              <div>
+                <Chip tone={selected.isEnabled ? 'green' : 'default'} dot={false}>{selected.isEnabled ? 'Installed' : 'Available'}</Chip>
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{selected.longDescription || selected.description}</div>
+            <div className="kv"><div className="kv-label">Unlocks</div><div className="kv-value" style={{ fontSize: 13 }}>{unlockedScreens(selected).length ? unlockedScreens(selected).map((s) => s.replace(/-/g, ' ')).join(', ') : 'No dedicated screen'}</div></div>
+            <div className="kv"><div className="kv-label">Required connections</div><div className="kv-value" style={{ fontSize: 13 }}>{requiredConnections(selected).length ? requiredConnections(selected).join(', ') : 'None'}</div></div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {(selected.tags || []).map((tag) => <Chip key={tag} tone="outline" dot={false}>{tag}</Chip>)}
+            </div>
+          </div>
+        </Modal>
+      )}
       {docsOpen && (
         <SdkDocsModal
           onClose={() => setDocsOpen(false)}

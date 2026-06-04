@@ -6,7 +6,7 @@ type IconName =
   | 'sparkle' | 'chevron' | 'chevronDown' | 'chevronUp' | 'plus' | 'download' | 'filter'
   | 'columns' | 'play' | 'check' | 'x' | 'arrowUp' | 'arrowDown' | 'arrowRight' | 'bolt'
   | 'target' | 'warning' | 'info' | 'refresh' | 'map' | 'box' | 'tag' | 'moon' | 'sun'
-  | 'panelRight' | 'layers' | 'flame' | 'eye' | 'save' | 'list' | 'logout';
+  | 'panelRight' | 'layers' | 'flame' | 'eye' | 'save' | 'list' | 'logout' | 'amazon' | 'lock';
 
 export const Icon = ({
   name,
@@ -80,6 +80,8 @@ export const Icon = ({
     save: <><path d="M5 3h11l4 4v14H5z" /><path d="M8 3v6h8V3" /><path d="M8 14h8v7H8z" /></>,
     list: <><path d="M3 6h3M3 12h3M3 18h3" /><path d="M9 6h12M9 12h12M9 18h12" /></>,
     logout: <><path d="M10 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v2" /><path d="M15 7l5 5-5 5" /><path d="M8 12h12" /></>,
+    amazon: <><path d="M7 9.5c.7-1.5 2.1-2.3 4.1-2.3 2.8 0 4.2 1.2 4.2 3.7v4.7c0 .7.2 1.3.6 1.8" /><path d="M15.2 12.2c-4.6-.2-7 .9-7 3.1 0 1.5 1.2 2.5 2.8 2.5 1.8 0 3.2-.9 4.2-2.6" /><path d="M4 19.2c4.8 2.9 10.8 3.1 16.2.3" /><path d="M17.8 18.1l2.8 1.2-1.1 2.8" /></>,
+    lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
   };
   return <svg {...props}>{paths[name] || null}</svg>;
 };

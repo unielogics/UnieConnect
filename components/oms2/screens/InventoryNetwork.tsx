@@ -2,11 +2,19 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, Sparkline, Loading, ErrorState, EmptyState } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
-import { OptimizationImpact } from '../OptimizationImpact';
-import { fetchOmsSkus, refreshAmazonItem, syncAmazonItems, OmsSku } from '../../../lib/oms';
+import {
+  approveRecommendation,
+  createAmazonListingDraft,
+  fetchOmsSkus,
+  fetchRecommendations,
+  OmsRecommendation,
+  OmsSku,
+  publishAmazonListingDraft,
+  rejectRecommendation,
+  validateAmazonListingDraft,
+} from '../../../lib/oms';
 import { docTone, riskLabel } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
-import { AmazonListingModal } from '../modals/AmazonListingModal';
 import { MarketplaceFilter, MarketplaceFilterValue } from '../MarketplaceFilter';
 
 const DocCell = ({ days }: { days: number }) => {
@@ -36,41 +44,29 @@ const FillScore = ({ value }: { value: number }) => {
   );
 };
 
-const AmazonBadges = ({ sku }: { sku: OmsSku }) => {
-  const amazon = sku.amazon;
-  if (!amazon) return <Chip tone="amber">Needs listing</Chip>;
-  const statusTone = amazon.listingStatus === 'sync_error'
-    ? 'red'
-    : amazon.listingStatus === 'needs_listing'
-      ? 'amber'
-      : 'green';
-  return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-      <Chip tone={statusTone}>{amazon.listingStatus === 'needs_listing' ? 'Needs listing' : amazon.listingStatus}</Chip>
-      {amazon.fulfillmentChannel === 'AMAZON' || amazon.fulfillmentChannel === 'FBA' ? <Chip tone="purple">FBA</Chip> : null}
-      {amazon.fulfillmentChannel === 'MERCHANT' || amazon.fulfillmentChannel === 'FBM' ? <Chip tone="blue">FBM</Chip> : null}
-      {amazon.syncStatus === 'sync_error' ? <Chip tone="red">Sync error</Chip> : null}
-    </div>
-  );
-};
-
 export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewProduct, onImportCsv }: ScreenProps) => {
   const [view, setView] = useState<'table' | 'heatmap' | 'treemap'>('table');
   const [search, setSearch] = useState('');
-  const [amazonFilter, setAmazonFilter] = useState<'all' | 'listed' | 'fba' | 'needs_listing' | 'sync_error'>('all');
-  const [marketplaceFilter, setMarketplaceFilter] = useState<MarketplaceFilterValue>({});
   const [skus, setSkus] = useState<OmsSku[]>([]);
+  const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
+  const [selectedRec, setSelectedRec] = useState<OmsRecommendation | null>(null);
+  const [amazonSku, setAmazonSku] = useState<OmsSku | null>(null);
+  const [marketplaceFilter, setMarketplaceFilter] = useState<MarketplaceFilterValue>({});
   const [loading, setLoading] = useState(true);
-  const [syncingAmazon, setSyncingAmazon] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [listingItem, setListingItem] = useState<OmsSku | null>(null);
   const ctx = useCtxMenu();
 
   const load = () => {
     setLoading(true);
     setErr(null);
-    fetchOmsSkus(marketplaceFilter)
-      .then((d) => setSkus(d.skus || []))
+    Promise.all([
+      fetchOmsSkus(marketplaceFilter),
+      fetchRecommendations({ screen: 'skus', status: 'open', entityType: 'sku', limit: 100 }).catch(() => ({ recommendations: [] })),
+    ])
+      .then(([d, recs]) => {
+        setSkus(d.skus || []);
+        setRecommendations(recs.recommendations || []);
+      })
       .catch((e) => setErr(e.message || 'Failed to load SKUs'))
       .finally(() => setLoading(false));
   };
@@ -78,51 +74,25 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
 
   const filtered = useMemo(
     () =>
-      skus.filter((s) => {
-        const matchesSearch =
+      skus.filter(
+        (s) =>
           !search ||
           s.sku?.toLowerCase().includes(search.toLowerCase()) ||
-          (s.title || '').toLowerCase().includes(search.toLowerCase()) ||
-          (s.amazon?.asin || '').toLowerCase().includes(search.toLowerCase()) ||
-          (s.amazon?.sellerSku || '').toLowerCase().includes(search.toLowerCase());
-        const matchesAmazon =
-          amazonFilter === 'all' ||
-          (amazonFilter === 'listed' && Boolean(s.amazon?.asin)) ||
-          (amazonFilter === 'fba' && Boolean(s.amazon?.fbaEligible || s.amazon?.fulfillmentChannel === 'AMAZON' || s.amazon?.fulfillmentChannel === 'FBA')) ||
-          (amazonFilter === 'needs_listing' && (!s.amazon || s.amazon.listingStatus === 'needs_listing')) ||
-          (amazonFilter === 'sync_error' && s.amazon?.syncStatus === 'sync_error');
-        return matchesSearch && matchesAmazon;
-      }),
-    [skus, search, amazonFilter]
+          (s.title || '').toLowerCase().includes(search.toLowerCase())
+      ),
+    [skus, search]
   );
 
   const atRisk = skus.filter((s) => s.daysOfCover < 14).length;
-  const amazonMapped = skus.filter((s) => s.amazon?.asin).length;
-  const fbaEligible = skus.filter((s) => s.amazon?.fbaEligible).length;
   const avgDoc = skus.length ? Math.round(skus.reduce((a, s) => a + (s.daysOfCover || 0), 0) / skus.length) : 0;
   const avgFill = skus.length ? Math.round(skus.reduce((a, s) => a + (s.fillPercent || 0), 0) / skus.length) : 0;
-
-  const syncAmazon = async () => {
-    setSyncingAmazon(true);
-    setErr(null);
-    try {
-      await syncAmazonItems();
-      load();
-    } catch (e: any) {
-      setErr(e.message || 'Failed to sync Amazon items');
-    } finally {
-      setSyncingAmazon(false);
-    }
-  };
-
-  const refreshAmazon = async (sku: OmsSku) => {
-    try {
-      await refreshAmazonItem(sku.id);
-      load();
-    } catch (e: any) {
-      setErr(e.message || 'Failed to refresh Amazon item');
-    }
-  };
+  const recBySku = useMemo(() => {
+    const map = new Map<string, OmsRecommendation>();
+    recommendations.forEach((rec) => {
+      if (rec.entityId && !map.has(String(rec.entityId))) map.set(String(rec.entityId), rec);
+    });
+    return map;
+  }, [recommendations]);
 
   return (
     <div className="page fade-in">
@@ -148,9 +118,6 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           <button className="btn" onClick={() => onImportCsv?.('skus')}>
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
           </button>
-          <button className="btn" onClick={syncAmazon} disabled={syncingAmazon}>
-            <Icon name="refresh" size={13} /> {syncingAmazon ? 'Syncing' : 'Sync Amazon'}
-          </button>
           <button className="btn"><Icon name="download" size={13} /> Export</button>
           <button className="btn primary" onClick={onNewProduct}><Icon name="plus" size={13} /> New product</button>
         </div>
@@ -173,13 +140,11 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           <div className="stat-delta" style={{ color: 'var(--text-tertiary)' }}>network-wide</div>
         </div>
         <div className="stat ai">
-          <div className="stat-label">Amazon mapped</div>
-          <div className="stat-value">{amazonMapped}</div>
-          <div className="stat-delta up"><span className="arrow">▲</span> {fbaEligible} FBA-ready</div>
+          <div className="stat-label">Avg pallet fill</div>
+          <div className="stat-value">{avgFill}%</div>
+          <div className="stat-delta up"><span className="arrow">▲</span> with plan applied</div>
         </div>
       </div>
-
-      <OptimizationImpact screen="skus" title="SKU placement optimization" onNavigate={onNavigate} />
 
       {err ? (
         <div className="card"><ErrorState message={err} onRetry={load} /></div>
@@ -197,18 +162,6 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                 style={{ width: '100%', height: 28, padding: '0 10px 0 28px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 12 }}
               />
             </div>
-            <select
-              className="filter-chip"
-              value={amazonFilter}
-              onChange={(e) => setAmazonFilter(e.target.value as any)}
-              style={{ height: 28 }}
-            >
-              <option value="all">Amazon: All</option>
-              <option value="listed">Listed</option>
-              <option value="fba">FBA eligible</option>
-              <option value="needs_listing">Needs listing</option>
-              <option value="sync_error">Sync error</option>
-            </select>
             <MarketplaceFilter value={marketplaceFilter} onChange={setMarketplaceFilter} includeUnmapped />
             <button className="filter-chip applied"><Icon name="filter" size={11} /> Warehouse: All <Icon name="x" size={10} /></button>
             <button className="filter-chip"><Icon name="filter" size={11} /> DOC range</button>
@@ -226,7 +179,6 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                   <th style={{ width: 28 }} />
                   <th>SKU</th>
                   <th>Product</th>
-                  <th>Amazon</th>
                   <th className="num">Available</th>
                   <th className="num">Inbound</th>
                   <th className="num">Velocity / 30d</th>
@@ -234,19 +186,23 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                   <th className="num">Proposed units</th>
                   <th>Pallet fill</th>
                   <th>Service tier</th>
-                  <th>Amazon actions</th>
                   <th>Status</th>
+                  <th className="num">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((s) => {
                   const sel = isSelected(s.id);
                   const rl = riskLabel(s.risk);
+                  const rec = recBySku.get(s.id) || recBySku.get(s.sku);
                   return (
                     <tr
                       key={s.id}
                       className="clickable"
-                      style={{ background: sel ? 'var(--accent-soft)' : undefined }}
+                      style={{
+                        background: rec ? 'var(--purple-soft)' : sel ? 'var(--accent-soft)' : undefined,
+                        boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : undefined,
+                      }}
                       onClick={(e) => {
                         if ((e.target as HTMLInputElement).type === 'checkbox') return;
                         onNavigate('sku-detail', s.id);
@@ -256,23 +212,14 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                           { label: 'SKU' },
                           { icon: 'eye', title: 'Open SKU page', onClick: () => onNavigate('sku-detail', s.id) },
                           { icon: 'studio', title: 'View in Inventory Plan', onClick: () => onNavigate('plan', s.id) },
+                          ...(rec ? [{ icon: 'sparkle', title: 'Review Cortex optimization', onClick: () => setSelectedRec(rec) }] : []),
+                          { icon: 'amazon', title: 'Amazon listing draft', onClick: () => setAmazonSku(s) },
                           { divider: true },
                           {
                             icon: 'plus',
                             title: sel ? 'Remove from shipment' : 'Add to shipment plan',
                             onClick: () => toggleSelect({ id: s.id, name: s.title || s.sku, ...(s as any) }),
                           },
-                          {
-                            icon: 'box',
-                            title: s.amazon?.fbaEligible ? 'Create FBA shipment' : 'FBA blocked until Amazon profile is eligible',
-                            onClick: () => s.amazon?.fbaEligible && toggleSelect({ id: s.id, name: s.title || s.sku, ...(s as any), fbaIntent: true }),
-                          },
-                          {
-                            icon: 'arrowRight',
-                            title: s.amazon?.asin ? 'Update Amazon listing' : 'List on Amazon',
-                            onClick: () => setListingItem(s),
-                          },
-                          { icon: 'refresh', title: 'Refresh Amazon item', onClick: () => refreshAmazon(s) },
                           { icon: 'tag', title: 'View supplier', onClick: () => onNavigate('suppliers') },
                           { divider: true },
                           { icon: 'refresh', title: 'Re-sync from WMS', shortcut: '⌘R', onClick: load },
@@ -292,9 +239,6 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                       <td>
                         <span style={{ color: 'var(--text)' }}>{s.title || '—'}</span>
                       </td>
-                      <td>
-                        <AmazonBadges sku={s} />
-                      </td>
                       <td className="num mono strong">{(s.available ?? 0).toLocaleString()}</td>
                       <td className="num mono muted">{s.inbound > 0 ? s.inbound.toLocaleString() : '—'}</td>
                       <td className="num mono">{(s.velocity30d ?? 0).toLocaleString()}</td>
@@ -306,23 +250,20 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                         <FillScore value={s.fillPercent ?? 0} />
                       </td>
                       <td className="mono muted" style={{ textTransform: 'capitalize' }}>{s.serviceTier}</td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          <button className="btn ghost sm" onClick={() => setListingItem(s)}>
-                            {s.amazon?.asin ? 'Update' : 'List'}
-                          </button>
-                          <button
-                            className="btn ghost sm"
-                            disabled={!s.amazon?.fbaEligible}
-                            onClick={() => toggleSelect({ id: s.id, name: s.title || s.sku, ...(s as any), fbaIntent: true })}
-                            title={s.amazon?.fbaEligible ? 'Create Amazon FBA shipment' : 'Complete Amazon listing/FBA readiness first'}
-                          >
-                            FBA
-                          </button>
-                        </div>
-                      </td>
                       <td>
                         <Chip tone={rl.tone}>{rl.label}</Chip>
+                      </td>
+                      <td className="num" onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'inline-flex', gap: 4 }}>
+                          {rec && (
+                            <button className="btn ghost sm" onClick={() => setSelectedRec(rec)} data-hint="Review Cortex optimization">
+                              <Icon name="sparkle" size={12} style={{ color: 'var(--purple)' }} />
+                            </button>
+                          )}
+                          <button className="btn ghost sm" onClick={() => setAmazonSku(s)} data-hint="Amazon listing draft">
+                            <Icon name="amazon" size={13} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -345,16 +286,229 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           </div>
         </div>
       )}
-      {listingItem ? (
-        <AmazonListingModal
-          item={listingItem}
-          onClose={() => setListingItem(null)}
-          onSaved={() => {
-            setListingItem(null);
-            load();
-          }}
-        />
-      ) : null}
+      {selectedRec && <RecommendationDrawer rec={selectedRec} onClose={() => setSelectedRec(null)} onChanged={load} />}
+      {amazonSku && <AmazonListingDrawer sku={amazonSku} onClose={() => setAmazonSku(null)} />}
     </div>
+  );
+};
+
+const DrawerShell = ({
+  title,
+  subtitle,
+  onClose,
+  children,
+  footer,
+}: {
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) => (
+  <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
+    <div
+      className="modal"
+      style={{ width: 'min(33vw, 480px)', minWidth: 380, maxHeight: '100vh', height: '100vh', borderRadius: 0 }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="modal-head">
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>{title}</div>
+          {subtitle && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{subtitle}</div>}
+        </div>
+        <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+      </div>
+      <div className="modal-body">{children}</div>
+      {footer && <div className="modal-foot">{footer}</div>}
+    </div>
+  </div>
+);
+
+export const RecommendationDrawer = ({ rec, onClose, onChanged }: { rec: OmsRecommendation; onClose: () => void; onChanged: () => void }) => {
+  const [busy, setBusy] = useState('');
+  const [edit, setEdit] = useState(false);
+  const [current, setCurrent] = useState(JSON.stringify(rec.currentValue || {}, null, 2));
+  const [optimized, setOptimized] = useState(JSON.stringify(rec.optimizedValue || {}, null, 2));
+  const act = async (action: 'approve' | 'reject') => {
+    setBusy(action);
+    try {
+      if (action === 'approve') await approveRecommendation(rec.id, { source: 'sku_table' });
+      else await rejectRecommendation(rec.id, 'Denied from SKU optimization drawer');
+      onChanged();
+      onClose();
+    } finally {
+      setBusy('');
+    }
+  };
+  return (
+    <DrawerShell
+      title="Cortex optimization"
+      subtitle={rec.title}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={() => setEdit((v) => !v)}><Icon name="save" size={12} /> {edit ? 'Preview' : 'Edit'}</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn" disabled={!!busy} onClick={() => act('reject')}>Deny</button>
+            <button className="btn primary" disabled={!!busy || rec.approvalState === 'blocked'} onClick={() => act('approve')}><Icon name="check" size={12} /> Approve</button>
+          </div>
+        </>
+      }
+    >
+      <div style={{ display: 'grid', gap: 14 }}>
+        <Chip tone={rec.approvalState === 'waiting_approval' ? 'amber' : 'purple'} dot={false}>{String(rec.approvalState || 'open').replace(/_/g, ' ')}</Chip>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{rec.summary}</div>
+        <CompareBlock label="Before" value={current} edit={edit} onChange={setCurrent} />
+        <CompareBlock label="After" value={optimized} edit={edit} onChange={setOptimized} tone="purple" />
+        <CompareBlock label="Impact" value={JSON.stringify(rec.estimatedImpact || {}, null, 2)} edit={false} tone="green" />
+      </div>
+    </DrawerShell>
+  );
+};
+
+const CompareBlock = ({ label, value, edit, onChange, tone }: { label: string; value: string; edit: boolean; onChange?: (v: string) => void; tone?: string }) => (
+  <div>
+    <div style={{ fontSize: 11, fontWeight: 800, color: tone ? `var(--${tone}-text)` : 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+    {edit ? (
+      <textarea value={value} onChange={(e) => onChange?.(e.target.value)} style={{ width: '100%', minHeight: 140, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', color: 'var(--text)', fontFamily: 'var(--mono)', fontSize: 11.5, padding: 10 }} />
+    ) : (
+      <pre style={{ margin: 0, padding: 12, borderRadius: 8, background: 'var(--bg-sunken)', overflow: 'auto', fontSize: 11.5 }}>{value}</pre>
+    )}
+  </div>
+);
+
+export const AmazonListingDrawer = ({ sku, onClose }: { sku: Pick<OmsSku, 'id' | 'sku' | 'title'>; onClose: () => void }) => {
+  const [form, setForm] = useState({
+    sellerSku: sku.sku || '',
+    title: sku.title || '',
+    description: '',
+    brand: '',
+    price: '',
+    weight: '',
+    length: '',
+    width: '',
+    height: '',
+    asin: '',
+    upc: '',
+    ean: '',
+    fulfillmentChannel: 'AMAZON',
+  });
+  const [draftId, setDraftId] = useState('');
+  const [message, setMessage] = useState('');
+  const [errors, setErrors] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [busy, setBusy] = useState('');
+  const payload = () => ({
+    itemId: sku.id,
+    sellerSku: form.sellerSku,
+    title: form.title,
+    description: form.description,
+    brand: form.brand,
+    price: form.price ? Number(form.price) : null,
+    weight: form.weight ? Number(form.weight) : 0,
+    length: form.length ? Number(form.length) : 0,
+    width: form.width ? Number(form.width) : 0,
+    height: form.height ? Number(form.height) : 0,
+    asin: form.asin || null,
+    upc: form.upc || null,
+    ean: form.ean || null,
+    fulfillmentChannel: form.fulfillmentChannel,
+  });
+  const missing = [
+    ['title', 'Title'],
+    ['description', 'Description'],
+    ['brand', 'Brand'],
+    ['price', 'Price'],
+    ['weight', 'Weight'],
+    ['length', 'Length'],
+    ['width', 'Width'],
+    ['height', 'Height'],
+  ].filter(([key]) => !(form as any)[key]).map(([, label]) => label);
+  if (!form.asin && !form.upc && !form.ean) missing.push('UPC/EAN/ASIN');
+
+  const saveDraft = async () => {
+    setBusy('draft');
+    setMessage('');
+    try {
+      const res = await createAmazonListingDraft(payload());
+      setDraftId(String((res.draft as any)?.id || ''));
+      setErrors(res.validation.errors || []);
+      setWarnings(res.validation.warnings || []);
+      setMessage((res.validation.errors || []).length ? 'Draft saved. Complete required fields before publish.' : 'Draft validated and ready for pending provider submission.');
+    } catch (e: any) {
+      setMessage(e.message || 'Draft failed');
+    } finally {
+      setBusy('');
+    }
+  };
+  const validateDraft = async () => {
+    if (!draftId) return saveDraft();
+    setBusy('validate');
+    try {
+      const res = await validateAmazonListingDraft(draftId, payload());
+      setErrors(res.validation.errors || []);
+      setWarnings(res.validation.warnings || []);
+      setMessage((res.validation.errors || []).length ? 'Still missing Amazon-required fields.' : 'Ready for pending provider submission.');
+    } finally {
+      setBusy('');
+    }
+  };
+  const publishDraft = async () => {
+    if (!draftId) {
+      await saveDraft();
+      return;
+    }
+    setBusy('publish');
+    try {
+      const res = await publishAmazonListingDraft(draftId, payload());
+      setMessage(String((res.submissionResult as any)?.message || 'Listing draft marked pending provider integration.'));
+    } catch (e: any) {
+      setMessage(e.message || 'Publish failed');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  return (
+    <DrawerShell
+      title="Amazon listing"
+      subtitle={sku.sku}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" disabled={!!busy} onClick={validateDraft}>Validate</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn" disabled={!!busy} onClick={saveDraft}>Save draft</button>
+            <button className="btn primary" disabled={!!busy} onClick={publishDraft}><Icon name="amazon" size={13} /> Publish pending</button>
+          </div>
+        </>
+      }
+    >
+      <div style={{ display: 'grid', gap: 12 }}>
+        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          Amazon listing is a draft-and-enrich workflow. Valid drafts are marked pending provider integration until live Listings Items submission is enabled.
+        </div>
+        {missing.length > 0 && <Chip tone="amber" dot={false}>Needs {missing.join(', ')}</Chip>}
+        {message && <div className="card" style={{ padding: 10, color: 'var(--text-secondary)' }}>{message}</div>}
+        {[...errors, ...warnings].map((m, i) => (
+          <div key={i} style={{ fontSize: 12, color: i < errors.length ? 'var(--red-text)' : 'var(--amber-text)' }}>{m}</div>
+        ))}
+        <div style={{ display: 'grid', gap: 8 }}>
+          {Object.entries(form).map(([key, value]) => (
+            <label key={key} style={{ display: 'grid', gap: 4, fontSize: 11, fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+              {key.replace(/([A-Z])/g, ' $1')}
+              {key === 'fulfillmentChannel' ? (
+                <select value={value} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} style={{ height: 32, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}>
+                  <option value="AMAZON">FBA</option>
+                  <option value="MERCHANT">FBM</option>
+                </select>
+              ) : (
+                <input value={value} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} style={{ height: 32, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', padding: '0 9px' }} />
+              )}
+            </label>
+          ))}
+        </div>
+      </div>
+    </DrawerShell>
   );
 };

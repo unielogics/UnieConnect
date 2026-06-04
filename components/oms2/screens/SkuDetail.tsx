@@ -5,25 +5,25 @@ import {
   fetchOmsSkuDetail,
   fetchProductResearchResult,
   fetchRecommendations,
-  refreshAmazonItem,
   OmsRecommendation,
   OmsSkuDetail,
   ProductResearchResult,
 } from '../../../lib/oms';
 import { num, docTone, riskLabel, channelColor } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
-import { AmazonListingModal } from '../modals/AmazonListingModal';
+import { AmazonListingDrawer, RecommendationDrawer } from './InventoryNetwork';
 
 type Tab = 'overview' | 'warehouses' | 'history' | 'channels' | 'billing' | 'orders';
 
-export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected, onCreateShipmentWithSupplier }: ScreenProps & { onBack?: () => void }) => {
+export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected }: ScreenProps & { onBack?: () => void }) => {
   const [data, setData] = useState<OmsSkuDetail | null>(null);
   const [productIntel, setProductIntel] = useState<ProductResearchResult | null>(null);
   const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
+  const [selectedRec, setSelectedRec] = useState<OmsRecommendation | null>(null);
+  const [amazonOpen, setAmazonOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
-  const [listingOpen, setListingOpen] = useState(false);
 
   const load = () => {
     if (!skuId) {
@@ -56,22 +56,6 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected,
   const doc = num(intel.daysOfCover);
   const rev = num(intel.revenue30d);
   const gp = num(intel.grossProfit30d);
-  const refreshAmazon = async () => {
-    try {
-      await refreshAmazonItem(data.id);
-      load();
-    } catch (e: any) {
-      setErr(e.message || 'Failed to refresh Amazon item');
-    }
-  };
-  const createFbaShipment = () => {
-    const sku = { id: data.id, name: data.title || data.sku, ...(data as any), fbaIntent: true };
-    if (data.supplierId && data.amazon?.fbaEligible && onCreateShipmentWithSupplier) {
-      onCreateShipmentWithSupplier(data.supplierId, [sku]);
-      return;
-    }
-    toggleSelect(sku);
-  };
 
   return (
     <div className="page fade-in">
@@ -130,20 +114,22 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected,
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn ghost" onClick={() => onNavigate('ledger')}><Icon name="ledger" size={13} /> Ledger</button>
-            <button className="btn" onClick={() => setListingOpen(true)}>
-              <Icon name="arrowRight" size={13} /> {data.amazon?.asin ? 'Update Amazon' : 'List on Amazon'}
+            {recommendations[0] && (
+              <button className="btn ghost" onClick={() => setSelectedRec(recommendations[0])} data-hint="Review Cortex optimization">
+                <Icon name="sparkle" size={13} /> Cortex
+              </button>
+            )}
+            <button className="btn ghost" onClick={() => setAmazonOpen(true)} data-hint="Amazon listing draft">
+              <Icon name="amazon" size={14} /> Amazon
             </button>
-            <button className="btn" onClick={refreshAmazon}><Icon name="refresh" size={13} /> Refresh Amazon</button>
+            <button className="btn ghost" onClick={() => onNavigate('ledger')}><Icon name="ledger" size={13} /> Ledger</button>
             <button className="btn" onClick={() => onNavigate('plan', data.id)}><Icon name="eye" size={13} /> View in Plan</button>
             <button
               className={`btn ${isSelected(data.id) ? '' : 'primary'}`}
-              onClick={() => data.amazon?.fbaEligible ? createFbaShipment() : toggleSelect({ id: data.id, name: data.title || data.sku, ...(data as any) })}
+              onClick={() => toggleSelect({ id: data.id, name: data.title || data.sku, ...(data as any) })}
             >
               {isSelected(data.id) ? (
                 <><Icon name="check" size={13} /> Selected</>
-              ) : data.amazon?.fbaEligible ? (
-                <><Icon name="box" size={13} /> Create FBA shipment</>
               ) : (
                 <><Icon name="plus" size={13} /> Add to shipment</>
               )}
@@ -161,7 +147,6 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected,
       </div>
 
       <SkuIntelligenceStrip productIntel={productIntel} recommendations={recommendations} onNavigate={onNavigate} />
-      <AmazonReadinessCard data={data} onList={() => setListingOpen(true)} onRefresh={refreshAmazon} />
 
       <div className="tabs" style={{ marginBottom: 16 }}>
         {([
@@ -198,16 +183,8 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected,
           </div>
         </div>
       )}
-      {listingOpen ? (
-        <AmazonListingModal
-          item={data}
-          onClose={() => setListingOpen(false)}
-          onSaved={() => {
-            setListingOpen(false);
-            load();
-          }}
-        />
-      ) : null}
+      {selectedRec && <RecommendationDrawer rec={selectedRec} onClose={() => setSelectedRec(null)} onChanged={load} />}
+      {amazonOpen && <AmazonListingDrawer sku={{ id: data.id, sku: data.sku, title: data.title }} onClose={() => setAmazonOpen(false)} />}
     </div>
   );
 };
@@ -257,81 +234,6 @@ const SkuIntelligenceStrip = ({
         <button className="btn primary" onClick={() => onNavigate('product-research')}>
           <Icon name="sparkle" size={13} /> Open Product Research
         </button>
-      </div>
-    </div>
-  );
-};
-
-const AmazonReadinessCard = ({
-  data,
-  onList,
-  onRefresh,
-}: {
-  data: OmsSkuDetail;
-  onList: () => void;
-  onRefresh: () => void;
-}) => {
-  const amazon = data.amazon;
-  const blockers = amazon?.blockers || [];
-  const listingTone = amazon?.listingStatus === 'sync_error'
-    ? 'red'
-    : amazon?.listingStatus === 'needs_listing' || !amazon
-      ? 'amber'
-      : 'green';
-  return (
-    <div className="card" style={{ marginBottom: 16 }}>
-      <div className="card-header">
-        <div>
-          <div className="card-title">
-            <Icon name="box" size={15} /> Amazon item readiness
-          </div>
-          <div className="card-subtitle">Amazon profile, FBA inventory state, and shipment-plan eligibility.</div>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn ghost sm" onClick={onRefresh}><Icon name="refresh" size={12} /> Refresh</button>
-          <button className="btn primary sm" onClick={onList}>
-            <Icon name="arrowRight" size={12} /> {amazon?.asin ? 'Update listing' : 'List on Amazon'}
-          </button>
-        </div>
-      </div>
-      <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14 }}>
-        <div className="kv">
-          <div className="kv-label">Identity</div>
-          <div className="kv-value" style={{ fontSize: 16 }}>{amazon?.identityState || 'Needs Amazon listing setup'}</div>
-          <div style={{ marginTop: 6 }}><Chip tone={listingTone}>{amazon?.listingStatus || 'needs_listing'}</Chip></div>
-        </div>
-        <div className="kv">
-          <div className="kv-label">Seller SKU / ASIN</div>
-          <div className="kv-value mono" style={{ fontSize: 13 }}>{amazon?.sellerSku || data.sku}</div>
-          <div className="mono" style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{amazon?.asin || data.asin || 'ASIN not mapped'}</div>
-        </div>
-        <div className="kv">
-          <div className="kv-label">FBA inventory</div>
-          <div className="kv-value">{amazon?.availableFbaQty ?? 0}</div>
-          <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>
-            inbound {(amazon?.inboundWorkingQty || 0) + (amazon?.inboundShippedQty || 0) + (amazon?.inboundReceivingQty || 0)}
-          </div>
-        </div>
-        <div className="kv">
-          <div className="kv-label">Shipment eligibility</div>
-          <div className="kv-value" style={{ fontSize: 16 }}>{amazon?.fbaEligible ? 'Eligible' : 'Blocked'}</div>
-          <div style={{ marginTop: 6 }}><Chip tone={amazon?.fbaEligible ? 'green' : 'amber'}>{amazon?.fulfillmentChannel || 'UNKNOWN'}</Chip></div>
-        </div>
-        <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-subtle)', paddingTop: 12 }}>
-          {blockers.length ? (
-            <div style={{ display: 'grid', gap: 6 }}>
-              {blockers.map((blocker) => (
-                <div key={blocker} style={{ color: 'var(--amber-text)', fontSize: 12.5, display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <Icon name="warning" size={12} /> {blocker}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ color: 'var(--green-text)', fontSize: 12.5, fontWeight: 700 }}>
-              This SKU is mapped and ready for the Amazon FBA shipment branch.
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

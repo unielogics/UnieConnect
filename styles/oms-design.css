@@ -181,6 +181,13 @@
   display: flex;
   justify-content: center;
 }
+.uc-shell .brand-logo-img {
+  width: 38px;
+  height: 38px;
+  display: block;
+  border-radius: 9px;
+  object-fit: contain;
+}
 .uc-shell .sb-nav { flex: 1; display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 0 8px; }
 .uc-shell .sb-footer { padding: 10px 8px 0; border-top: 1px solid var(--border-subtle); width: 100%; display: flex; flex-direction: column; gap: 4px; }
 .uc-shell .sb-item {
@@ -613,6 +620,35 @@
   transform: translateX(-50%); background: var(--text); color: var(--bg-elev);
   padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap;
   margin-bottom: 6px; z-index: 50; pointer-events: none;
+}
+.uc-shell .sidebar-rail [data-hint]:hover::after {
+  top: 50%;
+  bottom: auto;
+  left: calc(100% + 8px);
+  transform: translateY(-50%);
+  margin: 0;
+  max-width: 220px;
+  white-space: normal;
+}
+.uc-shell .topbar [data-hint]:hover::after {
+  top: calc(100% + 6px);
+  bottom: auto;
+  left: auto;
+  right: 0;
+  transform: none;
+  margin: 0;
+  max-width: 220px;
+  white-space: normal;
+  text-align: left;
+}
+.uc-shell .modal-head [data-hint]:hover::after,
+.uc-shell .sb-panel-head [data-hint]:hover::after {
+  top: calc(100% + 6px);
+  bottom: auto;
+  left: auto;
+  right: 0;
+  transform: none;
+  margin: 0;
 }
 .uc-shell .skel { background: linear-gradient(90deg, var(--bg-active) 25%, var(--bg-hover) 37%, var(--bg-active) 63%); background-size: 400% 100%; animation: uc-shimmer 1.4s ease infinite; border-radius: var(--radius); }
 @keyframes uc-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }

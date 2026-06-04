@@ -20,6 +20,7 @@ export const TITLE_MAP: Record<string, [string, string]> = {
   support: ['Support', 'Tickets tied to real entities'],
   connections: ['Connections', 'Marketplaces, WMS, Cortex, carriers'],
   ledger: ['Intelligence Ledger', 'Source → finding → action → outcome'],
+  profile: ['Profile Settings', 'Account, billing, and security'],
 };
 
 export const TopBar = ({
@@ -28,12 +29,14 @@ export const TopBar = ({
   onToggleCopilot,
   theme,
   onToggleTheme,
+  onOpenProfile,
 }: {
   section: string;
   copilotOpen: boolean;
   onToggleCopilot: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  onOpenProfile?: () => void;
 }) => {
   const [title] = TITLE_MAP[section] || ['', ''];
   return (
@@ -65,7 +68,7 @@ export const TopBar = ({
         <Icon name="bell" />
         <span className="pip" />
       </button>
-      <button className="icon-btn" data-hint="Settings">
+      <button className="icon-btn" data-hint="Settings" onClick={onOpenProfile}>
         <Icon name="settings" />
       </button>
 

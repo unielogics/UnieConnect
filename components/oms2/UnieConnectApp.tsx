@@ -26,6 +26,7 @@ import { Marketplace } from './screens/Marketplace';
 import { Support } from './screens/Support';
 import { Connections } from './screens/Connections';
 import { Ledger } from './screens/Ledger';
+import { ProfileSettings } from './screens/ProfileSettings';
 import { NewProductModal } from './modals/NewProductModal';
 import { NewSupplierModal } from './modals/NewSupplierModal';
 import { NewCustomerModal } from './modals/NewCustomerModal';
@@ -214,14 +215,9 @@ export default function UnieConnectApp() {
   );
 
   const toggleSelect = useCallback((sku: SelSku & { supplierId?: string | null }) => {
-    setSelectedSkus((prev) => {
-      const existing = prev.find((s) => s.id === sku.id);
-      if (!existing) return [...prev, { ...sku, name: sku.name || sku.sku || sku.id }];
-      if (sku.fbaIntent && !existing.fbaIntent) {
-        return prev.map((s) => (s.id === sku.id ? { ...s, ...sku, name: sku.name || s.name || sku.sku || sku.id, fbaIntent: true } : s));
-      }
-      return prev.filter((s) => s.id !== sku.id);
-    });
+    setSelectedSkus((prev) =>
+      prev.find((s) => s.id === sku.id) ? prev.filter((s) => s.id !== sku.id) : [...prev, { id: sku.id, name: sku.name }]
+    );
     if ('supplierId' in sku) setSkuSupplierMap((m) => ({ ...m, [sku.id]: sku.supplierId ?? null }));
   }, []);
 
@@ -339,6 +335,7 @@ export default function UnieConnectApp() {
     support: <Support {...sp} />,
     connections: <Connections {...sp} />,
     ledger: <Ledger {...sp} />,
+    profile: <ProfileSettings {...sp} />,
   };
 
   return (
@@ -360,6 +357,7 @@ export default function UnieConnectApp() {
               onToggleCopilot={() => setCopilotOpen((o) => !o)}
               theme={tweaks.theme}
               onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
+              onOpenProfile={() => navigate('profile')}
             />
             <React.Fragment key={`${section}-${screenKey}`}>
               {screens[section] || <CommandCenter {...sp} />}
@@ -387,6 +385,7 @@ export default function UnieConnectApp() {
             <ShipmentWizard
               skus={selectedSkus}
               forcedSupplierId={forcedSupplierId}
+              onNewSupplier={() => setNewSupplierOpen(true)}
               onClose={() => {
                 setShowWizard(false);
                 setForcedSupplierId(null);

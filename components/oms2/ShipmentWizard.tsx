@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from './icons';
 import { Modal, Chip } from './ui';
 import type { SelSku } from './SelectionBar';
-import { fetchOmsSuppliers, createShipmentDraft, confirmShipmentDraft, createAmazonFbaWorkflow, OmsSupplier } from '../../lib/oms';
+import { fetchOmsSuppliers, createShipmentDraft, confirmShipmentDraft, OmsSupplier } from '../../lib/oms';
 
 type Cfg = Record<string, { unitsPerCarton: number; cartons: number; palletize: boolean }>;
 
@@ -145,11 +145,13 @@ const ReviewCard = ({ title, children, tone }: { title: string; children: React.
 export const ShipmentWizard = ({
   skus,
   forcedSupplierId,
+  onNewSupplier,
   onClose,
   onComplete,
 }: {
   skus: SelSku[];
   forcedSupplierId?: string | null;
+  onNewSupplier?: () => void;
   onClose: () => void;
   onComplete: () => void;
 }) => {
@@ -159,13 +161,6 @@ export const ShipmentWizard = ({
   const [supplierId, setSupplierId] = useState<string | null>(forcedSupplierId || null);
   const [needsLTL, setNeedsLTL] = useState<boolean | null>(null);
   const [needsLabels, setNeedsLabels] = useState<boolean | null>(null);
-  const [fbaSettings, setFbaSettings] = useState({
-    marketplaceId: 'ATVPDKIKX0DER',
-    prepOwner: 'SELLER',
-    labelOwner: 'SELLER',
-    packingMode: 'case_pack',
-    cartonContentSource: 'provided_by_seller',
-  });
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [config, setConfig] = useState<Cfg>(() =>
@@ -178,7 +173,7 @@ export const ShipmentWizard = ({
         setSuppliers(d.suppliers || []);
         if (!supplierId && d.suppliers?.length) {
           const match = d.suppliers.find((sp) => list.some((sk) => (sp.skus || []).includes(sk.id) || (sk as any).supplierId === sp.id));
-          setSupplierId((match || d.suppliers[0]).id);
+          if (match) setSupplierId(match.id);
         }
       })
       .catch(() => {});
@@ -230,11 +225,9 @@ export const ShipmentWizard = ({
   }, [config, needsLTL, needsLabels, list]);
 
   const supplier = suppliers.find((s) => s.id === supplierId);
-  const isFbaMode = list.some((sku) => Boolean((sku as any).fbaIntent || (sku as any).amazon?.fbaEligible));
-  const fbaBlocked = isFbaMode
-    ? list.filter((sku) => !(sku as any).amazon?.fbaEligible)
-    : [];
-  const canAdvance = step === 1 ? !!supplierId : step === 2 ? needsLTL !== null && needsLabels !== null && fbaBlocked.length === 0 : true;
+  const supplierMatchCount = supplier ? list.filter((sk) => (supplier.skus || []).includes(sk.id) || (sk as any).supplierId === supplier.id).length : 0;
+  const hasAnySupplierMatch = suppliers.some((sp) => list.some((sk) => (sp.skus || []).includes(sk.id) || (sk as any).supplierId === sp.id));
+  const canAdvance = step === 1 ? !!supplierId : step === 2 ? needsLTL !== null && needsLabels !== null : true;
 
   const submit = async () => {
     setSubmitting(true);
@@ -247,38 +240,14 @@ export const ShipmentWizard = ({
         selectedItems: list.map((s) => ({
           itemId: s.id,
           sku: (s as any).sku || s.name,
-          sellerSku: (s as any).amazon?.sellerSku || null,
-          asin: (s as any).amazon?.asin || null,
           unitsPerCarton: config[s.id].unitsPerCarton,
           cartons: config[s.id].cartons,
           palletize: config[s.id].palletize,
         })),
-        packagePlan: {
-          pallets: totals.pallets,
-          totalUnits: totals.units,
-          totalCartons: totals.cartons,
-          channel: isFbaMode ? 'amazon' : 'oms',
-          amazonFba: isFbaMode ? fbaSettings : undefined,
-        },
+        packagePlan: { pallets: totals.pallets, totalUnits: totals.units, totalCartons: totals.cartons },
       };
       const { draft } = await createShipmentDraft(body);
-      const confirmed = await confirmShipmentDraft(draft.id, body);
-      if (isFbaMode) {
-        await createAmazonFbaWorkflow({
-          supplierId,
-          sourceDraftId: draft.id,
-          shipmentPlanId: (confirmed as any)?.plan?.id || null,
-          asnId: (confirmed as any)?.asn?.asn?.id || (confirmed as any)?.asn?.id || null,
-          itemIds: list.map((s) => s.id),
-          channelConnectionId: (list.find((s) => (s as any).amazon?.channelConnectionId) as any)?.amazon?.channelConnectionId || null,
-          marketplaceId: fbaSettings.marketplaceId,
-          prepOwner: fbaSettings.prepOwner,
-          labelOwner: fbaSettings.labelOwner,
-          packingMode: fbaSettings.packingMode,
-          cartonContentSource: fbaSettings.cartonContentSource,
-          quantities: Object.fromEntries(list.map((s) => [s.id, config[s.id].unitsPerCarton * config[s.id].cartons])),
-        });
-      }
+      await confirmShipmentDraft(draft.id, body);
       onComplete();
     } catch (e: any) {
       setSubmitErr(e.message || 'Submission failed');
@@ -296,7 +265,7 @@ export const ShipmentWizard = ({
       chrome={
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <Chip tone="purple" dot={false}>
-            {isFbaMode ? 'Amazon FBA' : 'AI-routed'}
+            AI-routed
           </Chip>
         </div>
       }
@@ -328,13 +297,53 @@ export const ShipmentWizard = ({
         {step === 1 && (
           <div>
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Which supplier is fulfilling this shipment?</div>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Supplier required before shipment creation</div>
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                All SKUs in this plan must come from the same supplier. We've pre-selected the most likely one based on your SKU history.
+                Every shipment plan must be tied to one supplier so UnieConnect can create the ASN, pickup context, and warehouse handoff correctly.
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-              {suppliers.map((s) => {
+            {suppliers.length === 0 ? (
+              <div className="card" style={{ padding: 18, background: 'var(--bg-sunken)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--amber-soft)', color: 'var(--amber-text)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                    <Icon name="warning" size={17} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>No suppliers exist yet</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      Create a supplier first, then return to this shipment plan. Supplier data is required for pickup rules, labels, BOL context, and ASN routing.
+                    </div>
+                  </div>
+                  <button className="btn primary" onClick={onNewSupplier}>
+                    <Icon name="plus" size={13} /> Create supplier
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {!hasAnySupplierMatch && (
+                  <div className="card" style={{ padding: 12, marginBottom: 12, background: 'var(--amber-soft)', color: 'var(--amber-text)', borderColor: 'var(--amber)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700 }}>
+                      <Icon name="warning" size={14} />
+                      No supplier assigned to these SKUs. Choose one below or create a supplier.
+                    </div>
+                  </div>
+                )}
+                {supplierId && supplierMatchCount > 0 && (
+                  <div className="card" style={{ padding: 10, marginBottom: 12, color: 'var(--purple-text)', background: 'var(--purple-soft)', borderColor: 'var(--purple-soft)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700 }}>
+                      <Icon name="sparkle" size={14} />
+                      Auto-selected from SKU supplier history.
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                  <button className="btn" onClick={onNewSupplier}>
+                    <Icon name="plus" size={13} /> Create supplier
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                  {suppliers.map((s) => {
                 const matchCount = list.filter((sk) => (s.skus || []).includes(sk.id) || (sk as any).supplierId === s.id).length;
                 const sel = supplierId === s.id;
                 return (
@@ -374,8 +383,10 @@ export const ShipmentWizard = ({
                     {sel && <Icon name="check" size={16} style={{ color: 'var(--accent)' }} />}
                   </button>
                 );
-              })}
-            </div>
+                  })}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -411,59 +422,6 @@ export const ShipmentWizard = ({
                 </div>
               </div>
             </div>
-            {isFbaMode && (
-              <div className="card" style={{ marginBottom: 18 }}>
-                <div className="card-header">
-                  <div>
-                    <div className="card-title"><Icon name="box" size={15} /> Amazon FBA branch</div>
-                    <div className="card-subtitle">These SKUs must be Amazon-listed and FBA eligible before shipment planning.</div>
-                  </div>
-                  <Chip tone={fbaBlocked.length ? 'red' : 'green'}>{fbaBlocked.length ? 'Blocked' : 'Ready'}</Chip>
-                </div>
-                <div className="card-body" style={{ display: 'grid', gap: 12 }}>
-                  {fbaBlocked.length ? (
-                    <div style={{ padding: 12, borderRadius: 8, background: 'var(--red-soft)', color: 'var(--red-text)', fontSize: 12.5, fontWeight: 700 }}>
-                      {fbaBlocked.length} SKU{fbaBlocked.length > 1 ? 's are' : ' is'} missing Amazon FBA eligibility. Use the SKU Amazon panel to map/list the item first.
-                    </div>
-                  ) : null}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                      Marketplace
-                      <input className="input" value={fbaSettings.marketplaceId} onChange={(e) => setFbaSettings((p) => ({ ...p, marketplaceId: e.target.value }))} />
-                    </label>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                      Prep owner
-                      <select className="input" value={fbaSettings.prepOwner} onChange={(e) => setFbaSettings((p) => ({ ...p, prepOwner: e.target.value }))}>
-                        <option value="SELLER">Seller</option>
-                        <option value="AMAZON">Amazon</option>
-                      </select>
-                    </label>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                      Label owner
-                      <select className="input" value={fbaSettings.labelOwner} onChange={(e) => setFbaSettings((p) => ({ ...p, labelOwner: e.target.value }))}>
-                        <option value="SELLER">Seller</option>
-                        <option value="AMAZON">Amazon</option>
-                      </select>
-                    </label>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                      Packing mode
-                      <select className="input" value={fbaSettings.packingMode} onChange={(e) => setFbaSettings((p) => ({ ...p, packingMode: e.target.value }))}>
-                        <option value="case_pack">Case pack</option>
-                        <option value="individual_units">Individual units</option>
-                      </select>
-                    </label>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                      Carton contents
-                      <select className="input" value={fbaSettings.cartonContentSource} onChange={(e) => setFbaSettings((p) => ({ ...p, cartonContentSource: e.target.value }))}>
-                        <option value="provided_by_seller">Provided by seller</option>
-                        <option value="2d_barcode">2D barcode</option>
-                        <option value="amazon_confirmed">Amazon confirmed</option>
-                      </select>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            )}
             <YesNoCard
               question="Do you need a BOL for LTL/freight pickup at the supplier?"
               detail="A Bill of Lading lets the supplier hand the shipment to your carrier. If yes, we generate the BOL and book the pickup."
@@ -501,7 +459,6 @@ export const ShipmentWizard = ({
                   <tr>
                     <th>SKU</th>
                     <th>Product</th>
-                    {isFbaMode && <th>Amazon</th>}
                     <th className="num">Units / carton</th>
                     <th className="num">Cartons</th>
                     <th className="num">Total units</th>
@@ -515,12 +472,6 @@ export const ShipmentWizard = ({
                       <tr key={sku.id}>
                         <td className="mono strong">{(sku as any).sku || sku.id}</td>
                         <td>{sku.name}</td>
-                        {isFbaMode && (
-                          <td>
-                            <div className="mono" style={{ fontSize: 11.5 }}>{(sku as any).amazon?.sellerSku || 'not mapped'}</div>
-                            <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{(sku as any).amazon?.asin || 'ASIN required'}</div>
-                          </td>
-                        )}
                         <td className="num">
                           <NumberInput value={c.unitsPerCarton} onChange={(v) => setConfig((p) => ({ ...p, [sku.id]: { ...p[sku.id], unitsPerCarton: v } }))} min={1} max={500} />
                         </td>
@@ -603,20 +554,9 @@ export const ShipmentWizard = ({
                 )}
               </ReviewCard>
               <ReviewCard title="ASN" tone="green">
-                <strong>{isFbaMode ? 'FBA workflow' : 'Auto-generated'}</strong> on submit · {isFbaMode ? 'Amazon inbound branch prepared' : 'pushed to destination WMS'}
+                <strong>Auto-generated</strong> on submit · pushed to destination WMS
               </ReviewCard>
             </div>
-            {isFbaMode && (
-              <div className="card" style={{ marginBottom: 14 }}>
-                <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12 }}>
-                  <SummaryStat2 label="Marketplace" value={fbaSettings.marketplaceId} />
-                  <SummaryStat2 label="Prep owner" value={fbaSettings.prepOwner} />
-                  <SummaryStat2 label="Label owner" value={fbaSettings.labelOwner} />
-                  <SummaryStat2 label="Packing" value={fbaSettings.packingMode.replace(/_/g, ' ')} />
-                  <SummaryStat2 label="Carton contents" value={fbaSettings.cartonContentSource.replace(/_/g, ' ')} />
-                </div>
-              </div>
-            )}
             <div className="card" style={{ marginBottom: 14 }}>
               <div className="card-header">
                 <div className="card-title">SKUs in this plan ({list.length})</div>
@@ -626,7 +566,6 @@ export const ShipmentWizard = ({
                   <tr>
                     <th>SKU</th>
                     <th>Product</th>
-                    {isFbaMode && <th>Amazon</th>}
                     <th>Routed to</th>
                     <th className="num">U/Ctn</th>
                     <th className="num">Cartons</th>
@@ -640,7 +579,6 @@ export const ShipmentWizard = ({
                       <tr key={sku.id}>
                         <td className="mono strong">{(sku as any).sku || sku.id}</td>
                         <td>{sku.name}</td>
-                        {isFbaMode && <td className="mono">{(sku as any).amazon?.sellerSku || '—'}</td>}
                         <td className="mono" style={{ color: 'var(--purple-text)' }}>{routedDestinations[sku.id]}</td>
                         <td className="num mono">{c.unitsPerCarton}</td>
                         <td className="num mono">{c.cartons}</td>

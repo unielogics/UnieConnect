@@ -23,6 +23,7 @@ export const CORE_SCREEN_IDS = new Set([
   'connections',
   'marketplace',
   'support',
+  'profile',
 ]);
 
 export const SCREEN_FEATURES: Record<string, string> = {
@@ -100,6 +101,7 @@ export const SIDEBAR_NAV: NavCat[] = [
     items: [
       { id: 'support', label: 'Support', icon: 'support', desc: 'Tickets', badge: { type: 'danger', value: '3' } },
       { id: 'connections', label: 'Connections', icon: 'plug', desc: 'Marketplaces, WMS, carriers' },
+      { id: 'profile', label: 'Profile Settings', icon: 'settings', desc: 'Account and billing profile' },
       { id: 'ledger', label: 'Intelligence Ledger', icon: 'ledger', desc: 'Source to finding to action', featureId: 'advanced-analytics' },
     ],
   },
@@ -230,7 +232,7 @@ export const Sidebar = ({
 
   const openProfile = () => {
     setAccountOpen(false);
-    window.location.href = '/profile';
+    onNavigate('profile');
   };
 
   const logout = async () => {
@@ -260,7 +262,7 @@ export const Sidebar = ({
     <>
       <aside className="sidebar-rail" ref={railRef}>
         <div className="sb-brand">
-          <div className="brand-mark">U</div>
+          <img className="brand-logo-img" src="/logo.svg" alt="UnieConnect" />
         </div>
 
         <nav className="sb-nav">

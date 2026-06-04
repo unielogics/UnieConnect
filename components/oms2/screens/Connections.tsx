@@ -63,35 +63,49 @@ const ConnectionCard = ({
   onRemove: (c: Conn) => void;
   busy?: boolean;
 }) => (
-  <div className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+  <tr>
+    <td>
       <div>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{c.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{c.name}</span>
+          {(c.owner === 'intelligence' || c.owner === 'carrier') && (
+            <span data-hint="Managed by UnieConnect. Admin-only disable." style={{ color: 'var(--text-tertiary)', display: 'inline-flex' }}>
+              <Icon name="lock" size={12} />
+            </span>
+          )}
+        </div>
         <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{c.region}</div>
       </div>
-      <Chip tone={statusTone(c.status) as any}>{c.status.replace(/_/g, ' ')}</Chip>
-    </div>
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-      {c.entities.map((e) => (
-        <span key={e} className="chip outline" style={{ fontSize: 10.5 }}>
-          {e}
-        </span>
-      ))}
-    </div>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
-      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Last sync · {c.lastSync}</span>
-      <div style={{ display: 'flex', gap: 4 }}>
+    </td>
+    <td><Chip tone={statusTone(c.status) as any}>{c.status.replace(/_/g, ' ')}</Chip></td>
+    <td>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {c.entities.map((e) => (
+          <span key={e} className="chip outline" style={{ fontSize: 10.5 }}>{e}</span>
+        ))}
+      </div>
+    </td>
+    <td className="mono muted">{c.lastSync}</td>
+    <td className="muted">
+      {c.owner === 'intelligence' || c.owner === 'carrier' ? 'Managed service' : c.owner === 'wms' ? 'User warehouse' : 'User connection'}
+    </td>
+    <td className="num">
+      <div style={{ display: 'inline-flex', gap: 4 }}>
         <button className="btn ghost sm" onClick={() => onRefresh(c)} disabled={busy} data-hint={c.owner === 'wms' ? 'Test connection' : 'Refresh'}>
           <Icon name="refresh" size={11} />
         </button>
-        {(c.owner === 'marketplace' || c.owner === 'wms') && (
+        {(c.owner === 'marketplace' || c.owner === 'wms') ? (
           <button className="btn ghost sm" onClick={() => onRemove(c)} disabled={busy} data-hint="Remove connection">
             <Icon name="x" size={11} />
           </button>
+        ) : (
+          <button className="btn ghost sm" disabled data-hint="Managed by UnieConnect. Admin-only disable.">
+            <Icon name="lock" size={11} />
+          </button>
         )}
       </div>
-    </div>
-  </div>
+    </td>
+  </tr>
 );
 
 const ConnectNewModal = ({
@@ -139,7 +153,7 @@ const ConnectNewModal = ({
         window.location.href = String(data.url);
         return;
       }
-      setMessage(data?.message || `${kind.toUpperCase()} authorization started. Complete the provider consent screen to finish connecting.`);
+      setMessage(data?.message || `${kind.toUpperCase()} connection was staged. Complete provider configuration to finish authorization.`);
       onConnected();
     } catch (err: any) {
       setError(err?.message || 'Connection failed');
@@ -178,7 +192,7 @@ const ConnectNewModal = ({
 
   const options = [
     { id: 'shopify', label: 'Shopify', desc: 'Orders, customers, products, and inventory sync' },
-    { id: 'amazon', label: 'Amazon', desc: 'Seller Central SP-API authorization' },
+    { id: 'amazon', label: 'Amazon', desc: 'SP-API authorization staging' },
     { id: 'ebay', label: 'eBay', desc: 'OAuth authorization and marketplace sync' },
     { id: 'wms', label: 'WMS warehouse', desc: 'Connect WMS execution truth with a one-time warehouse code' },
   ] as const;
@@ -266,7 +280,7 @@ const ConnectNewModal = ({
               <div className="empty" style={{ textAlign: 'left' }}>
                 {kind === 'ebay'
                   ? 'eBay starts an OAuth authorization request. If provider keys are missing, Cortex will stage the connection as needing configuration.'
-                  : 'Amazon redirects to Seller Central authorization. After consent, UnieConnect stores the SP-API refresh token and marks catalog, order, and inventory sync as pending.'}
+                  : 'Amazon SP-API authorization is staged here until Seller Central app credentials are fully configured.'}
               </div>
             )}
           </div>
@@ -427,7 +441,7 @@ export const Connections = (_: ScreenProps) => {
       <div className="page-header">
         <div>
           <h1 className="page-title">Connections</h1>
-          <p className="page-subtitle">Marketplaces, WMS warehouses, Cortex, and carriers - single source of sync health for the OMS.</p>
+          <p className="page-subtitle">External connections and managed UnieConnect services.</p>
         </div>
         <div className="page-actions">
           <button className="btn" onClick={syncAll} disabled={busy === 'all'}><Icon name="refresh" size={13} /> {busy === 'all' ? 'Syncing...' : 'Sync all'}</button>
@@ -453,15 +467,29 @@ export const Connections = (_: ScreenProps) => {
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{g.label}</span>
                 <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
               </div>
-              {items.length === 0 ? (
-                <EmptyState>No {g.label.toLowerCase()} connected. Use Connect new to add one.</EmptyState>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-                  {items.map((c) => (
-                    <ConnectionCard key={c.id} c={c} onRefresh={refreshConnection} onRemove={removeConnection} busy={busy === c.id || busy === 'all'} />
-                  ))}
-                </div>
-              )}
+              <div className="table-wrap">
+                {items.length === 0 ? (
+                  <EmptyState>No {g.label.toLowerCase()} connected. Use Connect new to add one.</EmptyState>
+                ) : (
+                  <table className="data">
+                    <thead>
+                      <tr>
+                        <th>Connection</th>
+                        <th>Status</th>
+                        <th>Scope</th>
+                        <th>Last sync</th>
+                        <th>Control</th>
+                        <th className="num">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((c) => (
+                        <ConnectionCard key={c.id} c={c} onRefresh={refreshConnection} onRemove={removeConnection} busy={busy === c.id || busy === 'all'} />
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           );
         })

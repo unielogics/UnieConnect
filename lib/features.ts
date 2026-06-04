@@ -77,7 +77,7 @@ export async function fetchFeatures(params?: {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await authFetch(url, { headers });
+  const res = await fetch(url, { headers });
   if (!res.ok) {
     throw new Error(`Failed to fetch features: ${res.statusText}`);
   }
@@ -107,7 +107,7 @@ export async function fetchMarketplaceFeatures(params?: {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await authFetch(url, { headers });
+  const res = await fetch(url, { headers });
   if (!res.ok) {
     throw new Error(`Failed to fetch marketplace features: ${res.statusText}`);
   }
@@ -124,7 +124,7 @@ export async function fetchFeature(idOrSlug: string): Promise<Feature> {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await authFetch(url, { headers });
+  const res = await fetch(url, { headers });
   if (!res.ok) {
     throw new Error(`Failed to fetch feature: ${res.statusText}`);
   }
@@ -156,9 +156,8 @@ export async function enableFeature(idOrSlug: string): Promise<{ success: boolea
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({}),
   });
 
   if (!res.ok) {
@@ -169,6 +168,10 @@ export async function enableFeature(idOrSlug: string): Promise<{ success: boolea
 }
 
 export async function disableFeature(idOrSlug: string): Promise<{ success: boolean; message: string; feature: Feature }> {
+  const locked = new Set(['app-studio', 'cortex-intelligence', 'carrier-rates', 'carrier-label-audit']);
+  if (locked.has(idOrSlug)) {
+    throw new Error('Managed UnieConnect features can only be disabled by an admin');
+  }
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
 
   const url = apiUrl(`/api/v1/features/${idOrSlug}/disable`);
@@ -176,9 +179,8 @@ export async function disableFeature(idOrSlug: string): Promise<{ success: boole
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({}),
   });
 
   if (!res.ok) {
@@ -199,7 +201,7 @@ export async function purchaseFeature(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ paymentMethodId }),
   });
