@@ -758,6 +758,13 @@
 .uc-shell .row-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
 .uc-shell .row-2-eq { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .uc-shell .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.uc-shell .command-decision-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 16px; align-items: stretch; }
+@media (max-width: 1100px) {
+  .uc-shell .row-2,
+  .uc-shell .row-2-eq,
+  .uc-shell .row-3,
+  .uc-shell .command-decision-row { grid-template-columns: 1fr; }
+}
 
 /* ============================= Inline bits ============================= */
 .uc-shell .kv { display: flex; flex-direction: column; gap: 2px; }

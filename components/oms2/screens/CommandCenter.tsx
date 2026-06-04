@@ -145,9 +145,9 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
             ))}
           </div>
 
-          <div className="row-2" style={{ marginBottom: 16 }}>
-            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={recommendations} onNavigate={onNavigate} />
+          <div className="command-decision-row" style={{ marginBottom: 16 }}>
             <OptimizationImpactPanel recommendations={recommendations} onNavigate={onNavigate} onDecision={decideRecommendation} />
+            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={recommendations} onNavigate={onNavigate} />
           </div>
 
           <div className="row-2" style={{ marginBottom: 16 }}>
