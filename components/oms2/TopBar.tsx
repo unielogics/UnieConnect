@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Icon } from './icons';
+import { completeCortexTask, dismissCortexTask, fetchCortexTasks, CortexTask } from '../../lib/oms';
 
 export const TITLE_MAP: Record<string, [string, string]> = {
   command: ['Command Center', 'Live operating cockpit'],
@@ -31,6 +32,7 @@ export const TopBar = ({
   theme,
   onToggleTheme,
   onOpenProfile,
+  onNavigate,
 }: {
   section: string;
   copilotOpen: boolean;
@@ -38,8 +40,28 @@ export const TopBar = ({
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onOpenProfile?: () => void;
+  onNavigate?: (target: string, payload?: string) => void;
 }) => {
   const [title] = TITLE_MAP[section] || ['', ''];
+  const [tasksOpen, setTasksOpen] = useState(false);
+  const [tasks, setTasks] = useState<CortexTask[]>([]);
+
+  const loadTasks = (refresh = false) => {
+    fetchCortexTasks({ status: 'open', refresh, limit: 12 })
+      .then((r) => setTasks(r.tasks || []))
+      .catch(() => setTasks([]));
+  };
+
+  useEffect(() => {
+    loadTasks(true);
+  }, [section]);
+
+  const updateTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
+    if (action === 'done') await completeCortexTask(task.id).catch(() => null);
+    else await dismissCortexTask(task.id).catch(() => null);
+    loadTasks(false);
+  };
+
   return (
     <header className="topbar">
       <div className="crumbs">
@@ -65,17 +87,53 @@ export const TopBar = ({
       >
         <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
       </button>
-      <button className="icon-btn" data-hint="Notifications">
-        <Icon name="bell" />
-        <span className="pip" />
-      </button>
+      <div className="topbar-task-wrap">
+        <button className="icon-btn" data-hint="Cortex task inbox" onClick={() => setTasksOpen((v) => !v)}>
+          <Icon name="bell" />
+          {tasks.length > 0 && <span className="pip" />}
+        </button>
+        {tasksOpen && (
+          <div className="task-popover">
+            <div className="task-popover-head">
+              <div>
+                <strong>Cortex tasks</strong>
+                <span>{tasks.length} open</span>
+              </div>
+              <button className="icon-btn" data-hint="Refresh" onClick={() => loadTasks(true)}><Icon name="refresh" size={13} /></button>
+            </div>
+            <div className="task-popover-list">
+              {tasks.length === 0 ? (
+                <div className="task-empty">No open Cortex tasks.</div>
+              ) : tasks.map((task) => (
+                <div key={task.id} className="task-popover-item">
+                  <button
+                    className="task-popover-main"
+                    onClick={() => {
+                      if (task.actionTarget && onNavigate) onNavigate(task.actionTarget, task.entityId || undefined);
+                      setTasksOpen(false);
+                    }}
+                  >
+                    <span className={`task-priority ${task.priority}`}>{task.priority}</span>
+                    <strong>{task.title}</strong>
+                    {task.detail && <small>{task.detail}</small>}
+                  </button>
+                  <div className="task-popover-actions">
+                    <button className="icon-btn" data-hint="Done" onClick={() => updateTask(task, 'done')}><Icon name="check" size={13} /></button>
+                    <button className="icon-btn" data-hint="Dismiss" onClick={() => updateTask(task, 'dismiss')}><Icon name="x" size={13} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
       <button className="icon-btn" data-hint="Settings" onClick={onOpenProfile}>
         <Icon name="settings" />
       </button>
 
       <button className={`copilot-btn ${copilotOpen ? 'active' : ''}`} onClick={onToggleCopilot}>
         <span className="ai-dot" />
-        Copilot
+        Cortex
       </button>
     </header>
   );

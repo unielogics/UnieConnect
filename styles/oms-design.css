@@ -798,6 +798,29 @@
 .uc-shell .copilot-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .uc-shell .copilot-chip { font-size: 11px; padding: 4px 8px; border-radius: 999px; background: var(--bg-active); color: var(--text-secondary); border: 1px solid var(--border); }
 .uc-shell .copilot-chip:hover { background: var(--purple-soft); color: var(--purple-text); border-color: var(--purple); }
+.uc-shell .ai-msg.degraded .ai-body { border-color: var(--amber); background: var(--amber-soft); }
+.uc-shell .cortex-task-card { display: grid; gap: 10px; }
+.uc-shell .cortex-task-mini { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-secondary); }
+.uc-shell .cortex-task-mini strong { display: block; color: var(--text); font-size: 12.5px; margin-bottom: 2px; }
+.uc-shell .task-mini-actions { display: flex; gap: 4px; align-items: center; }
+.uc-shell .task-priority { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--border); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-secondary); background: var(--bg-active); }
+.uc-shell .task-priority.high { color: var(--red-text); background: var(--red-soft); border-color: var(--red); }
+.uc-shell .task-priority.normal { color: var(--purple-text); background: var(--purple-soft); border-color: var(--purple); }
+.uc-shell .task-priority.low { color: var(--green-text); background: var(--green-soft); border-color: var(--green); }
+.uc-shell .topbar-task-wrap { position: relative; display: inline-flex; }
+.uc-shell .task-popover { position: absolute; top: calc(100% + 10px); right: -52px; width: min(380px, calc(100vw - 24px)); max-height: min(520px, calc(100vh - 86px)); background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 80; overflow: hidden; }
+.uc-shell .task-popover-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 12px 10px; border-bottom: 1px solid var(--border-subtle); }
+.uc-shell .task-popover-head strong { display: block; font-size: 13px; color: var(--text); }
+.uc-shell .task-popover-head span { display: block; font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
+.uc-shell .task-popover-list { max-height: 450px; overflow: auto; }
+.uc-shell .task-empty { padding: 18px; font-size: 12.5px; color: var(--text-secondary); text-align: center; }
+.uc-shell .task-popover-item { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); }
+.uc-shell .task-popover-main { min-width: 0; display: grid; gap: 5px; text-align: left; background: none; border: 0; padding: 0; color: var(--text); cursor: pointer; }
+.uc-shell .task-popover-main strong { font-size: 12.5px; line-height: 1.3; }
+.uc-shell .task-popover-main small { font-size: 11.5px; line-height: 1.35; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.uc-shell .task-popover-actions { display: flex; align-items: start; gap: 4px; }
+.uc-shell .row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.uc-shell .muted { color: var(--text-secondary); font-size: 12px; margin-top: 3px; line-height: 1.35; }
 .uc-shell .ai-msg { display: flex; gap: 10px; font-size: 12.5px; line-height: 1.55; }
 .uc-shell .ai-msg .ai-avatar { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--purple), #c026d3); flex-shrink: 0; display: grid; place-items: center; color: white; font-size: 10px; font-weight: 700; }
 .uc-shell .ai-msg .ai-body { color: var(--text); }

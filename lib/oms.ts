@@ -478,6 +478,64 @@ export type CopilotContext = {
   summary?: string;
   recommendedPrompts?: string[];
   latestSignals?: Array<{ title?: string; detail?: string; confidence?: number }>;
+  readiness?: IntelligenceReadiness;
+  recommendations?: OmsRecommendation[];
+};
+
+export type CortexTask = {
+  id: string;
+  publicId?: string;
+  dedupeKey?: string;
+  source: string;
+  screen: string;
+  entityType?: string | null;
+  entityId?: string | null;
+  title: string;
+  detail?: string;
+  priority: 'high' | 'normal' | 'low' | string;
+  status: 'open' | 'done' | 'dismissed' | string;
+  actionLabel?: string | null;
+  actionTarget?: string | null;
+  evidence?: Record<string, unknown>;
+  recommendationId?: string | null;
+  completedAt?: string;
+  dismissedAt?: string;
+  autoCompletedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CortexChatThread = {
+  id: string;
+  publicId?: string;
+  screen: string;
+  entityType?: string | null;
+  entityId?: string | null;
+  title: string;
+  status: string;
+  lastMessageAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CortexChatMessage = {
+  id: string;
+  threadId: string;
+  role: 'user' | 'assistant' | 'system' | string;
+  content: string;
+  sources?: Array<Record<string, unknown>>;
+  tasks?: Array<Record<string, unknown>>;
+  confidence?: number | null;
+  readinessNotes?: string | null;
+  cortexStatus?: string;
+  createdAt?: string;
+};
+
+export type CortexChatResponse = {
+  thread?: CortexChatThread | null;
+  message?: CortexChatMessage | null;
+  context?: { screen?: string; readiness?: IntelligenceReadiness; tasks?: CortexTask[]; recommendations?: OmsRecommendation[] };
+  cortex?: { ok?: boolean; status?: number };
 };
 
 export type IntelligenceReadiness = {
@@ -706,6 +764,48 @@ export const fetchLedger = () => omsFetch<LedgerResponse>('/ledger');
 
 export const fetchCopilotContext = (screen: string) =>
   omsFetch<CopilotContext>(`/intelligence/copilot/context?screen=${encodeURIComponent(screen)}`);
+
+export const sendCortexChat = (body: { screen: string; message: string; threadId?: string | null; entityType?: string; entityId?: string }) =>
+  omsFetch<CortexChatResponse>('/intelligence/cortex/chat', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const fetchCortexChatThreads = (screen?: string) => {
+  const qs = new URLSearchParams();
+  if (screen) qs.set('screen', screen);
+  return omsFetch<{ threads: CortexChatThread[] }>(`/intelligence/cortex/chat/threads?${qs.toString()}`);
+};
+
+export const fetchCortexChatThread = (id: string) =>
+  omsFetch<{ thread: CortexChatThread; messages: CortexChatMessage[] }>(`/intelligence/cortex/chat/threads/${encodeURIComponent(id)}`);
+
+export const fetchCortexTasks = (params?: { status?: string; screen?: string; refresh?: boolean; limit?: number }) => {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.screen) qs.set('screen', params.screen);
+  if (params?.refresh) qs.set('refresh', 'true');
+  if (params?.limit) qs.set('limit', String(params.limit));
+  return omsFetch<{ tasks: CortexTask[] }>(`/intelligence/tasks?${qs.toString()}`);
+};
+
+export const refreshCortexTasks = () =>
+  omsFetch<{ tasks: CortexTask[]; readiness?: IntelligenceReadiness }>('/intelligence/tasks/refresh', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+
+export const completeCortexTask = (id: string) =>
+  omsFetch<{ task: CortexTask }>(`/intelligence/tasks/${encodeURIComponent(id)}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+
+export const dismissCortexTask = (id: string) =>
+  omsFetch<{ task: CortexTask }>(`/intelligence/tasks/${encodeURIComponent(id)}/dismiss`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
 
 export const fetchIntelligenceReadiness = () =>
   omsFetch<IntelligenceReadiness>('/intelligence/readiness');

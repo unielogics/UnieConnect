@@ -4,12 +4,16 @@ import { Chip, Sparkline, ProgressBar, fmt, Loading, ErrorState, EmptyState } fr
 import {
   approveRecommendation,
   fetchCommandCenter,
+  fetchCortexTasks,
   fetchBusinessDouble,
   fetchLatestOptimization,
+  completeCortexTask,
+  dismissCortexTask,
   runSellerOptimization,
   rejectRecommendation,
   CommandCenterFull,
   BusinessDoubleResponse,
+  CortexTask,
   IntelligenceReadiness,
   OmsRecommendation,
   SellerOptimizationSummary,
@@ -27,6 +31,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [readiness, setReadiness] = useState<IntelligenceReadiness | null>(null);
   const [latestOpt, setLatestOpt] = useState<SellerOptimizationSummary | null>(null);
   const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
+  const [tasks, setTasks] = useState<CortexTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
@@ -52,6 +57,9 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
         setRecommendations(r.recommendations || []);
       })
       .catch(() => {});
+    fetchCortexTasks({ status: 'open', refresh: true, limit: 10 })
+      .then((r) => setTasks(r.tasks || []))
+      .catch(() => setTasks([]));
   }, []);
 
   const triggerOptimization = async () => {
@@ -77,6 +85,17 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
     } finally {
       const r = await fetchLatestOptimization().catch(() => null);
       if (r) setRecommendations(r.recommendations || []);
+    }
+  };
+
+  const decideTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
+    try {
+      if (action === 'done') await completeCortexTask(task.id);
+      else await dismissCortexTask(task.id);
+      const r = await fetchCortexTasks({ status: 'open', limit: 10 }).catch(() => null);
+      if (r) setTasks(r.tasks || []);
+    } catch {
+      /* keep command center stable */
     }
   };
 
@@ -149,6 +168,8 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
             <OptimizationImpactPanel recommendations={recommendations} onNavigate={onNavigate} onDecision={decideRecommendation} />
             <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={recommendations} onNavigate={onNavigate} />
           </div>
+
+          <CortexTasksPanel tasks={tasks} onNavigate={onNavigate} onDecision={decideTask} />
 
           <div className="row-2" style={{ marginBottom: 16 }}>
             <RevenueTrendCard data={data} bd={bd} />
@@ -278,6 +299,65 @@ const RevenueTrendCard = ({ data, bd }: { data: CommandCenterFull; bd: BusinessD
     </div>
   );
 };
+
+const CortexTasksPanel = ({
+  tasks,
+  onNavigate,
+  onDecision,
+}: {
+  tasks: CortexTask[];
+  onNavigate: (target: string, payload?: string) => void;
+  onDecision: (task: CortexTask, action: 'done' | 'dismiss') => void;
+}) => (
+  <div className="card" style={{ marginBottom: 16 }}>
+    <div className="card-header">
+      <div>
+        <div className="card-title"><Icon name="sparkle" size={15} /> Cortex task inbox</div>
+        <div className="card-subtitle">Account readiness tasks generated from blockers and current Cortex recommendations.</div>
+      </div>
+      <Chip tone={tasks.length ? 'purple' : 'green'} dot={false}>{tasks.length} open</Chip>
+    </div>
+    {tasks.length === 0 ? (
+      <div className="card-body"><EmptyState>No open Cortex tasks. Readiness blockers and recommendations will appear here.</EmptyState></div>
+    ) : (
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Source</th>
+              <th>Priority</th>
+              <th>Screen</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tasks.map((task) => (
+              <tr key={task.id}>
+                <td>
+                  <strong>{task.title}</strong>
+                  {task.detail && <div className="muted">{task.detail}</div>}
+                </td>
+                <td><Chip dot={false}>{task.source}</Chip></td>
+                <td><span className={`task-priority ${task.priority}`}>{task.priority}</span></td>
+                <td>{task.screen?.replace(/-/g, ' ') || 'command'}</td>
+                <td>
+                  <div className="row-actions">
+                    <button className="btn ghost sm" onClick={() => onNavigate(task.actionTarget || task.screen || 'command', task.entityId || undefined)}>
+                      <Icon name="arrowRight" size={12} /> Open
+                    </button>
+                    <button className="icon-btn" data-hint="Mark done" onClick={() => onDecision(task, 'done')}><Icon name="check" size={13} /></button>
+                    <button className="icon-btn" data-hint="Dismiss" onClick={() => onDecision(task, 'dismiss')}><Icon name="x" size={13} /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+);
 
 const ChannelMixCard = ({ data }: { data: CommandCenterFull }) => {
   // Backend exposes channel count only; render the design card with an
