@@ -13,7 +13,7 @@ import { num, docTone, riskLabel, channelColor } from '../../../lib/oms-adapters
 import type { ScreenProps } from '../UnieConnectApp';
 import { AmazonListingDrawer, RecommendationDrawer } from './InventoryNetwork';
 
-type Tab = 'overview' | 'warehouses' | 'history' | 'channels' | 'billing' | 'orders';
+type Tab = 'overview' | 'heatmap' | 'warehouses' | 'history' | 'channels' | 'billing' | 'orders';
 
 export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected }: ScreenProps & { onBack?: () => void }) => {
   const [data, setData] = useState<OmsSkuDetail | null>(null);
@@ -162,6 +162,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
       <div className="tabs" style={{ marginBottom: 16 }}>
         {([
           ['overview', 'Overview', undefined],
+          ['heatmap', 'Heatmap', undefined],
           ['warehouses', 'Warehouses', data.warehouses.length],
           ['history', 'History', undefined],
           ['channels', 'Channels', data.channels?.length],
@@ -176,6 +177,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
       </div>
 
       {tab === 'overview' && <Overview data={data} />}
+      {tab === 'heatmap' && <SkuDemandHeatmap data={data} />}
       {tab === 'warehouses' && <Warehouses data={data} />}
       {tab === 'history' && <History data={data} />}
       {tab === 'channels' && <Channels data={data} />}
@@ -343,6 +345,79 @@ const Overview = ({ data }: { data: OmsSkuDetail }) => (
     </div>
   </div>
 );
+
+const SkuDemandHeatmap = ({ data }: { data: OmsSkuDetail }) => {
+  const channels = data.channels || [];
+  const warehouses = data.warehouses || [];
+  const maxUnits = Math.max(1, ...channels.map((channel) => num(channel.units30d)));
+  const totalUnits = channels.reduce((sum, channel) => sum + num(channel.units30d), 0);
+  const totalWarehouseUnits = warehouses.reduce((sum, wh) => sum + num(wh.available), 0);
+  return (
+    <div className="sku-detail-heatmap">
+      <div className="card">
+        <div className="card-header">
+          <div>
+            <div className="card-title"><Icon name="grid" size={15} /> SKU demand heatmap</div>
+            <div className="card-subtitle">Demand for this active SKU by channel, paired with inventory cover by warehouse.</div>
+          </div>
+          <Chip tone={totalUnits ? 'green' : 'amber'} dot={false}>{totalUnits ? `${totalUnits.toLocaleString()}u / 30d` : 'No demand signal'}</Chip>
+        </div>
+        <div className="sku-channel-heat-grid">
+          {channels.length === 0 ? (
+            <EmptyState>No channel demand data is available for this SKU yet.</EmptyState>
+          ) : channels.map((channel) => {
+            const units = num(channel.units30d);
+            const intensity = Math.min(100, Math.max(0, (units / maxUnits) * 100));
+            return (
+              <div key={channel.channel} className={`sku-channel-heat ${intensity >= 75 ? 'hot' : intensity >= 35 ? 'warm' : 'cool'}`}>
+                <div className="sku-channel-heat-head">
+                  <span>{channel.channel}</span>
+                  <strong>{Math.round(intensity)}%</strong>
+                </div>
+                <div className="sku-channel-heat-body">
+                  <div>{units.toLocaleString()} units</div>
+                  <div>{fmt.money(num(channel.revenue30d), { compact: true })}</div>
+                  <div>{Math.round(num(channel.shareOfDemand) * 100)}% share</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <div>
+            <div className="card-title"><Icon name="inventory" size={15} /> Warehouse cover heatmap</div>
+            <div className="card-subtitle">Each tile is a warehouse holding this SKU. Red means demand can outrun local cover.</div>
+          </div>
+          <Chip dot={false}>{totalWarehouseUnits.toLocaleString()} units on hand</Chip>
+        </div>
+        <div className="sku-warehouse-heat-grid">
+          {warehouses.length === 0 ? (
+            <EmptyState>No warehouse allocation exists for this SKU.</EmptyState>
+          ) : warehouses.map((wh) => {
+            const d = num(wh.daysOfCover);
+            const tone = d < 14 ? 'hot' : d < 28 ? 'warm' : 'cool';
+            return (
+              <div key={wh.code} className={`sku-warehouse-heat ${tone}`}>
+                <div className="sku-channel-heat-head">
+                  <span className="mono">{wh.code}</span>
+                  <strong>{Math.round(d)}d</strong>
+                </div>
+                <div className="sku-channel-heat-body">
+                  <div>{num(wh.available).toLocaleString()} on hand</div>
+                  <div>{num(wh.inbound).toLocaleString()} inbound</div>
+                  <div>{num(wh.velocityPerDay).toFixed(1)} / day</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const NextSixShipments = ({ data }: { data: OmsSkuDetail }) => {
   const ships = data.nextShipments || [];

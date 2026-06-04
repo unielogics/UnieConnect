@@ -597,6 +597,52 @@
   .uc-shell .sku-intel-summary { white-space: normal; }
 }
 
+/* ============================= SKU Views / Heatmaps ============================= */
+.uc-shell .inventory-view-toolbar { display: grid; gap: 10px; margin-bottom: 14px; }
+.uc-shell .view-mode-tabs { display: inline-flex; width: fit-content; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-elev); padding: 3px; gap: 3px; }
+.uc-shell .view-mode-tabs button { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border-radius: var(--radius); font-size: 12px; font-weight: 800; color: var(--text-secondary); white-space: nowrap; }
+.uc-shell .view-mode-tabs button.active { background: var(--accent-soft); color: var(--accent-text); }
+.uc-shell .inventory-filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.uc-shell .inventory-filter-row .spacer { flex: 1; }
+.uc-shell .inventory-search { width: min(320px, 100%); height: 32px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elev); padding: 0 10px; color: var(--text-tertiary); }
+.uc-shell .inventory-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 12px; }
+.uc-shell .inventory-count { font-size: 11.5px; color: var(--text-tertiary); white-space: nowrap; }
+.uc-shell .sku-heatmap-card .card-header { align-items: center; }
+.uc-shell .heatmap-legend { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-tertiary); }
+.uc-shell .legend-gradient { width: 110px; height: 9px; border-radius: 999px; background: linear-gradient(90deg, var(--blue-soft), var(--amber), var(--red)); border: 1px solid var(--border-subtle); }
+.uc-shell .sku-heatmap-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border-subtle); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); }
+.uc-shell .sku-heatmap-summary > div { background: var(--bg-elev); padding: 10px 14px; }
+.uc-shell .sku-heatmap-summary span { display: block; font-size: 18px; line-height: 1; font-weight: 850; color: var(--text); }
+.uc-shell .sku-heatmap-summary small { display: block; margin-top: 4px; font-size: 11px; color: var(--text-tertiary); }
+.uc-shell .sku-heatmap-grid { padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.uc-shell .sku-heat-tile { min-height: 122px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; justify-content: space-between; padding: 11px; border-radius: var(--radius-md); border: 1px solid var(--border); text-align: left; overflow: hidden; }
+.uc-shell .sku-heat-tile.empty { background: var(--bg-subtle); color: var(--text-secondary); }
+.uc-shell .sku-heat-tile.cool { background: var(--blue-soft); border-color: rgba(3,105,161,0.2); color: var(--blue-text); }
+.uc-shell .sku-heat-tile.warm { background: var(--amber-soft); border-color: rgba(180,83,9,0.24); color: var(--amber-text); }
+.uc-shell .sku-heat-tile.hot { background: var(--red-soft); border-color: rgba(180,35,24,0.24); color: var(--red-text); }
+.uc-shell .sku-heat-tile.low-cover { box-shadow: inset 0 0 0 2px var(--red); }
+.uc-shell .sku-heat-tile:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.uc-shell .sku-heat-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px; font-weight: 850; }
+.uc-shell .sku-heat-title { min-height: 32px; color: var(--text); font-size: 13px; font-weight: 800; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.uc-shell .sku-heat-metrics { display: flex; flex-wrap: wrap; gap: 5px; }
+.uc-shell .sku-heat-metrics span { height: 20px; display: inline-flex; align-items: center; padding: 0 6px; border-radius: 999px; background: rgba(255,255,255,0.55); color: currentColor; font-size: 10.5px; font-weight: 800; }
+.uc-shell .sku-detail-heatmap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.uc-shell .sku-channel-heat-grid, .uc-shell .sku-warehouse-heat-grid { padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.uc-shell .sku-channel-heat, .uc-shell .sku-warehouse-heat { min-height: 116px; border-radius: var(--radius-md); border: 1px solid var(--border); padding: 12px; display: grid; gap: 12px; }
+.uc-shell .sku-channel-heat.cool, .uc-shell .sku-warehouse-heat.cool { background: var(--green-soft); border-color: rgba(3,118,82,0.18); color: var(--green-text); }
+.uc-shell .sku-channel-heat.warm, .uc-shell .sku-warehouse-heat.warm { background: var(--amber-soft); border-color: rgba(180,83,9,0.22); color: var(--amber-text); }
+.uc-shell .sku-channel-heat.hot, .uc-shell .sku-warehouse-heat.hot { background: var(--red-soft); border-color: rgba(180,35,24,0.24); color: var(--red-text); }
+.uc-shell .sku-channel-heat-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; font-weight: 850; color: var(--text); }
+.uc-shell .sku-channel-heat-head strong { color: currentColor; font-family: var(--mono); }
+.uc-shell .sku-channel-heat-body { display: grid; gap: 4px; font-size: 11.5px; font-weight: 700; color: currentColor; }
+@media (max-width: 760px) {
+  .uc-shell .view-mode-tabs { width: 100%; }
+  .uc-shell .view-mode-tabs button { flex: 1; justify-content: center; padding: 0 8px; }
+  .uc-shell .inventory-search { width: 100%; }
+  .uc-shell .sku-heatmap-summary { grid-template-columns: 1fr; }
+  .uc-shell .heatmap-legend { display: none; }
+}
+
 /* ============================= Product Research ============================= */
 .uc-shell .product-research-page { display: flex; flex-direction: column; gap: 14px; }
 .uc-shell .research-status-strip { display: grid; grid-template-columns: 0.8fr 1.2fr 1fr 1fr; gap: 1px; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--border-subtle); margin-bottom: 2px; }

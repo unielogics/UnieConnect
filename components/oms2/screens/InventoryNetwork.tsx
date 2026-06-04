@@ -105,22 +105,42 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           </p>
         </div>
         <div className="page-actions">
-          <div className="seg">
-            <button className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>
-              <Icon name="list" size={12} /> Table
-            </button>
-            <button className={view === 'heatmap' ? 'active' : ''} onClick={() => setView('heatmap')}>
-              <Icon name="grid" size={12} /> Heatmap
-            </button>
-            <button className={view === 'treemap' ? 'active' : ''} onClick={() => setView('treemap')}>
-              <Icon name="layers" size={12} /> Margin
-            </button>
-          </div>
           <button className="btn" onClick={() => onImportCsv?.('skus')}>
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
           </button>
           <button className="btn"><Icon name="download" size={13} /> Export</button>
           <button className="btn primary" onClick={onNewProduct}><Icon name="plus" size={13} /> New product</button>
+        </div>
+      </div>
+
+      <div className="inventory-view-toolbar">
+        <div className="view-mode-tabs" aria-label="SKU view mode">
+          <button className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>
+            <Icon name="list" size={13} /> Table
+          </button>
+          <button className={view === 'heatmap' ? 'active' : ''} onClick={() => setView('heatmap')}>
+            <Icon name="grid" size={13} /> Demand heatmap
+          </button>
+          <button className={view === 'treemap' ? 'active' : ''} onClick={() => setView('treemap')}>
+            <Icon name="layers" size={13} /> Margin
+          </button>
+        </div>
+        <div className="inventory-filter-row">
+          <div className="inventory-search">
+            <Icon name="search" size={13} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search SKU or product"
+            />
+          </div>
+          <MarketplaceFilter value={marketplaceFilter} onChange={setMarketplaceFilter} includeUnmapped />
+          <button className="filter-chip applied"><Icon name="filter" size={11} /> Warehouse: All <Icon name="x" size={10} /></button>
+          <button className="filter-chip"><Icon name="filter" size={11} /> DOC range</button>
+          <button className="filter-chip"><Icon name="filter" size={11} /> Risk</button>
+          <div className="spacer" />
+          <span className="inventory-count">{filtered.length} SKUs</span>
+          <button className="btn ghost sm"><Icon name="columns" size={12} /> Columns</button>
         </div>
       </div>
 
@@ -154,22 +174,8 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
       ) : view === 'table' ? (
         <div className="table-wrap">
           <div className="table-toolbar">
-            <div style={{ position: 'relative', flex: '0 1 280px' }}>
-              <Icon name="search" size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search SKU or product"
-                style={{ width: '100%', height: 28, padding: '0 10px 0 28px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 12 }}
-              />
-            </div>
-            <MarketplaceFilter value={marketplaceFilter} onChange={setMarketplaceFilter} includeUnmapped />
-            <button className="filter-chip applied"><Icon name="filter" size={11} /> Warehouse: All <Icon name="x" size={10} /></button>
-            <button className="filter-chip"><Icon name="filter" size={11} /> DOC range</button>
-            <button className="filter-chip"><Icon name="filter" size={11} /> Risk</button>
-            <div className="spacer" />
-            <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{filtered.length} SKUs · WMS truth</span>
-            <button className="btn ghost sm"><Icon name="columns" size={12} /> Columns</button>
+            <span style={{ fontSize: 12, fontWeight: 800 }}>SKU table</span>
+            <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>List view for inventory, replenishment, and row actions.</span>
           </div>
           {filtered.length === 0 ? (
             <EmptyState>No SKUs match your search.</EmptyState>
@@ -374,14 +380,7 @@ const skuNumber = (sku: OmsSku, ...keys: string[]) => {
   return 0;
 };
 
-const HeatCell = ({ value, label }: { value: number; label: string }) => {
-  const tone = value >= 75 ? 'green' : value >= 45 ? 'amber' : 'red';
-  return (
-    <div title={label} style={{ height: 26, borderRadius: 5, background: `var(--${tone}-soft)`, color: `var(--${tone}-text)`, display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 800 }}>
-      {Math.round(value)}
-    </div>
-  );
-};
+const heatTone = (value: number) => (value >= 75 ? 'hot' : value >= 45 ? 'warm' : value > 0 ? 'cool' : 'empty');
 
 const SkuHeatmapView = ({
   skus,
@@ -393,47 +392,57 @@ const SkuHeatmapView = ({
   onOpenSku: (id: string) => void;
 }) => {
   const maxVelocity = Math.max(1, ...skus.map((sku) => sku.velocity30d || 0));
+  const hotSkus = skus.filter((sku) => (sku.velocity30d || 0) > 0).length;
+  const avgDemand = skus.length ? Math.round(skus.reduce((sum, sku) => sum + ((sku.velocity30d || 0) / maxVelocity) * 100, 0) / skus.length) : 0;
   return (
-    <div className="table-wrap">
-      <div className="table-toolbar">
-        <span style={{ fontSize: 12, fontWeight: 800 }}>SKU heatmap</span>
-        <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Inline coverage by product. Account-wide order heatmap remains in US Heatmap.</span>
+    <div className="card sku-heatmap-card">
+      <div className="card-header">
+        <div>
+          <div className="card-title"><Icon name="grid" size={15} /> SKU demand heatmap</div>
+          <div className="card-subtitle">Each tile is one SKU. Color intensity is 30-day demand; border warns when cover is low.</div>
+        </div>
+        <div className="heatmap-legend">
+          <span>Low</span>
+          <span className="legend-gradient" />
+          <span>High</span>
+        </div>
       </div>
       {skus.length === 0 ? (
         <EmptyState>No SKUs match this view.</EmptyState>
       ) : (
-        <table className="data">
-          <thead>
-            <tr>
-              <th>SKU</th>
-              <th>Product</th>
-              <th className="num">DOC</th>
-              <th>Cover</th>
-              <th>Fill</th>
-              <th>Velocity</th>
-              <th>Optimization</th>
-            </tr>
-          </thead>
-          <tbody>
+        <>
+          <div className="sku-heatmap-summary">
+            <div><span>{hotSkus}</span><small>SKUs with demand</small></div>
+            <div><span>{avgDemand}%</span><small>avg demand intensity</small></div>
+            <div><span>{skus.filter((sku) => (sku.daysOfCover || 0) < 14).length}</span><small>low-cover demand tiles</small></div>
+          </div>
+          <div className="sku-heatmap-grid">
             {skus.map((sku) => {
-              const docScore = Math.min(100, Math.max(0, ((sku.daysOfCover || 0) / 60) * 100));
-              const fill = Math.min(100, Math.max(0, sku.fillPercent || 0));
               const velocityScore = Math.min(100, Math.max(0, ((sku.velocity30d || 0) / maxVelocity) * 100));
               const rec = recommendations.get(sku.id) || recommendations.get(sku.sku);
+              const lowCover = (sku.daysOfCover || 0) < 14;
               return (
-                <tr key={sku.id} className="clickable" onClick={() => onOpenSku(sku.id)}>
-                  <td className="mono strong">{sku.sku}</td>
-                  <td>{sku.title || sku.sku}</td>
-                  <td className="num mono strong">{Math.round(sku.daysOfCover || 0)}d</td>
-                  <td><HeatCell value={docScore} label="Days of cover" /></td>
-                  <td><HeatCell value={fill} label="Pallet fill" /></td>
-                  <td><HeatCell value={velocityScore} label="Velocity signal" /></td>
-                  <td>{rec ? <Chip tone="purple" dot={false}><Icon name="sparkle" size={11} /> Cortex</Chip> : <Chip dot={false}>No signal</Chip>}</td>
-                </tr>
+                <button
+                  key={sku.id}
+                  className={`sku-heat-tile ${heatTone(velocityScore)} ${lowCover ? 'low-cover' : ''}`}
+                  onClick={() => onOpenSku(sku.id)}
+                  title={`${sku.sku}: ${Math.round(sku.velocity30d || 0)} units / 30d`}
+                >
+                  <div className="sku-heat-top">
+                    <span className="mono">{sku.sku}</span>
+                    {rec && <Icon name="sparkle" size={12} />}
+                  </div>
+                  <div className="sku-heat-title">{sku.title || sku.sku}</div>
+                  <div className="sku-heat-metrics">
+                    <span>{Math.round(sku.velocity30d || 0)}u / 30d</span>
+                    <span>{Math.round(sku.daysOfCover || 0)}d cover</span>
+                    <span>{Math.round(sku.fillPercent || 0)}% fill</span>
+                  </div>
+                </button>
               );
             })}
-          </tbody>
-        </table>
+          </div>
+        </>
       )}
     </div>
   );
