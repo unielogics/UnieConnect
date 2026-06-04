@@ -175,7 +175,15 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
 
           <div className="command-task-plan-row" style={{ marginBottom: 16 }}>
             <CortexTasksPanel tasks={tasks} onNavigate={onNavigate} onDecision={decideTask} />
-            <AiPlanCard bd={bd} upside={upside} costRed={costRed} slaImp={slaImp} onNavigate={onNavigate} />
+            <AiPlanCard
+              bd={bd}
+              upside={upside}
+              costRed={costRed}
+              slaImp={slaImp}
+              optimizing={optimizing}
+              onRun={triggerOptimization}
+              onNavigate={onNavigate}
+            />
           </div>
 
           <div className="row-2" style={{ marginBottom: 16 }}>
@@ -199,16 +207,23 @@ const AiPlanCard = ({
   upside,
   costRed,
   slaImp,
+  optimizing,
+  onRun,
   onNavigate,
 }: {
   bd: BusinessDoubleResponse | null;
   upside: number;
   costRed: number;
   slaImp: number;
+  optimizing: boolean;
+  onRun: () => void;
   onNavigate: (target: string, payload?: string) => void;
 }) => {
   const staged = bd?.plan?.autonomousAfterApproval?.length || 0;
+  const approvals = bd?.plan?.approvalRequiredFor?.length || 0;
   const status = bd?.plan?.status === 'approved' ? 'active' : 'proposed';
+  const hasModeledImpact = Boolean(upside || costRed || slaImp);
+  const horizon = bd?.plan?.forecastHorizonMonths || 6;
   return (
     <div className="card ai-plan-card">
       <div className="card-header">
@@ -230,8 +245,16 @@ const AiPlanCard = ({
           <MiniMetric label="Cost reduction" value={costRed ? `−${Math.abs(costRed).toFixed(1)}%` : '—'} sub="network cost" tone={costRed ? 'green' : undefined} />
           <MiniMetric label="SLA improvement" value={slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'} sub="delivery speed" tone={slaImp ? 'green' : undefined} />
         </div>
+        <div className="ai-plan-readiness">
+          <Chip tone={hasModeledImpact ? 'green' : 'amber'} dot={false}>
+            {hasModeledImpact ? 'Impact modeled' : 'Needs optimization run'}
+          </Chip>
+          <span>{horizon}-month plan · {approvals} approval gates · {staged} staged actions</span>
+        </div>
         <div className="ai-plan-footer">
-          <Chip tone={staged ? 'blue' : 'default'} dot={false}>{staged} staged actions</Chip>
+          <button className="btn ghost sm" onClick={onRun} disabled={optimizing}>
+            <Icon name="sparkle" size={12} /> {optimizing ? 'Running...' : 'Run optimization'}
+          </button>
           <button className="btn primary sm" onClick={() => onNavigate('double')}>
             Open Business Double <Icon name="arrowRight" size={12} />
           </button>

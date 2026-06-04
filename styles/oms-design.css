@@ -781,7 +781,10 @@
 .uc-shell .ai-plan-title { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
 .uc-shell .ai-plan-summary { margin-top: 5px; color: var(--text-secondary); font-size: 12.5px; line-height: 1.45; }
 .uc-shell .ai-plan-metrics { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius); background: var(--bg-elev); }
-.uc-shell .ai-plan-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 4px; }
+.uc-shell .ai-plan-readiness { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius); background: var(--bg-subtle); color: var(--text-secondary); font-size: 11.5px; line-height: 1.35; }
+.uc-shell .ai-plan-readiness .chip { width: fit-content; }
+.uc-shell .ai-plan-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 4px; flex-wrap: wrap; }
+.uc-shell .ai-plan-footer .btn { flex: 1 1 140px; justify-content: center; }
 .uc-shell .cortex-task-table th:nth-child(1),
 .uc-shell .cortex-task-table td:nth-child(1) { width: 48%; }
 .uc-shell .cortex-task-table th:nth-child(2),
