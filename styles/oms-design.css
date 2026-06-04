@@ -562,6 +562,22 @@
   .uc-shell .decision-actions { justify-content: flex-start; }
 }
 
+.uc-shell .sku-details-card .card-header { padding-bottom: 10px; }
+.uc-shell .sku-detail-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; padding: 0 16px 16px; }
+.uc-shell .sku-detail-field { min-height: 58px; padding: 10px 12px; border: 1px solid var(--border-subtle); background: var(--bg-elev); display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.uc-shell .sku-detail-field .kv-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uc-shell .sku-detail-field.missing { border-color: rgba(180,35,24,0.28); background: var(--red-soft); }
+.uc-shell .sku-detail-field.missing .kv-label,
+.uc-shell .sku-detail-field.missing .kv-value { color: var(--red-text); }
+.uc-shell .sku-intel-minibar { margin-bottom: 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-elev); }
+@media (max-width: 1200px) {
+  .uc-shell .sku-detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .uc-shell .sku-detail-grid { grid-template-columns: 1fr; }
+  .uc-shell .sku-intel-minibar > div { grid-template-columns: 1fr !important; }
+}
+
 /* ============================= KPI / stat tiles ============================= */
 .uc-shell .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
 .uc-shell .stat-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }

@@ -194,13 +194,25 @@ export type OmsSkuDetail = {
   id: string;
   sku: string;
   title?: string;
+  subtitle?: string;
+  description?: string;
   asin?: string;
+  upc?: string | null;
+  ean?: string | null;
+  brand?: string | null;
+  category?: string | null;
+  subCategory?: string | null;
   image?: string | null;
+  images?: string[];
   supplierId?: string | null;
   dimensions?: { length?: number; width?: number; height?: number } | null;
   weight?: number | null;
   price?: number;
   margin?: number;
+  attributes?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  amazon?: Record<string, unknown> | null;
+  keepa?: Record<string, unknown> | null;
   intelligence?: Record<string, unknown> & {
     risk?: string;
     available?: number;

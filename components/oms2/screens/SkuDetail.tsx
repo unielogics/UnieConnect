@@ -138,6 +138,8 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         </div>
       </div>
 
+      <ItemDetailsPanel data={data} />
+
       <div className="stat-grid cols-5" style={{ marginBottom: 16 }}>
         <KpiTile label="On hand" value={num(intel.available).toLocaleString()} unit="u" sub={`across ${data.warehouses.length} WHs`} />
         <KpiTile label="Inbound" value={num(intel.inbound).toLocaleString()} unit="u" sub={num(intel.inbound) > 0 ? 'ASNs en route' : 'no inbound'} />
@@ -200,6 +202,59 @@ const KpiTile = ({ label, value, unit, sub, tone }: { label: string; value: Reac
   </div>
 );
 
+const firstValue = (...values: unknown[]) => {
+  const found = values.find((value) => value != null && String(value).trim() !== '');
+  return found == null ? '' : String(found);
+};
+
+const dimText = (dimensions?: OmsSkuDetail['dimensions'] | null) => {
+  const l = num(dimensions?.length);
+  const w = num(dimensions?.width);
+  const h = num(dimensions?.height);
+  return l && w && h ? `${l} x ${w} x ${h} in` : '';
+};
+
+const ItemDetailsPanel = ({ data }: { data: OmsSkuDetail }) => {
+  const attrs = data.attributes || {};
+  const meta = data.metadata || {};
+  const images = [data.image, ...(data.images || [])].filter(Boolean);
+  const fields = [
+    { label: 'Subtitle', value: firstValue(data.subtitle, meta.subtitle, meta.subTitle) },
+    { label: 'Brand', value: firstValue(data.brand, meta.brand, attrs.brand) },
+    { label: 'Description', value: firstValue(data.description, meta.description, attrs.description) },
+    { label: 'Size', value: firstValue(attrs.size, meta.size, attrs.variant, meta.variant) },
+    { label: 'Weight', value: data.weight ? `${num(data.weight)} lb` : '' },
+    { label: 'Dimensions', value: dimText(data.dimensions) },
+    { label: 'UPC / EAN / ASIN', value: [data.upc, data.ean, data.asin].filter(Boolean).join(' / ') },
+    { label: 'Images', value: images.length ? `${images.length} image${images.length === 1 ? '' : 's'}` : '' },
+    { label: 'Price', value: data.price != null ? `$${num(data.price).toFixed(2)}` : '' },
+    { label: 'Category', value: [data.category, data.subCategory].filter(Boolean).join(' / ') },
+    { label: 'Supplier', value: data.supplierId || '' },
+    { label: 'Marketplace source', value: firstValue(meta.source, meta.importSource, meta.channel, data.asin ? 'Amazon enriched' : '') },
+  ];
+  const missing = fields.filter((field) => !field.value).length;
+  const complete = Math.round(((fields.length - missing) / fields.length) * 100);
+  return (
+    <div className="card sku-details-card" style={{ marginBottom: 16 }}>
+      <div className="card-header">
+        <div>
+          <div className="card-title"><Icon name="box" size={15} /> Item details</div>
+          <div className="card-subtitle">Amazon-style enrichment fields. Missing values are marked red for cleanup.</div>
+        </div>
+        <Chip tone={missing ? 'red' : 'green'} dot={false}>{complete}% enriched</Chip>
+      </div>
+      <div className="sku-detail-grid">
+        {fields.map((field) => (
+          <div key={field.label} className={`sku-detail-field ${field.value ? '' : 'missing'}`}>
+            <div className="kv-label">{field.label}</div>
+            <div className="kv-value">{field.value || 'Missing'}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const SkuIntelligenceStrip = ({
   productIntel,
   recommendations,
@@ -211,27 +266,26 @@ const SkuIntelligenceStrip = ({
 }) => {
   const result = productIntel?.result;
   return (
-    <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(135deg, var(--purple-soft) 0%, var(--bg-elev) 62%)' }}>
-      <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto', gap: 16, alignItems: 'center', padding: 16 }}>
+    <div className="sku-intel-minibar">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 12, alignItems: 'center' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Chip tone={result ? 'purple' : 'amber'} dot={false}>{result ? 'Cortex enriched' : 'Needs Product Research'}</Chip>
             {result?.marketplaceReadiness && <Chip dot={false}>{String(result.marketplaceReadiness).replace(/_/g, ' ')}</Chip>}
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 800 }}>Current vs optimized SKU intelligence</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
-            {result?.recommendedAction || 'Run Product Research to enrich opportunity score, pallet footprint, marketplace readiness, and warehouse fit.'}
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              {result?.recommendedAction || 'Enrich missing details for higher-confidence SKU optimization.'}
+            </span>
           </div>
         </div>
         <div className="kv">
-          <div className="kv-label">Opportunity score</div>
+          <div className="kv-label">Score</div>
           <div className="kv-value" style={{ color: 'var(--purple-text)' }}>{result?.opportunityScore ?? '—'}</div>
         </div>
         <div className="kv">
-          <div className="kv-label">Open recommendations</div>
+          <div className="kv-label">Open recs</div>
           <div className="kv-value">{recommendations.length}</div>
         </div>
-        <button className="btn primary" onClick={() => onNavigate('product-research')}>
+        <button className="btn sm" onClick={() => onNavigate('product-research')}>
           <Icon name="sparkle" size={13} /> Open Product Research
         </button>
       </div>
