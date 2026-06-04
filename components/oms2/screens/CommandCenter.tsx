@@ -378,8 +378,12 @@ const CortexTasksPanel = ({
                     <td><Chip dot={false}>{task.source}</Chip></td>
                     <td>
                       <div className="row-actions">
-                        <button className="btn ghost sm" onClick={() => onNavigate(task.actionTarget || task.screen || 'command', task.entityId || undefined)}>
-                          <Icon name="arrowRight" size={12} /> Open
+                        <button
+                          className="btn ghost sm"
+                          title={task.actionLabel || 'Open'}
+                          onClick={() => onNavigate(task.actionTarget || task.screen || 'command', task.entityId || undefined)}
+                        >
+                          <Icon name="arrowRight" size={12} /> {task.actionLabel || 'Open'}
                         </button>
                         <button className="icon-btn" data-hint="Mark done" onClick={() => onDecision(task, 'done')}><Icon name="check" size={13} /></button>
                         <button className="icon-btn" data-hint="Dismiss" onClick={() => onDecision(task, 'dismiss')}><Icon name="x" size={13} /></button>

@@ -92,7 +92,9 @@ export const AICopilot = ({
   const [threadId, setThreadId] = useState<string | null>(null);
   const [threads, setThreads] = useState<CortexChatThread[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
-  const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>(cortexAvailable ? 'checking' : 'offline');
+  const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>(
+    cortexAvailable === false ? 'offline' : 'checking'
+  );
   const [pending, setPending] = useState(false);
 
   const loadThreads = () => {
@@ -137,15 +139,16 @@ export const AICopilot = ({
   useEffect(() => {
     setThreadId(null);
     setThreads([]);
-    setCortexHealth(cortexAvailable ? 'checking' : 'offline');
-    if (cortexAvailable) {
+    setCortexHealth(cortexAvailable === false ? 'offline' : 'checking');
+    if (cortexAvailable !== false) {
       fetchCortexChatHealth(section)
         .then((res) => setCortexHealth(res.ok ? 'online' : 'offline'))
-        .catch(() => setCortexHealth('offline'));
+        .catch(() => null);
     }
     fetchCopilotContext(section)
       .then((c) => {
         setCtx(c);
+        if (cortexAvailable !== false) setCortexHealth('online');
         setHistory([
           { role: 'ai', body: c.summary || 'Cortex is grounded in this OMS account. Ask about the current screen, tasks, SKUs, orders, warehouses, audits, or readiness.' },
           ...(c.posture ? [{ role: 'ai' as const, body: <>Posture: <strong>{c.posture}</strong>. I will only ask you when something material changes.</> }] : []),
@@ -166,12 +169,13 @@ export const AICopilot = ({
       const res = await sendCortexChat({ screen: section, message: q, threadId });
       if (res.thread?.id) setThreadId(res.thread.id);
       if (res.context?.tasks) setTasks(res.context.tasks);
-      setCortexHealth(res.cortex?.ok ? 'online' : 'offline');
+      const cortexUnavailable = res.cortex?.health?.available === false;
+      setCortexHealth(cortexUnavailable ? 'offline' : 'online');
       setHistory((h) => [
         ...h,
         {
           role: 'ai',
-          muted: res.cortex?.ok === false,
+          muted: cortexUnavailable,
           sources: res.message?.sources,
           body: (
             <>
@@ -262,11 +266,11 @@ export const AICopilot = ({
                 </div>
                 <div className="task-mini-actions">
                   <button
-                    className="icon-btn"
-                    data-hint="Open"
+                    className="btn ghost sm task-action-label"
+                    title={task.actionLabel || 'Open'}
                     onClick={() => onNavigate?.(task.actionTarget || task.screen || 'command', task.entityId || undefined)}
                   >
-                    <Icon name="arrowRight" size={13} />
+                    <Icon name="arrowRight" size={12} /> {task.actionLabel || 'Open'}
                   </button>
                   <button className="icon-btn" data-hint="Done" onClick={() => updateTask(task, 'done')}>
                     <Icon name="check" size={13} />

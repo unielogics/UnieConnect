@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from './icons';
-import { completeCortexTask, dismissCortexTask, fetchCortexChatHealth, fetchCortexTasks, CortexTask } from '../../lib/oms';
+import { completeCortexTask, dismissCortexTask, fetchCopilotContext, fetchCortexChatHealth, fetchCortexTasks, CortexTask } from '../../lib/oms';
 
 export const TITLE_MAP: Record<string, [string, string]> = {
   command: ['Command Center', 'Live operating cockpit'],
@@ -73,7 +73,13 @@ export const TopBar = ({
         if (!cancelled) setCortexHealth(res.ok ? 'online' : 'offline');
       })
       .catch(() => {
-        if (!cancelled) setCortexHealth('offline');
+        fetchCopilotContext(section)
+          .then(() => {
+            if (!cancelled) setCortexHealth('online');
+          })
+          .catch(() => {
+            if (!cancelled) setCortexHealth('offline');
+          });
       });
     return () => {
       cancelled = true;
@@ -140,6 +146,7 @@ export const TopBar = ({
                     <span className={`task-priority ${task.priority}`}>{task.priority}</span>
                     <strong>{task.title}</strong>
                     {task.detail && <small>{task.detail}</small>}
+                    <small className="task-action-copy">{task.actionLabel || 'Open task'}</small>
                   </button>
                   <div className="task-popover-actions">
                     <button className="icon-btn" data-hint="Done" onClick={() => updateTask(task, 'done')}><Icon name="check" size={13} /></button>
