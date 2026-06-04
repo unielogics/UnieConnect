@@ -335,7 +335,7 @@ export const RecommendationDrawer = ({ rec, onClose, onChanged }: { rec: OmsReco
   return (
     <DrawerShell
       title="Cortex optimization"
-      subtitle={rec.title}
+      subtitle="Review current state, suggested action, impact, and decision status."
       onClose={onClose}
       footer={<button className="btn" onClick={() => setEdit((v) => !v)}><Icon name="save" size={12} /> {edit ? 'Preview' : 'Edit JSON'}</button>}
     >
@@ -346,9 +346,9 @@ export const RecommendationDrawer = ({ rec, onClose, onChanged }: { rec: OmsReco
           <>
             <CompareBlock label="Current JSON" value={current} edit={edit} onChange={setCurrent} />
             <CompareBlock label="Suggested JSON" value={optimized} edit={edit} onChange={setOptimized} tone="purple" />
+            <CompareBlock label="Impact details" value={JSON.stringify(rec.estimatedImpact || {}, null, 2)} edit={false} tone="green" />
           </>
         )}
-        <CompareBlock label="Impact details" value={JSON.stringify(rec.estimatedImpact || {}, null, 2)} edit={false} tone="green" />
       </div>
     </DrawerShell>
   );

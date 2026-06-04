@@ -6,6 +6,12 @@ import { Chip, fmt } from './ui';
 const isObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
+const labelize = (value: string) =>
+  value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 const formatValue = (value: unknown): string => {
   if (value == null || value === '') return '-';
   if (typeof value === 'number') return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2);
@@ -16,7 +22,7 @@ const formatValue = (value: unknown): string => {
   if (!entries.length) return '-';
   return entries
     .slice(0, 5)
-    .map(([key, v]) => `${key.replace(/_/g, ' ')}: ${formatValue(v)}`)
+    .map(([key, v]) => `${labelize(key)}: ${formatValue(v)}`)
     .join('\n');
 };
 
@@ -62,7 +68,9 @@ export const DecisionComparison = ({
   onDeny?: () => void;
 }) => {
   const tone = decisionTone(rec.approvalState);
-  const canDecide = tone === 'default' && !['blocked'].includes(String(rec.approvalState || '').toLowerCase());
+  const normalizedState = String(rec.approvalState || '').toLowerCase();
+  const isNotice = ['blocked', 'not_required', 'not required'].includes(normalizedState);
+  const canDecide = tone === 'default' && !isNotice;
   return (
     <div
       role={onOpen ? 'button' : undefined}
@@ -96,12 +104,18 @@ export const DecisionComparison = ({
       </div>
       {(onApprove || onDeny) && (
         <div className="decision-actions" onClick={(e) => e.stopPropagation()}>
-          <button className="btn sm primary" disabled={!canDecide || busy} onClick={onApprove}>
-            <Icon name="check" size={11} /> Accept
-          </button>
-          <button className="btn sm" disabled={!canDecide || busy} onClick={onDeny}>
-            Deny
-          </button>
+          {isNotice ? (
+            <span className="decision-notice">Action required outside approval</span>
+          ) : (
+            <>
+              <button className="btn sm primary" disabled={!canDecide || busy} onClick={onApprove}>
+                <Icon name="check" size={11} /> Accept
+              </button>
+              <button className="btn sm" disabled={!canDecide || busy} onClick={onDeny}>
+                Deny
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

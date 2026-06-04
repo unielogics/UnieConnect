@@ -10,8 +10,9 @@ export default class UnieDocument extends Document {
     return (
       <Html lang="en">
         <Head>
-          <link rel="icon" href="/favicon.png" type="image/png" />
-          <link rel="apple-touch-icon" href="/unieconnect-logo.png" />
+          <link rel="icon" href="/favicon.ico?v=20260604" sizes="any" />
+          <link rel="icon" href="/favicon.png?v=20260604" type="image/png" />
+          <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20260604" />
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link
             rel="preconnect"

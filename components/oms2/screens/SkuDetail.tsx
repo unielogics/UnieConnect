@@ -115,8 +115,12 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             {recommendations[0] && (
-              <button className="btn ghost" onClick={() => setSelectedRec(recommendations[0])} data-hint="Review Cortex optimization">
-                <Icon name="sparkle" size={13} /> Cortex
+              <button className="btn ghost cortex-action" onClick={() => setSelectedRec(recommendations[0])} data-hint="Review Cortex optimization">
+                <span className="icon-alert-wrap">
+                  <Icon name="sparkle" size={13} />
+                  <span className="icon-alert-dot" />
+                </span>
+                Cortex
               </button>
             )}
             <button className="btn ghost" onClick={() => setAmazonOpen(true)} data-hint="Amazon listing draft">
@@ -148,7 +152,12 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         <KpiTile label="Revenue / 30d" value={fmt.money(rev, { compact: true })} sub={`${fmt.money(gp, { compact: true })} GP`} tone="good" />
       </div>
 
-      <SkuIntelligenceStrip productIntel={productIntel} recommendations={recommendations} onNavigate={onNavigate} />
+      <SkuIntelligenceStrip
+        productIntel={productIntel}
+        recommendations={recommendations}
+        onNavigate={onNavigate}
+        onOpenRecommendation={() => recommendations[0] && setSelectedRec(recommendations[0])}
+      />
 
       <div className="tabs" style={{ marginBottom: 16 }}>
         {([
@@ -259,22 +268,42 @@ const SkuIntelligenceStrip = ({
   productIntel,
   recommendations,
   onNavigate,
+  onOpenRecommendation,
 }: {
   productIntel: ProductResearchResult | null;
   recommendations: OmsRecommendation[];
   onNavigate: ScreenProps['onNavigate'];
+  onOpenRecommendation: () => void;
 }) => {
   const result = productIntel?.result;
+  const missing = result?.missingData || [];
+  const hasRec = recommendations.length > 0;
+  const requirements = [
+    { label: 'Dimensions', met: !missing.includes('dimensions_weight') },
+    { label: 'Weight', met: !missing.includes('dimensions_weight') },
+    { label: 'Cost', met: !missing.includes('cost') },
+    { label: 'Selling price', met: !missing.includes('selling_price') },
+    { label: 'Demand source', met: !missing.includes('marketplace_or_csv_demand') },
+  ];
   return (
     <div className="sku-intel-minibar">
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 12, alignItems: 'center' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Chip tone={result ? 'purple' : 'amber'} dot={false}>{result ? 'Cortex enriched' : 'Needs Product Research'}</Chip>
-            {result?.marketplaceReadiness && <Chip dot={false}>{String(result.marketplaceReadiness).replace(/_/g, ' ')}</Chip>}
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              {result?.recommendedAction || 'Enrich missing details for higher-confidence SKU optimization.'}
-            </span>
+      <div className="sku-intel-minibar-grid">
+        <div className="sku-intel-copy">
+          <div className="sku-intel-title">
+            <Icon name="sparkle" size={13} />
+            Cortex optimization readiness
+            {hasRec && <span className="inline-alert"><Icon name="warning" size={11} /> {recommendations.length}</span>}
+          </div>
+          <div className="sku-intel-requirements" aria-label="Cortex baseline requirements">
+            {requirements.map((req) => (
+              <span key={req.label} className={`requirement-pill ${req.met ? 'met' : 'missing'}`}>
+                {req.met ? <Icon name="check" size={10} /> : <Icon name="warning" size={10} />}
+                {req.label}
+              </span>
+            ))}
+          </div>
+          <div className="sku-intel-summary">
+            {result?.recommendedAction || 'Cortex needs baseline product, cost, price, and demand data before high-confidence optimization.'}
           </div>
         </div>
         <div className="kv">
@@ -285,9 +314,19 @@ const SkuIntelligenceStrip = ({
           <div className="kv-label">Open recs</div>
           <div className="kv-value">{recommendations.length}</div>
         </div>
-        <button className="btn sm" onClick={() => onNavigate('product-research')}>
-          <Icon name="sparkle" size={13} /> Open Product Research
-        </button>
+        {hasRec ? (
+          <button className="btn sm primary" onClick={onOpenRecommendation}>
+            <Icon name="sparkle" size={13} /> Review Cortex
+          </button>
+        ) : missing.length ? (
+          <button className="btn sm" onClick={() => onNavigate('product-research')} data-hint="Use Product Research only to fill missing enrichment data">
+            <Icon name="search" size={13} /> Enrich data
+          </button>
+        ) : (
+          <button className="btn sm" onClick={() => onNavigate('double')}>
+            <Icon name="double" size={13} /> Optimize
+          </button>
+        )}
       </div>
     </div>
   );
