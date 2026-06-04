@@ -3,13 +3,28 @@ import { Icon } from './icons';
 import { Chip, Confidence } from './ui';
 import {
   fetchCopilotContext,
+  fetchCortexChatThread,
+  fetchCortexChatThreads,
   fetchCortexChatHealth,
   fetchCortexTasks,
   sendCortexChat,
   CopilotContext,
+  CortexChatMessage,
+  CortexChatThread,
 } from '../../lib/oms';
 
 type Msg = { role: 'ai' | 'user'; body: React.ReactNode; muted?: boolean };
+
+const messageToHistory = (m: CortexChatMessage): Msg => ({
+  role: m.role === 'user' ? 'user' : 'ai',
+  muted: m.cortexStatus === 'degraded',
+  body: (
+    <>
+      <div>{m.content}</div>
+      {m.confidence != null && <div style={{ marginTop: 6 }}><Confidence value={m.confidence} /></div>}
+    </>
+  ),
+});
 
 const CopilotInput = ({ onSubmit, disabled }: { onSubmit: (q: string) => void; disabled?: boolean }) => {
   const [text, setText] = useState('');
@@ -53,11 +68,41 @@ export const AICopilot = ({
   const [history, setHistory] = useState<Msg[]>([]);
   const [taskCount, setTaskCount] = useState(0);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [threads, setThreads] = useState<CortexChatThread[]>([]);
+  const [loadingThread, setLoadingThread] = useState(false);
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>(cortexAvailable ? 'checking' : 'offline');
   const [pending, setPending] = useState(false);
 
+  const loadThreads = () => {
+    fetchCortexChatThreads(section)
+      .then((r) => setThreads((r.threads || []).slice(0, 5)))
+      .catch(() => setThreads([]));
+  };
+
+  const startNewThread = () => {
+    setThreadId(null);
+    setHistory([
+      { role: 'ai', body: ctx?.summary || 'Cortex is grounded in this OMS account. Ask about the current screen, tasks, SKUs, orders, warehouses, audits, or readiness.' },
+      ...(ctx?.posture ? [{ role: 'ai' as const, body: <>Posture: <strong>{ctx.posture}</strong>. I will only ask you when something material changes.</> }] : []),
+    ]);
+  };
+
+  const openThread = async (id: string) => {
+    setLoadingThread(true);
+    try {
+      const r = await fetchCortexChatThread(id);
+      setThreadId(r.thread.id);
+      setHistory((r.messages || []).filter((m) => m.role !== 'system').map(messageToHistory));
+    } catch {
+      setHistory((h) => [...h, { role: 'ai', body: 'I could not open that thread. Start a new question or try again.', muted: true }]);
+    } finally {
+      setLoadingThread(false);
+    }
+  };
+
   useEffect(() => {
     setThreadId(null);
+    setThreads([]);
     setCortexHealth(cortexAvailable ? 'checking' : 'offline');
     if (cortexAvailable) {
       fetchCortexChatHealth(section)
@@ -78,6 +123,7 @@ export const AICopilot = ({
     fetchCortexTasks({ status: 'open', screen: section, refresh: true, limit: 8 })
       .then((r) => setTaskCount((r.tasks || []).length))
       .catch(() => setTaskCount(0));
+    loadThreads();
   }, [section]);
 
   const send = async (q: string) => {
@@ -102,6 +148,7 @@ export const AICopilot = ({
           ),
         },
       ]);
+      loadThreads();
     } catch {
       setCortexHealth('offline');
       setHistory((h) => [...h, { role: 'ai', body: 'Cortex chat is unavailable right now. No cross-account data was used or exposed.', muted: true }]);
@@ -128,8 +175,29 @@ export const AICopilot = ({
           <Icon name="x" />
         </button>
       </div>
+      <div className="copilot-thread-bar">
+        <button className={`copilot-thread-pill ${!threadId ? 'active' : ''}`} onClick={startNewThread}>
+          <Icon name="plus" size={11} /> New
+        </button>
+        {threads.map((thread) => (
+          <button
+            key={thread.id}
+            className={`copilot-thread-pill ${threadId === thread.id ? 'active' : ''}`}
+            onClick={() => openThread(thread.id)}
+            title={thread.title}
+          >
+            {thread.title || 'Cortex thread'}
+          </button>
+        ))}
+      </div>
 
       <div className="copilot-body">
+        {loadingThread && (
+          <div className="ai-msg">
+            <div className="ai-avatar">CX</div>
+            <div className="ai-body pulsing">Opening thread...</div>
+          </div>
+        )}
         {history.map((m, i) => (
           <div key={i} className={`ai-msg ${m.role === 'user' ? 'user' : ''} ${m.muted ? 'muted' : ''}`}>
             <div className="ai-avatar">{m.role === 'user' ? 'You' : 'CX'}</div>
