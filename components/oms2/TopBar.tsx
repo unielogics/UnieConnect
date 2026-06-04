@@ -91,6 +91,8 @@ export const TopBar = ({
     else await dismissCortexTask(task.id).catch(() => null);
     loadTasks(false);
   };
+  const highTaskCount = tasks.filter((task) => task.priority === 'high').length;
+  const workAreas = Array.from(new Set(tasks.map((task) => task.actionTarget || task.screen).filter(Boolean))).slice(0, 3);
 
   return (
     <header className="topbar">
@@ -131,6 +133,13 @@ export const TopBar = ({
               </div>
               <button className="icon-btn" data-hint="Refresh" onClick={() => loadTasks(true)}><Icon name="refresh" size={13} /></button>
             </div>
+            {tasks.length > 0 && (
+              <div className="task-popover-summary">
+                <span><strong>{highTaskCount}</strong> high priority</span>
+                <span><strong>{workAreas.length}</strong> work areas</span>
+                <span>{workAreas.map((area) => String(area).replace(/-/g, ' ')).join(' · ')}</span>
+              </div>
+            )}
             <div className="task-popover-list">
               {tasks.length === 0 ? (
                 <div className="task-empty">No open Cortex tasks.</div>
@@ -145,6 +154,10 @@ export const TopBar = ({
                   >
                     <span className={`task-priority ${task.priority}`}>{task.priority}</span>
                     <strong>{task.title}</strong>
+                    <span className="task-popover-meta">
+                      <span>{String(task.actionTarget || task.screen || 'command').replace(/-/g, ' ')}</span>
+                      {task.source && <span>{task.source}</span>}
+                    </span>
                     {task.detail && <small>{task.detail}</small>}
                     <small className="task-action-copy">{task.actionLabel || 'Open task'}</small>
                   </button>
