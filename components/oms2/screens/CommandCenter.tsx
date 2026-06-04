@@ -20,7 +20,7 @@ import {
 } from '../../../lib/oms';
 import { sparkFrom, deltaDir, severityTone, severityIcon, timeAgo } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
-import { DecisionComparison } from '../DecisionComparison';
+import { DecisionComparison, isActionableDecisionRecommendation } from '../DecisionComparison';
 
 type Range = 'today' | '7d' | '30d';
 
@@ -114,6 +114,10 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const upside = Number(savings.revenue ?? savings.revenueUpside ?? 0);
   const costRed = Number(savings.costPct ?? savings.costReductionPct ?? 0);
   const slaImp = Number(savings.sla ?? savings.slaDays ?? 0);
+  const decisionRecommendations = useMemo(
+    () => recommendations.filter(isActionableDecisionRecommendation),
+    [recommendations]
+  );
 
   return (
     <div className="page fade-in">
@@ -165,8 +169,8 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           </div>
 
           <div className="command-decision-row" style={{ marginBottom: 16 }}>
-            <OptimizationImpactPanel recommendations={recommendations} onNavigate={onNavigate} onDecision={decideRecommendation} />
-            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={recommendations} onNavigate={onNavigate} />
+            <OptimizationImpactPanel recommendations={decisionRecommendations} onNavigate={onNavigate} onDecision={decideRecommendation} />
+            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={decisionRecommendations} onNavigate={onNavigate} />
           </div>
 
           <CortexTasksPanel tasks={tasks} onNavigate={onNavigate} onDecision={decideTask} />

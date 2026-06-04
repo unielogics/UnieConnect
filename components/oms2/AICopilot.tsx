@@ -8,7 +8,7 @@ import {
   CopilotContext,
 } from '../../lib/oms';
 
-type Msg = { role: 'ai' | 'user'; body: React.ReactNode; degraded?: boolean };
+type Msg = { role: 'ai' | 'user'; body: React.ReactNode; muted?: boolean };
 
 const CopilotInput = ({ onSubmit, disabled }: { onSubmit: (q: string) => void; disabled?: boolean }) => {
   const [text, setText] = useState('');
@@ -67,7 +67,7 @@ export const AICopilot = ({
         ]);
       })
       .catch(() => {
-        setHistory([{ role: 'ai', body: 'Cortex context is temporarily unavailable. Operating views remain fully functional.', degraded: true }]);
+        setHistory([{ role: 'ai', body: 'Cortex context is temporarily unavailable. Operating views remain fully functional.', muted: true }]);
       });
     fetchCortexTasks({ status: 'open', screen: section, refresh: true, limit: 8 })
       .then((r) => setTaskCount((r.tasks || []).length))
@@ -87,7 +87,7 @@ export const AICopilot = ({
         ...h,
         {
           role: 'ai',
-          degraded: res.cortex?.ok === false,
+          muted: res.cortex?.ok === false,
           body: (
             <>
               <div>{res.message?.content || 'Cortex returned no answer.'}</div>
@@ -98,7 +98,7 @@ export const AICopilot = ({
       ]);
     } catch {
       setCortexHealth('offline');
-      setHistory((h) => [...h, { role: 'ai', body: 'Cortex chat is unavailable right now. No cross-account data was used or exposed.', degraded: true }]);
+      setHistory((h) => [...h, { role: 'ai', body: 'Cortex chat is unavailable right now. No cross-account data was used or exposed.', muted: true }]);
     } finally {
       setPending(false);
     }
@@ -106,7 +106,7 @@ export const AICopilot = ({
 
   const prompts = ctx?.recommendedPrompts?.length
     ? ctx.recommendedPrompts
-    : ['What tasks are blocking Cortex readiness?', 'Compare current vs optimized decisions', 'Which SKUs need enrichment?', 'Audit recent carrier labels'];
+    : ['What should I work on next?', 'Which SKUs need enrichment?', 'Audit recent carrier labels', 'What tasks are blocking Cortex readiness?'];
 
   return (
     <aside className="copilot">
@@ -125,7 +125,7 @@ export const AICopilot = ({
 
       <div className="copilot-body">
         {history.map((m, i) => (
-          <div key={i} className={`ai-msg ${m.role === 'user' ? 'user' : ''} ${m.degraded ? 'degraded' : ''}`}>
+          <div key={i} className={`ai-msg ${m.role === 'user' ? 'user' : ''} ${m.muted ? 'muted' : ''}`}>
             <div className="ai-avatar">{m.role === 'user' ? 'You' : 'CX'}</div>
             <div className="ai-body">{m.body}</div>
           </div>

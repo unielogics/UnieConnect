@@ -86,6 +86,40 @@ export const decisionTone = (state?: string): 'green' | 'red' | 'default' => {
   return 'default';
 };
 
+export const isActionableDecisionRecommendation = (rec?: OmsRecommendation | null) => {
+  if (!rec) return false;
+  const state = String(rec.approvalState || '').toLowerCase();
+  const type = String(rec.recommendationType || '').toLowerCase();
+  const action = String(rec.requiredAction || '').toLowerCase();
+  const title = String(rec.title || '').toLowerCase();
+  const summary = String(rec.summary || '').toLowerCase();
+  const current = rec.currentValue || {};
+  const suggested = rec.optimizedValue || {};
+  const impact = rec.estimatedImpact || {};
+
+  if (['blocked', 'not_required', 'not required'].includes(state)) return false;
+  if (type.includes('data_readiness')) return false;
+
+  const text = `${type} ${action} ${title} ${summary}`;
+  const looksLikeTask =
+    /(upload|connect|complete|missing|readiness|evidence|feed completeness|data source|baseline incomplete|enrichment baseline)/.test(text);
+  if (looksLikeTask) return false;
+
+  const hasComparison = Object.keys(current).length > 0 && Object.keys(suggested).length > 0;
+  if (!hasComparison) return false;
+
+  const meaningfulImpact = Object.entries(impact).some(([key, value]) => {
+    const normalized = key.toLowerCase();
+    if (/^(confidence|palletunits|priority|severity)$/.test(normalized)) return false;
+    if (value == null || value === '') return false;
+    if (typeof value === 'number') return value !== 0;
+    return true;
+  });
+
+  const concreteDomain = /(cost|saving|margin|refund|carrier|label|shipment|supplier|inventory|order|warehouse|routing|placement|price|revenue|billing|fulfillment|business_double)/.test(text);
+  return concreteDomain && meaningfulImpact;
+};
+
 const decisionLabel = (state?: string) => {
   const tone = decisionTone(state);
   if (tone === 'green') return 'Approved';

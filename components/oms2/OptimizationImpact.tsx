@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { approveRecommendation, fetchRecommendations, OmsRecommendation, rejectRecommendation } from '../../lib/oms';
 import { Icon } from './icons';
 import { Chip, EmptyState } from './ui';
-import { DecisionComparison } from './DecisionComparison';
+import { DecisionComparison, isActionableDecisionRecommendation } from './DecisionComparison';
 
 export const OptimizationImpact = ({
   screen,
@@ -20,7 +20,7 @@ export const OptimizationImpact = ({
 
   const load = () => {
     fetchRecommendations({ screen, status: 'open', limit })
-      .then((response) => setItems(response.recommendations || []))
+      .then((response) => setItems((response.recommendations || []).filter(isActionableDecisionRecommendation)))
       .catch(() => setItems([]));
   };
 

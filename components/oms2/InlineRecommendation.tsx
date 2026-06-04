@@ -3,13 +3,14 @@ import { fetchRecommendations, OmsRecommendation } from '../../lib/oms';
 import { Icon } from './icons';
 import { Chip } from './ui';
 import { RecommendationDrawer } from './screens/InventoryNetwork';
+import { isActionableDecisionRecommendation } from './DecisionComparison';
 
 export const useInlineRecommendations = (screen: string, limit = 100) => {
   const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
   const [selectedRec, setSelectedRec] = useState<OmsRecommendation | null>(null);
   const loadRecommendations = () => {
     fetchRecommendations({ screen, status: 'open', limit })
-      .then((res) => setRecommendations(res.recommendations || []))
+      .then((res) => setRecommendations((res.recommendations || []).filter(isActionableDecisionRecommendation)))
       .catch(() => setRecommendations([]));
   };
   useEffect(loadRecommendations, [screen, limit]);

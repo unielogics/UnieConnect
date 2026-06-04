@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
-import { OptimizationImpact } from '../OptimizationImpact';
+import { CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
 import { cancelOrder, fetchOmsOrders, OmsOrder, publicEntityId } from '../../../lib/oms';
 import { num, channelColor } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -37,6 +37,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const ctx = useCtxMenu();
+  const { recFor, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('orders');
 
   const load = () => {
     setLoading(true);
@@ -130,8 +131,6 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
         </div>
       </div>
 
-      <OptimizationImpact screen="orders" title="Order fulfillment optimization" onNavigate={onNavigate} />
-
       <div className="tabs">
         {(['all', 'risk', 'exceptions', 'hold', 'new'] as const).map((t) => (
           <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)} style={{ textTransform: 'capitalize' }}>
@@ -179,16 +178,19 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((o) => (
+                {filtered.map((o) => {
+                  const rec = recFor(o.id, o.publicId, o.displayId, o.chOrderId);
+                  return (
                   <tr
                     key={o.id}
-                    className="clickable"
+                    className={`clickable ${rec ? 'row-cortex-signal' : ''}`}
                     onClick={() => onOpenOrder && onOpenOrder(o)}
                     onContextMenu={(e) =>
                       ctx.open(e, [
                         { label: 'Order' },
                         { icon: 'eye', title: 'Open order details', onClick: () => onOpenOrder && onOpenOrder(o) },
                         ...(o.sku ? [{ icon: 'box', title: `Open SKU ${o.sku}`, onClick: () => onNavigate('sku-detail', o.sku!) }] : []),
+                        ...(rec ? [{ icon: 'sparkle', title: 'Review Cortex decision', onClick: () => setSelectedRec(rec) }] : []),
                         { icon: 'support', title: 'Email customer', shortcut: '⌘E' },
                         { divider: true },
                         { icon: 'audit', title: 'Open dispute', onClick: () => onNavigate('audits') },
@@ -238,21 +240,26 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                         <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{o.tracking || ''}</div>
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="btn ghost sm"
-                          disabled={o._status === 'cancelled'}
-                          onClick={() => setCancelTarget(o)}
-                        >
-                          <Icon name="x" size={12} /> Cancel
-                        </button>
+                        <div className="row-actions">
+                          {rec && <CortexRowAction rec={rec} onOpen={() => setSelectedRec(rec)} />}
+                          <button
+                            className="btn ghost sm"
+                            disabled={o._status === 'cancelled'}
+                            onClick={() => setCancelTarget(o)}
+                          >
+                            <Icon name="x" size={12} /> Cancel
+                          </button>
+                        </div>
                       </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
         </div>
       )}
+      {recDrawer}
       {cancelTarget && (
         <div className="modal-overlay" onClick={() => setCancelTarget(null)}>
           <div className="modal" style={{ width: 460 }} onClick={(e) => e.stopPropagation()}>

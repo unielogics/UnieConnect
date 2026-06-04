@@ -606,6 +606,14 @@
 .uc-shell .inline-banner { min-height: 34px; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--accent-border); border-radius: var(--radius); background: var(--accent-soft); color: var(--accent-text); font-size: 12px; font-weight: 700; }
 .uc-shell .inline-banner.warn { border-color: rgba(180,83,9,0.28); background: var(--amber-soft); color: var(--amber-text); }
 .uc-shell .cortex-row-action { display: inline-flex; align-items: center; gap: 5px; color: var(--purple-text); }
+.uc-shell table.data tr.row-cortex-signal,
+.uc-shell table.data-table tr.row-cortex-signal {
+  background: linear-gradient(90deg, var(--purple-soft), var(--bg-elev) 28%);
+}
+.uc-shell table.data tr.row-cortex-signal td:first-child,
+.uc-shell table.data-table tr.row-cortex-signal td:first-child {
+  box-shadow: inset 3px 0 0 var(--purple);
+}
 .uc-shell .icon-alert-wrap { position: relative; display: inline-grid; place-items: center; }
 .uc-shell .icon-alert-dot { position: absolute; top: -4px; right: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px var(--bg-elev); }
 @media (max-width: 1200px) {
@@ -805,7 +813,7 @@
 .uc-shell .copilot-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .uc-shell .copilot-chip { font-size: 11px; padding: 4px 8px; border-radius: 999px; background: var(--bg-active); color: var(--text-secondary); border: 1px solid var(--border); }
 .uc-shell .copilot-chip:hover { background: var(--purple-soft); color: var(--purple-text); border-color: var(--purple); }
-.uc-shell .ai-msg.degraded .ai-body { border-color: var(--amber); background: var(--amber-soft); }
+.uc-shell .ai-msg.muted .ai-body { border-color: var(--amber); background: var(--amber-soft); }
 .uc-shell .cortex-task-card { display: grid; gap: 10px; }
 .uc-shell .cortex-task-mini { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-secondary); }
 .uc-shell .cortex-task-mini strong { display: block; color: var(--text); font-size: 12.5px; margin-bottom: 2px; }
