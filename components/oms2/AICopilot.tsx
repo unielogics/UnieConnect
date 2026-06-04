@@ -3,6 +3,7 @@ import { Icon } from './icons';
 import { Chip, Confidence } from './ui';
 import {
   fetchCopilotContext,
+  fetchCortexChatHealth,
   fetchCortexTasks,
   sendCortexChat,
   CopilotContext,
@@ -58,6 +59,11 @@ export const AICopilot = ({
   useEffect(() => {
     setThreadId(null);
     setCortexHealth(cortexAvailable ? 'checking' : 'offline');
+    if (cortexAvailable) {
+      fetchCortexChatHealth(section)
+        .then((res) => setCortexHealth(res.ok ? 'online' : 'offline'))
+        .catch(() => setCortexHealth('offline'));
+    }
     fetchCopilotContext(section)
       .then((c) => {
         setCtx(c);
