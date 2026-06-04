@@ -173,7 +173,10 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
             <RevenueTrendCard data={data} bd={bd} compact />
           </div>
 
-          <CortexTasksPanel tasks={tasks} onNavigate={onNavigate} onDecision={decideTask} />
+          <div className="command-task-plan-row" style={{ marginBottom: 16 }}>
+            <CortexTasksPanel tasks={tasks} onNavigate={onNavigate} onDecision={decideTask} />
+            <AiPlanCard bd={bd} upside={upside} costRed={costRed} slaImp={slaImp} onNavigate={onNavigate} />
+          </div>
 
           <div className="row-2" style={{ marginBottom: 16 }}>
             <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={decisionRecommendations} onNavigate={onNavigate} />
@@ -185,37 +188,55 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
             <AutonomousActivityRail activity={data.autonomousActivity} />
           </div>
 
-          <div className="card" style={{ background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 60%)' }}>
-            <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr auto', gap: 24, alignItems: 'center', padding: '20px 24px' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <Chip tone="purple" dot={false}>AI plan · {bd?.plan?.status === 'approved' ? 'active' : 'proposed'}</Chip>
-                  <Chip dot={false}>{bd?.plan?.title || 'Optimized operating model'}</Chip>
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em' }}>Your business, optimized for the next 30 days</div>
-                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4 }}>
-                  {bd?.plan?.summary || `${bd?.plan?.autonomousAfterApproval?.length || 0} autonomous actions staged once the plan is accepted.`}
-                </div>
-              </div>
-              <div className="kv">
-                <div className="kv-label">Revenue upside</div>
-                <div className="kv-value" style={{ fontSize: 22, color: 'var(--green-text)' }}>{upside ? fmt.money(upside, { compact: true, sign: true }) : '—'}</div>
-              </div>
-              <div className="kv">
-                <div className="kv-label">Cost reduction</div>
-                <div className="kv-value" style={{ fontSize: 22, color: 'var(--green-text)' }}>{costRed ? `−${Math.abs(costRed).toFixed(1)}%` : '—'}</div>
-              </div>
-              <div className="kv">
-                <div className="kv-label">SLA improvement</div>
-                <div className="kv-value" style={{ fontSize: 22 }}>{slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'}</div>
-              </div>
-              <button className="btn primary lg" onClick={() => onNavigate('double')}>
-                Open Business Double <Icon name="arrowRight" size={13} />
-              </button>
-            </div>
-          </div>
         </>
       )}
+    </div>
+  );
+};
+
+const AiPlanCard = ({
+  bd,
+  upside,
+  costRed,
+  slaImp,
+  onNavigate,
+}: {
+  bd: BusinessDoubleResponse | null;
+  upside: number;
+  costRed: number;
+  slaImp: number;
+  onNavigate: (target: string, payload?: string) => void;
+}) => {
+  const staged = bd?.plan?.autonomousAfterApproval?.length || 0;
+  const status = bd?.plan?.status === 'approved' ? 'active' : 'proposed';
+  return (
+    <div className="card ai-plan-card">
+      <div className="card-header">
+        <div>
+          <div className="card-title"><Icon name="double" size={15} /> AI plan</div>
+          <div className="card-subtitle">{bd?.plan?.title || 'Six-month multi-warehouse operating plan'}</div>
+        </div>
+        <Chip tone={status === 'active' ? 'green' : 'purple'} dot={false}>{status}</Chip>
+      </div>
+      <div className="card-body ai-plan-body">
+        <div>
+          <div className="ai-plan-title">Your business, optimized for the next 30 days</div>
+          <div className="ai-plan-summary">
+            {bd?.plan?.summary || 'Cortex models seller demand, WMS truth, pallet economics, and transport consolidation to lower cost while improving delivery speed.'}
+          </div>
+        </div>
+        <div className="ai-plan-metrics">
+          <MiniMetric label="Revenue upside" value={upside ? fmt.money(upside, { compact: true, sign: true }) : '—'} sub="modeled gain" tone={upside ? 'green' : undefined} />
+          <MiniMetric label="Cost reduction" value={costRed ? `−${Math.abs(costRed).toFixed(1)}%` : '—'} sub="network cost" tone={costRed ? 'green' : undefined} />
+          <MiniMetric label="SLA improvement" value={slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'} sub="delivery speed" tone={slaImp ? 'green' : undefined} />
+        </div>
+        <div className="ai-plan-footer">
+          <Chip tone={staged ? 'blue' : 'default'} dot={false}>{staged} staged actions</Chip>
+          <button className="btn primary sm" onClick={() => onNavigate('double')}>
+            Open Business Double <Icon name="arrowRight" size={12} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -317,7 +338,7 @@ const CortexTasksPanel = ({
   const screens = Array.from(new Set(tasks.map((task) => task.screen || task.actionTarget || 'command'))).slice(0, 4);
   const sources = Array.from(new Set(tasks.map((task) => task.source || 'readiness'))).slice(0, 3);
   return (
-    <div className="card cortex-task-panel" style={{ marginBottom: 16 }}>
+    <div className="card cortex-task-panel">
       <div className="card-header">
         <div>
           <div className="card-title"><Icon name="sparkle" size={15} /> Cortex task inbox</div>
