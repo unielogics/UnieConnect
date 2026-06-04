@@ -113,6 +113,7 @@ export const AICopilot = ({
     cortexAvailable === false ? 'offline' : 'checking'
   );
   const [pending, setPending] = useState(false);
+  const [guidanceOpen, setGuidanceOpen] = useState(false);
 
   const loadThreads = () => {
     fetchCortexChatThreads(section)
@@ -283,12 +284,18 @@ export const AICopilot = ({
         ))}
 
         {tasks.length > 0 && (
-          <div className="ai-card cortex-task-card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <h4>Active guidance</h4>
-              <Chip tone="purple" dot={false}>{tasks.length} open</Chip>
-            </div>
-            {tasks.slice(0, 3).map((task) => (
+          <div className={`ai-card cortex-task-card ${guidanceOpen ? 'open' : 'collapsed'}`}>
+            <button className="cortex-guidance-toggle" onClick={() => setGuidanceOpen((open) => !open)}>
+              <span>
+                <strong>Active guidance</strong>
+                <small>{tasks.length} open · {tasks.filter((task) => task.priority === 'high').length} high priority</small>
+              </span>
+              <span className="guidance-toggle-right">
+                <Chip tone="purple" dot={false}>{tasks.length}</Chip>
+                <Icon name={guidanceOpen ? 'chevronUp' : 'chevronDown'} size={12} />
+              </span>
+            </button>
+            {guidanceOpen && tasks.slice(0, 3).map((task) => (
               <div key={task.id} className="cortex-task-mini">
                 <div>
                   <span className={`task-priority ${task.priority}`}>{task.priority}</span>
