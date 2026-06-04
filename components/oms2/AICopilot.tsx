@@ -52,10 +52,12 @@ export const AICopilot = ({
   const [history, setHistory] = useState<Msg[]>([]);
   const [taskCount, setTaskCount] = useState(0);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>(cortexAvailable ? 'checking' : 'offline');
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
     setThreadId(null);
+    setCortexHealth(cortexAvailable ? 'checking' : 'offline');
     fetchCopilotContext(section)
       .then((c) => {
         setCtx(c);
@@ -80,6 +82,7 @@ export const AICopilot = ({
       const res = await sendCortexChat({ screen: section, message: q, threadId });
       if (res.thread?.id) setThreadId(res.thread.id);
       if (res.context?.tasks) setTaskCount(res.context.tasks.length);
+      setCortexHealth(res.cortex?.ok ? 'online' : 'offline');
       setHistory((h) => [
         ...h,
         {
@@ -88,13 +91,13 @@ export const AICopilot = ({
           body: (
             <>
               <div>{res.message?.content || 'Cortex returned no answer.'}</div>
-              {res.message?.readinessNotes && <div className="source">Readiness: {res.message.readinessNotes}</div>}
               {res.message?.confidence != null && <div style={{ marginTop: 6 }}><Confidence value={res.message.confidence} /></div>}
             </>
           ),
         },
       ]);
     } catch {
+      setCortexHealth('offline');
       setHistory((h) => [...h, { role: 'ai', body: 'Cortex chat is unavailable right now. No cross-account data was used or exposed.', degraded: true }]);
     } finally {
       setPending(false);
@@ -109,10 +112,10 @@ export const AICopilot = ({
     <aside className="copilot">
       <div className="copilot-head">
         <div className="copilot-title">
-          <span className="ai-dot" />
+          <span className={`ai-dot ${cortexHealth}`} />
           Cortex
-          <Chip tone={cortexAvailable ? 'purple' : 'amber'} dot={false}>
-            {cortexAvailable ? 'Cortex live' : 'Cortex degraded'}
+          <Chip tone={cortexHealth === 'online' ? 'green' : cortexHealth === 'offline' ? 'red' : 'amber'} dot={false}>
+            {cortexHealth === 'online' ? 'Cortex online' : cortexHealth === 'offline' ? 'Cortex offline' : 'Checking Cortex'}
           </Chip>
         </div>
         <button className="icon-btn" onClick={onClose} data-hint="Close">

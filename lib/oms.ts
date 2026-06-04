@@ -535,7 +535,11 @@ export type CortexChatResponse = {
   thread?: CortexChatThread | null;
   message?: CortexChatMessage | null;
   context?: { screen?: string; readiness?: IntelligenceReadiness; tasks?: CortexTask[]; recommendations?: OmsRecommendation[] };
-  cortex?: { ok?: boolean; status?: number };
+  cortex?: {
+    ok?: boolean;
+    status?: number;
+    health?: { available?: boolean; chatIntegrated?: boolean; status?: number; reason?: string };
+  };
 };
 
 export type IntelligenceReadiness = {
