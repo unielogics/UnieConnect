@@ -8,7 +8,6 @@ import { Icon } from './icons';
 import { AICopilot } from './AICopilot';
 import { ShipmentWizard } from './ShipmentWizard';
 import { OrderModal } from './OrderModal';
-import { TweaksPanel } from './TweaksPanel';
 import { CommandCenter } from './screens/CommandCenter';
 import { BusinessDouble } from './screens/BusinessDouble';
 import { InventoryPlan } from './screens/InventoryPlan';
@@ -35,7 +34,7 @@ import { NewTicketModal } from './modals/NewTicketModal';
 import { CsvImportModal, CsvImportEntity } from './modals/CsvImportModal';
 import { StateDetailModal } from './modals/StateDetailModal';
 import type { OmsOrder, OmsSku } from '../../lib/oms';
-import { fetchCurrentUser, canManageUsers, type CurrentUser } from '../../lib/user';
+import { fetchCurrentUser, type CurrentUser } from '../../lib/user';
 import { fetchUserFeatures, type Feature } from '../../lib/features';
 
 export type Tweaks = { theme: 'light' | 'dark'; accent: string; density: 'comfortable' | 'compact'; cortexAvailable: boolean };
@@ -244,16 +243,15 @@ export default function UnieConnectApp() {
     return ids;
   }, [userFeatures]);
 
-  const previewAllApps = canManageUsers(currentUser?.role);
-  const nav = useMemo(() => buildSidebarNav(enabledFeatureIds, previewAllApps), [enabledFeatureIds, previewAllApps]);
+  const nav = useMemo(() => buildSidebarNav(enabledFeatureIds, false), [enabledFeatureIds]);
 
   const isScreenAvailable = useCallback(
     (screenId: string) => {
-      if (previewAllApps || isCoreScreen(screenId)) return true;
+      if (isCoreScreen(screenId)) return true;
       const featureId = featureForScreen(screenId);
       return !!featureId && enabledFeatureIds.has(featureId);
     },
-    [enabledFeatureIds, previewAllApps]
+    [enabledFeatureIds]
   );
 
   const createShipmentForSupplier = useCallback((supplierId: string, skus: SelSku[]) => {
@@ -465,8 +463,6 @@ export default function UnieConnectApp() {
           {stateDetail && (
             <StateDetailModal stateCode={stateDetail} onClose={() => setStateDetail(null)} />
           )}
-
-          <TweaksPanel tweaks={tweaks} setTweak={setTweak} />
 
           {!tweaks.cortexAvailable && <CortexDegradedBanner />}
         </div>

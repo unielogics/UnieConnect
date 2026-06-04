@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Loading, ErrorState, EmptyState, Modal } from '../ui';
-import { fetchMarketplaceFeatures, enableFeature, disableFeature, Feature } from '../../../lib/features';
+import { fetchMarketplaceFeatures, enableFeature, Feature } from '../../../lib/features';
 import type { ScreenProps } from '../UnieConnectApp';
 import { AppStudioModal } from './AppStudioModal';
 
@@ -123,11 +123,11 @@ export const Marketplace = (props: ScreenProps) => {
   useEffect(load, []);
 
   const toggle = async (f: Feature) => {
+    if (f.isEnabled) return;
     setBusy(f.id);
     try {
-      if (f.isEnabled) await disableFeature(f.id);
-      else await enableFeature(f.id);
-      setFeatures((prev) => prev.map((x) => (x.id === f.id ? { ...x, isEnabled: !x.isEnabled } : x)));
+      await enableFeature(f.id);
+      setFeatures((prev) => prev.map((x) => (x.id === f.id ? { ...x, isEnabled: true, userStatus: 'enabled' } : x)));
       props.onFeaturesChanged?.();
     } catch (e) {
       /* surfaced via reload */
@@ -204,7 +204,7 @@ export const Marketplace = (props: ScreenProps) => {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>{priceLabel(featured)}</div>
-                  <button className={`btn lg ${featured.isEnabled ? '' : 'primary'}`} onClick={() => toggle(featured)} disabled={busy === featured.id}>
+                  <button className={`btn lg ${featured.isEnabled ? '' : 'primary'}`} onClick={() => toggle(featured)} disabled={featured.isEnabled || busy === featured.id}>
                     {featured.isEnabled ? (
                       <>
                         <Icon name="check" size={13} /> Installed
@@ -291,8 +291,8 @@ export const Marketplace = (props: ScreenProps) => {
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: 12, fontWeight: 600 }}>{priceLabel(app)}</div>
-                  <button className={`btn ${app.isEnabled ? '' : 'primary'} sm`} onClick={() => toggle(app)} disabled={busy === app.id}>
-                    {app.isEnabled ? 'Manage' : 'Install'}
+                  <button className={`btn ${app.isEnabled ? '' : 'primary'} sm`} onClick={() => toggle(app)} disabled={app.isEnabled || busy === app.id}>
+                    {app.isEnabled ? 'Installed' : 'Install'}
                   </button>
                 </div>
               </div>

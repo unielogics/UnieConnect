@@ -59,8 +59,9 @@ export const channelColor = (ch?: string) =>
   CHANNEL_COLORS[(ch || '').toLowerCase()] || 'var(--text-tertiary)';
 
 /* Build a deterministic sparkline series from a single value so KPI tiles
-   always have a trend visual even when the backend returns no series. */
+   can show a trend visual when there is real activity. */
 export const sparkFrom = (value: number, deltaPct = 0, points = 24): number[] => {
+  if (!Number.isFinite(value) || value <= 0) return [];
   const end = value || 1;
   const start = end / (1 + deltaPct / 100 || 1);
   const out: number[] = [];

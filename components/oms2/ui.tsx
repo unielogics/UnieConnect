@@ -86,6 +86,7 @@ export const Sparkline = ({
   if (!data || data.length < 2) return <svg width={width} height={height} />;
   const min = Math.min(...data);
   const max = Math.max(...data);
+  if (max <= 0 || max === min) return <svg width={width} height={height} />;
   const range = max - min || 1;
   const pts = data.map((v, i) => [
     (i / (data.length - 1)) * width,

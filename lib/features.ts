@@ -150,16 +150,13 @@ export async function fetchUserFeatures(): Promise<{ features: Feature[] }> {
 
 export async function enableFeature(idOrSlug: string): Promise<{ success: boolean; message: string; feature: Feature }> {
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
 
   const url = apiUrl(`/api/v1/features/${idOrSlug}/enable`);
-  const res = await fetch(url, {
+  const res = await authFetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
 
@@ -172,16 +169,13 @@ export async function enableFeature(idOrSlug: string): Promise<{ success: boolea
 
 export async function disableFeature(idOrSlug: string): Promise<{ success: boolean; message: string; feature: Feature }> {
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
 
   const url = apiUrl(`/api/v1/features/${idOrSlug}/disable`);
-  const res = await fetch(url, {
+  const res = await authFetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
 
@@ -197,16 +191,13 @@ export async function purchaseFeature(
   paymentMethodId?: string
 ): Promise<{ success: boolean; message: string; feature: Feature }> {
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
 
   const url = apiUrl(`/api/v1/features/${idOrSlug}/purchase`);
-  const res = await fetch(url, {
+  const res = await authFetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ paymentMethodId }),
   });

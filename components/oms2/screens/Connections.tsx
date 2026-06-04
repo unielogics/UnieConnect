@@ -55,9 +55,13 @@ const normalizeShop = (value: string) =>
 const ConnectionCard = ({
   c,
   onRefresh,
+  onRemove,
+  busy,
 }: {
   c: Conn;
   onRefresh: (c: Conn) => void;
+  onRemove: (c: Conn) => void;
+  busy?: boolean;
 }) => (
   <div className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -77,9 +81,14 @@ const ConnectionCard = ({
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
       <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Last sync · {c.lastSync}</span>
       <div style={{ display: 'flex', gap: 4 }}>
-        <button className="btn ghost sm" onClick={() => onRefresh(c)} data-hint={c.owner === 'wms' ? 'Test connection' : 'Refresh'}>
+        <button className="btn ghost sm" onClick={() => onRefresh(c)} disabled={busy} data-hint={c.owner === 'wms' ? 'Test connection' : 'Refresh'}>
           <Icon name="refresh" size={11} />
         </button>
+        {(c.owner === 'marketplace' || c.owner === 'wms') && (
+          <button className="btn ghost sm" onClick={() => onRemove(c)} disabled={busy} data-hint="Remove connection">
+            <Icon name="x" size={11} />
+          </button>
+        )}
       </div>
     </div>
   </div>
@@ -361,6 +370,27 @@ export const Connections = (_: ScreenProps) => {
     }
   };
 
+  const removeConnection = async (c: Conn) => {
+    if (!window.confirm(`Remove ${c.name}? This disconnects it from this OMS account.`)) return;
+    setBusy(c.id);
+    setNotice(null);
+    try {
+      if (c.owner === 'marketplace' && c.raw?.id) {
+        await apiFetch(`/channel-accounts/${encodeURIComponent(c.raw.id)}`, { method: 'DELETE' });
+      } else if (c.owner === 'wms' && c.raw?.warehouseCode) {
+        await apiFetch(`/oms/warehouses/${encodeURIComponent(c.raw.warehouseCode)}`, { method: 'DELETE' });
+      } else {
+        throw new Error('This connection type cannot be removed here.');
+      }
+      setNotice(`${c.name} removed.`);
+      load();
+    } catch (err: any) {
+      setNotice(err?.message || 'Remove connection failed');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const syncAll = async () => {
     setBusy('all');
     setNotice(null);
@@ -428,7 +458,7 @@ export const Connections = (_: ScreenProps) => {
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
                   {items.map((c) => (
-                    <ConnectionCard key={c.id} c={c} onRefresh={refreshConnection} />
+                    <ConnectionCard key={c.id} c={c} onRefresh={refreshConnection} onRemove={removeConnection} busy={busy === c.id || busy === 'all'} />
                   ))}
                 </div>
               )}
