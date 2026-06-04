@@ -40,7 +40,7 @@ const messageToHistory = (m: CortexChatMessage): Msg => ({
   sources: m.sources,
   body: (
     <>
-      <div>{m.content}</div>
+      <div className="ai-answer-text">{m.content}</div>
       {m.confidence != null && <div style={{ marginTop: 6 }}><Confidence value={m.confidence} /></div>}
     </>
   ),
@@ -179,7 +179,7 @@ export const AICopilot = ({
           sources: res.message?.sources,
           body: (
             <>
-              <div>{res.message?.content || 'Cortex returned no answer.'}</div>
+              <div className="ai-answer-text">{res.message?.content || 'Cortex returned no answer.'}</div>
               {res.message?.confidence != null && <div style={{ marginTop: 6 }}><Confidence value={res.message.confidence} /></div>}
             </>
           ),
