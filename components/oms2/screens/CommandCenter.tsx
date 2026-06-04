@@ -170,13 +170,13 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
 
           <div className="command-decision-row" style={{ marginBottom: 16 }}>
             <OptimizationImpactPanel recommendations={decisionRecommendations} onNavigate={onNavigate} onDecision={decideRecommendation} />
-            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={decisionRecommendations} onNavigate={onNavigate} />
+            <RevenueTrendCard data={data} bd={bd} compact />
           </div>
 
           <CortexTasksPanel tasks={tasks} onNavigate={onNavigate} onDecision={decideTask} />
 
           <div className="row-2" style={{ marginBottom: 16 }}>
-            <RevenueTrendCard data={data} bd={bd} />
+            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={decisionRecommendations} onNavigate={onNavigate} />
             <ChannelMixCard data={data} />
           </div>
 
@@ -220,7 +220,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   );
 };
 
-const RevenueTrendCard = ({ data, bd }: { data: CommandCenterFull; bd: BusinessDoubleResponse | null }) => {
+const RevenueTrendCard = ({ data, bd, compact = false }: { data: CommandCenterFull; bd: BusinessDoubleResponse | null; compact?: boolean }) => {
   const revenue = data.metrics.revenue || 0;
   const optMult = 1 + Math.abs(Number(bd?.plan?.savings?.costPct ?? 8)) / 100;
   const N = data.range === 'today' ? 24 : data.range === '7d' ? 8 : 6;
@@ -235,7 +235,7 @@ const RevenueTrendCard = ({ data, bd }: { data: CommandCenterFull; bd: BusinessD
   const optimized = actual.map((v) => v * optMult);
 
   const W = 720;
-  const H = 220;
+  const H = compact ? 170 : 220;
   const P = { l: 50, r: 12, t: 16, b: 28 };
   const max = Math.max(1, ...optimized.filter(Number.isFinite)) * 1.05;
   const xStep = (W - P.l - P.r) / Math.max(1, N - 1);
@@ -273,7 +273,7 @@ const RevenueTrendCard = ({ data, bd }: { data: CommandCenterFull; bd: BusinessD
           </span>
         </div>
       </div>
-      <div style={{ padding: '8px 0 0' }}>
+      <div style={{ padding: compact ? '4px 0 0' : '8px 0 0' }}>
         <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} preserveAspectRatio="none">
           {[0, 0.25, 0.5, 0.75, 1].map((p) => {
             const y = yScale(max * p);
@@ -312,56 +312,68 @@ const CortexTasksPanel = ({
   tasks: CortexTask[];
   onNavigate: (target: string, payload?: string) => void;
   onDecision: (task: CortexTask, action: 'done' | 'dismiss') => void;
-}) => (
-  <div className="card" style={{ marginBottom: 16 }}>
-    <div className="card-header">
-      <div>
-        <div className="card-title"><Icon name="sparkle" size={15} /> Cortex task inbox</div>
-        <div className="card-subtitle">Account readiness tasks generated from blockers and current Cortex recommendations.</div>
+}) => {
+  const highPriority = tasks.filter((task) => task.priority === 'high').length;
+  const screens = Array.from(new Set(tasks.map((task) => task.screen || task.actionTarget || 'command'))).slice(0, 4);
+  const sources = Array.from(new Set(tasks.map((task) => task.source || 'readiness'))).slice(0, 3);
+  return (
+    <div className="card cortex-task-panel" style={{ marginBottom: 16 }}>
+      <div className="card-header">
+        <div>
+          <div className="card-title"><Icon name="sparkle" size={15} /> Cortex task inbox</div>
+          <div className="card-subtitle">Readiness work that improves account intelligence. Approval decisions stay in the decision panel.</div>
+        </div>
+        <Chip tone={tasks.length ? 'purple' : 'green'} dot={false}>{tasks.length} open</Chip>
       </div>
-      <Chip tone={tasks.length ? 'purple' : 'green'} dot={false}>{tasks.length} open</Chip>
+      {tasks.length === 0 ? (
+        <div className="card-body"><EmptyState>No open Cortex tasks. Readiness blockers and recommendations will appear here.</EmptyState></div>
+      ) : (
+        <>
+          <div className="cortex-task-summary">
+            <MiniMetric label="High priority" value={String(highPriority)} sub="needs action" tone={highPriority ? 'red' : 'green'} />
+            <MiniMetric label="Work areas" value={String(screens.length)} sub={screens.map((s) => s.replace(/-/g, ' ')).join(', ') || 'none'} />
+            <MiniMetric label="Sources" value={String(sources.length)} sub={sources.join(', ')} />
+          </div>
+          <div className="table-wrap">
+            <table className="data-table cortex-task-table">
+              <thead>
+                <tr>
+                  <th>Task and reason</th>
+                  <th>Priority</th>
+                  <th>Where</th>
+                  <th>Source</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasks.map((task) => (
+                  <tr key={task.id}>
+                    <td>
+                      <strong>{task.title}</strong>
+                      {task.detail && <div className="muted">{task.detail}</div>}
+                    </td>
+                    <td><span className={`task-priority ${task.priority}`}>{task.priority}</span></td>
+                    <td>{(task.screen || task.actionTarget || 'command').replace(/-/g, ' ')}</td>
+                    <td><Chip dot={false}>{task.source}</Chip></td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="btn ghost sm" onClick={() => onNavigate(task.actionTarget || task.screen || 'command', task.entityId || undefined)}>
+                          <Icon name="arrowRight" size={12} /> Open
+                        </button>
+                        <button className="icon-btn" data-hint="Mark done" onClick={() => onDecision(task, 'done')}><Icon name="check" size={13} /></button>
+                        <button className="icon-btn" data-hint="Dismiss" onClick={() => onDecision(task, 'dismiss')}><Icon name="x" size={13} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
-    {tasks.length === 0 ? (
-      <div className="card-body"><EmptyState>No open Cortex tasks. Readiness blockers and recommendations will appear here.</EmptyState></div>
-    ) : (
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Task</th>
-              <th>Source</th>
-              <th>Priority</th>
-              <th>Screen</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.map((task) => (
-              <tr key={task.id}>
-                <td>
-                  <strong>{task.title}</strong>
-                  {task.detail && <div className="muted">{task.detail}</div>}
-                </td>
-                <td><Chip dot={false}>{task.source}</Chip></td>
-                <td><span className={`task-priority ${task.priority}`}>{task.priority}</span></td>
-                <td>{task.screen?.replace(/-/g, ' ') || 'command'}</td>
-                <td>
-                  <div className="row-actions">
-                    <button className="btn ghost sm" onClick={() => onNavigate(task.actionTarget || task.screen || 'command', task.entityId || undefined)}>
-                      <Icon name="arrowRight" size={12} /> Open
-                    </button>
-                    <button className="icon-btn" data-hint="Mark done" onClick={() => onDecision(task, 'done')}><Icon name="check" size={13} /></button>
-                    <button className="icon-btn" data-hint="Dismiss" onClick={() => onDecision(task, 'dismiss')}><Icon name="x" size={13} /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )}
-  </div>
-);
+  );
+};
 
 const ChannelMixCard = ({ data }: { data: CommandCenterFull }) => {
   // Backend exposes channel count only; render the design card with an

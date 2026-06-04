@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from './icons';
-import { completeCortexTask, dismissCortexTask, fetchCortexTasks, CortexTask } from '../../lib/oms';
+import { completeCortexTask, dismissCortexTask, fetchCortexChatHealth, fetchCortexTasks, CortexTask } from '../../lib/oms';
 
 export const TITLE_MAP: Record<string, [string, string]> = {
   command: ['Command Center', 'Live operating cockpit'],
@@ -33,6 +33,7 @@ export const TopBar = ({
   onToggleTheme,
   onOpenProfile,
   onNavigate,
+  cortexAvailable,
 }: {
   section: string;
   copilotOpen: boolean;
@@ -41,10 +42,14 @@ export const TopBar = ({
   onToggleTheme: () => void;
   onOpenProfile?: () => void;
   onNavigate?: (target: string, payload?: string) => void;
+  cortexAvailable?: boolean;
 }) => {
   const [title] = TITLE_MAP[section] || ['', ''];
   const [tasksOpen, setTasksOpen] = useState(false);
   const [tasks, setTasks] = useState<CortexTask[]>([]);
+  const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>(
+    cortexAvailable === false ? 'offline' : 'checking'
+  );
 
   const loadTasks = (refresh = false) => {
     fetchCortexTasks({ status: 'open', refresh, limit: 12 })
@@ -55,6 +60,25 @@ export const TopBar = ({
   useEffect(() => {
     loadTasks(true);
   }, [section]);
+
+  useEffect(() => {
+    if (cortexAvailable === false) {
+      setCortexHealth('offline');
+      return;
+    }
+    let cancelled = false;
+    setCortexHealth('checking');
+    fetchCortexChatHealth(section)
+      .then((res) => {
+        if (!cancelled) setCortexHealth(res.ok ? 'online' : 'offline');
+      })
+      .catch(() => {
+        if (!cancelled) setCortexHealth('offline');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [section, cortexAvailable]);
 
   const updateTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
     if (action === 'done') await completeCortexTask(task.id).catch(() => null);
@@ -131,8 +155,12 @@ export const TopBar = ({
         <Icon name="settings" />
       </button>
 
-      <button className={`copilot-btn ${copilotOpen ? 'active' : ''}`} onClick={onToggleCopilot}>
-        <span className="ai-dot" />
+      <button
+        className={`copilot-btn ${copilotOpen ? 'active' : ''}`}
+        onClick={onToggleCopilot}
+        data-hint={cortexHealth === 'online' ? 'Cortex online' : cortexHealth === 'offline' ? 'Cortex offline' : 'Checking Cortex'}
+      >
+        <span className={`ai-dot ${cortexHealth}`} />
         Cortex
       </button>
     </header>

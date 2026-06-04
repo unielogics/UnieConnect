@@ -775,6 +775,11 @@ export const sendCortexChat = (body: { screen: string; message: string; threadId
     body: JSON.stringify(body),
   });
 
+export const fetchCortexChatHealth = (screen = 'command') =>
+  omsFetch<{ ok: boolean; status?: number; health?: NonNullable<CortexChatResponse['cortex']>['health'] }>(
+    `/intelligence/cortex/health?screen=${encodeURIComponent(screen)}`
+  );
+
 export const fetchCortexChatThreads = (screen?: string) => {
   const qs = new URLSearchParams();
   if (screen) qs.set('screen', screen);

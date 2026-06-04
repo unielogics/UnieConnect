@@ -363,6 +363,7 @@ export default function UnieConnectApp() {
               onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
               onOpenProfile={() => navigate('profile')}
               onNavigate={navigate}
+              cortexAvailable={tweaks.cortexAvailable}
             />
             <React.Fragment key={`${section}-${screenKey}`}>
               {screens[section] || <CommandCenter {...sp} />}
