@@ -58,15 +58,45 @@ const sourceLabel = (mode?: string) => {
   return 'Manual / setup needed';
 };
 
+const riskTone = (risk?: string) =>
+  risk === 'needs_data' ? 'amber' : risk === 'strong_candidate' ? 'green' : risk === 'weak_candidate' ? 'red' : 'blue';
+
+const readinessTone = (score?: number) => {
+  const n = Number(score || 0);
+  if (n >= 75) return 'green';
+  if (n >= 45) return 'amber';
+  return 'red';
+};
+
+const n = (value: unknown) => {
+  const parsed = typeof value === 'string' ? Number.parseFloat(value) : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const selectedBaseline = (sku: OmsSku | undefined, manual: Record<string, string>) => {
+  const manualDims = n(manual.length) > 0 && n(manual.width) > 0 && n(manual.height) > 0;
+  const hasSku = Boolean(sku || manual.sku.trim());
+  return [
+    { label: 'Product identity', met: hasSku, detail: sku ? sku.sku : manual.sku || 'SKU required' },
+    { label: 'Dimensions', met: sku ? n(sku.palletCubeFt) > 0 : manualDims, detail: sku ? 'From catalog if available' : 'L x W x H' },
+    { label: 'Weight', met: sku ? n(sku.palletWeightLbs) > 0 : n(manual.weight) > 0, detail: sku ? 'From catalog if available' : 'Weight in lb' },
+    { label: 'Cost', met: n(manual.cost) > 0, detail: sku ? 'Cortex checks catalog details after run' : 'Needed for margin' },
+    { label: 'Selling price', met: n(manual.price) > 0, detail: sku ? 'Cortex checks catalog details after run' : 'Needed for margin' },
+  ];
+};
+
 export const ProductResearch = ({ onNavigate }: ScreenProps) => {
+  const [workflow, setWorkflow] = useState<'single' | 'bulk'>('single');
   const [readiness, setReadiness] = useState<IntelligenceReadiness | null>(null);
   const [runs, setRuns] = useState<IntelligenceRun[]>([]);
   const [skus, setSkus] = useState<OmsSku[]>([]);
   const [selectedSku, setSelectedSku] = useState('');
+  const [skuSearch, setSkuSearch] = useState('');
   const [manual, setManual] = useState({ sku: '', title: '', asin: '', cost: '', price: '', weight: '', length: '', width: '', height: '' });
   const [result, setResult] = useState<ProductResearchResult | null>(null);
   const [bulkResults, setBulkResults] = useState<ProductResearchResult[]>([]);
   const [csvName, setCsvName] = useState('');
+  const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -92,6 +122,13 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
   useEffect(load, []);
 
   const selected = useMemo(() => skus.find((s) => s.sku === selectedSku || s.id === selectedSku), [skus, selectedSku]);
+  const filteredSkus = useMemo(() => {
+    const q = skuSearch.trim().toLowerCase();
+    if (!q) return skus.slice(0, 8);
+    return skus.filter((sku) => `${sku.sku} ${sku.title || ''}`.toLowerCase().includes(q)).slice(0, 12);
+  }, [skuSearch, skus]);
+  const baseline = useMemo(() => selectedBaseline(selected, manual), [selected, manual]);
+  const missingBaseline = baseline.filter((item) => !item.met).length;
   const latestRun = runs[0];
 
   const runSingle = async () => {
@@ -125,13 +162,18 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
 
   const handleCsv = async (file: File | null) => {
     if (!file) return;
-    setBusy(true);
     setErr(null);
     setCsvName(file.name);
+    const text = await file.text();
+    setCsvRows(parseCsv(text));
+  };
+
+  const runBulk = async () => {
+    if (!csvRows.length) return;
+    setBusy(true);
+    setErr(null);
     try {
-      const text = await file.text();
-      const rows = parseCsv(text);
-      const response = await runBulkProductResearch({ filename: file.name, rows });
+      const response = await runBulkProductResearch({ filename: csvName || 'product-research.csv', rows: csvRows });
       setBulkResults(response.results || []);
       await load();
     } catch (e: any) {
@@ -145,122 +187,218 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
   if (loading) return <div className="page fade-in"><div className="card"><Loading rows={6} /></div></div>;
 
   return (
-    <div className="page fade-in">
+    <div className="page fade-in product-research-page">
       <div className="page-header">
         <div>
           <h1 className="page-title">Product Research</h1>
-          <p className="page-subtitle">Cortex enrichment for single items and bulk CSV catalogs. Marketplace connections remain the strongest signal; CSV fills gaps.</p>
+          <p className="page-subtitle">Find one product, check what Cortex needs, then run enrichment. Use CSV only when you want to process a catalog in bulk.</p>
         </div>
         <div className="page-actions">
           <button className="btn" onClick={() => onNavigate('skus')}><Icon name="box" size={13} /> SKU catalog</button>
-          <button className="btn primary" onClick={runSingle} disabled={busy || (!selected && !manual.sku)}><Icon name="sparkle" size={13} /> Analyze item</button>
         </div>
       </div>
 
-      <div className="stat-grid cols-4" style={{ marginBottom: 16 }}>
-        <div className="stat ai">
-          <div className="stat-label">AI readiness</div>
-          <div className="stat-value">{readiness?.score || 0}%</div>
-          <div className="stat-delta" style={{ color: 'var(--text-tertiary)' }}>{readiness?.posture || 'unknown'}</div>
+      <div className="research-status-strip">
+        <div>
+          <div className="research-status-label">Account readiness</div>
+          <div className={`research-status-score ${readinessTone(readiness?.score)}`}>{readiness?.score || 0}%</div>
         </div>
-        <div className="stat">
-          <div className="stat-label">Primary feed</div>
-          <div className="stat-value" style={{ fontSize: 18 }}>{sourceLabel(readiness?.sourceMode)}</div>
-          <div className="stat-delta" style={{ color: 'var(--text-tertiary)' }}>{readiness?.primarySource?.replace(/_/g, ' ')}</div>
+        <div>
+          <div className="research-status-label">Best data feed</div>
+          <div className="research-status-value">{sourceLabel(readiness?.sourceMode)}</div>
+          <div className="research-status-sub">{readiness?.primarySource?.replace(/_/g, ' ') || 'setup needed'}</div>
         </div>
-        <div className="stat">
-          <div className="stat-label">Catalog SKUs</div>
-          <div className="stat-value">{readiness?.counts?.catalogItems || 0}</div>
-          <div className="stat-delta" style={{ color: 'var(--text-tertiary)' }}>{readiness?.counts?.marketplaceMappedItems || 0} marketplace mapped</div>
+        <div>
+          <div className="research-status-label">Catalog</div>
+          <div className="research-status-value">{readiness?.counts?.catalogItems || 0} SKUs</div>
+          <div className="research-status-sub">{readiness?.counts?.marketplaceMappedItems || 0} marketplace mapped</div>
         </div>
-        <div className="stat warn">
-          <div className="stat-label">Data blockers</div>
-          <div className="stat-value">{readiness?.blockers?.length || 0}</div>
-          <div className="stat-delta down"><span className="arrow">▼</span> confidence blockers</div>
+        <div>
+          <div className="research-status-label">Blocking setup</div>
+          <div className="research-status-value">{readiness?.blockers?.length || 0}</div>
+          <div className="research-status-sub">items lowering confidence</div>
         </div>
       </div>
 
-      <div className="row-2" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title"><Icon name="sparkle" size={15} /> Single item analysis</div>
-              <div className="card-subtitle">Use an existing SKU or enter a product manually.</div>
+      <div className="research-workflow-tabs">
+        <button className={workflow === 'single' ? 'active' : ''} onClick={() => setWorkflow('single')}>
+          <Icon name="search" size={13} /> Single item search
+        </button>
+        <button className={workflow === 'bulk' ? 'active' : ''} onClick={() => setWorkflow('bulk')}>
+          <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Bulk CSV
+        </button>
+      </div>
+
+      {workflow === 'single' ? (
+        <div className="research-single-layout">
+          <div className="card research-search-card">
+            <div className="card-header">
+              <div>
+                <div className="card-title"><Icon name="search" size={15} /> Find a product</div>
+                <div className="card-subtitle">Search the catalog first. If the item is not in the account yet, switch to manual entry.</div>
+              </div>
+              <Chip tone="purple" dot={false}>Cortex</Chip>
             </div>
-            <Chip tone="purple" dot={false}>Cortex</Chip>
+            <div className="card-body">
+              <div className="research-search-box">
+                <Icon name="search" size={15} />
+                <input
+                  value={skuSearch}
+                  onChange={(e) => setSkuSearch(e.target.value)}
+                  placeholder="Search by SKU or title..."
+                  aria-label="Search SKUs"
+                />
+                {selectedSku && (
+                  <button className="btn ghost sm" onClick={() => { setSelectedSku(''); setSkuSearch(''); }}>
+                    Manual item
+                  </button>
+                )}
+              </div>
+
+              <div className="research-sku-list">
+                {filteredSkus.length === 0 ? (
+                  <EmptyState>No matching SKUs. Enter the item manually below.</EmptyState>
+                ) : filteredSkus.map((sku) => (
+                  <button
+                    key={sku.id}
+                    className={`research-sku-row ${selected?.id === sku.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedSku(sku.sku);
+                      setSkuSearch(`${sku.sku} ${sku.title || ''}`.trim());
+                    }}
+                  >
+                    <div>
+                      <div className="mono strong">{sku.sku}</div>
+                      <div className="research-muted">{sku.title || 'Untitled product'}</div>
+                    </div>
+                    <div className="research-row-meta">
+                      <span>{Math.round(n(sku.daysOfCover))}d cover</span>
+                      <Chip tone={sku.risk === 'high' ? 'red' : sku.risk === 'medium' ? 'amber' : 'green'} dot={false}>{sku.risk || 'unknown'}</Chip>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {!selected && (
+                <div className="research-manual-panel">
+                  <div className="research-section-title">Manual item</div>
+                  <div className="research-manual-grid">
+                    {[
+                      ['sku', 'SKU', 'Required'],
+                      ['title', 'Title', 'Recommended'],
+                      ['asin', 'ASIN / ID', 'Optional'],
+                      ['cost', 'Cost', 'Needed for margin'],
+                      ['price', 'Selling price', 'Needed for margin'],
+                      ['weight', 'Weight lb', 'Needed for shipping'],
+                      ['length', 'Length in', 'L'],
+                      ['width', 'Width in', 'W'],
+                      ['height', 'Height in', 'H'],
+                    ].map(([key, label, hint]) => (
+                      <label key={key}>
+                        <span>{label}</span>
+                        <input className="input" value={(manual as any)[key]} placeholder={hint} onChange={(e) => setManual((m) => ({ ...m, [key]: e.target.value }))} />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="card-body" style={{ display: 'grid', gap: 12 }}>
-            {skus.length > 0 && (
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span className="label">Existing SKU</span>
-                <select className="input" value={selectedSku} onChange={(e) => setSelectedSku(e.target.value)}>
-                  <option value="">Manual item</option>
-                  {skus.map((sku) => (
-                    <option key={sku.id} value={sku.sku}>{sku.sku} · {sku.title || sku.sku}</option>
-                  ))}
-                </select>
+
+          <div className="card research-action-card">
+            <div className="card-header">
+              <div>
+                <div className="card-title"><Icon name="sparkle" size={15} /> Ready to analyze</div>
+                <div className="card-subtitle">Cortex can run now, but complete fields produce stronger recommendations.</div>
+              </div>
+              <Chip tone={missingBaseline ? 'amber' : 'green'} dot={false}>{missingBaseline ? `${missingBaseline} gaps` : 'Ready'}</Chip>
+            </div>
+            <div className="card-body">
+              <div className="research-product-preview">
+                <div className="research-product-icon"><Icon name="box" size={20} /></div>
+                <div>
+                  <div className="research-product-title">{selected?.title || manual.title || selected?.sku || manual.sku || 'Choose a product'}</div>
+                  <div className="research-muted">{selected?.sku || manual.sku || 'Search an existing SKU or enter a manual SKU'}</div>
+                </div>
+              </div>
+
+              <div className="research-checklist">
+                {baseline.map((item) => (
+                  <div key={item.label} className={`research-check ${item.met ? 'met' : 'missing'}`}>
+                    <Icon name={item.met ? 'check' : 'warning'} size={12} />
+                    <div>
+                      <strong>{item.label}</strong>
+                      <span>{item.detail}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button className="btn primary research-run-btn" onClick={runSingle} disabled={busy || (!selected && !manual.sku)}>
+                <Icon name="sparkle" size={14} /> {busy ? 'Analyzing...' : 'Run Cortex analysis'}
+              </button>
+              <button className="btn research-run-btn" onClick={() => onNavigate('skus')}>
+                <Icon name="box" size={13} /> Open SKU table
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="research-bulk-layout">
+          <div className="card">
+            <div className="card-header">
+              <div>
+                <div className="card-title"><Icon name="download" size={15} style={{ transform: 'rotate(180deg)' }} /> Upload product CSV</div>
+                <div className="card-subtitle">Use this for catalog cleanup or large imports. Marketplace data still has priority when available.</div>
+              </div>
+              <Chip dot={false}>CSV</Chip>
+            </div>
+            <div className="card-body">
+              <label className="research-upload-zone">
+                <Icon name="download" size={22} style={{ transform: 'rotate(180deg)' }} />
+                <strong>{csvName || 'Choose a CSV file'}</strong>
+                <span>{csvRows.length ? `${csvRows.length.toLocaleString()} rows ready to analyze` : 'No file selected yet'}</span>
+                <input type="file" accept=".csv,text/csv" onChange={(e) => handleCsv(e.target.files?.[0] || null)} disabled={busy} />
               </label>
-            )}
-            {!selected && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {[
-                  ['sku', 'SKU'],
-                  ['title', 'Title'],
-                  ['asin', 'ASIN / ID'],
-                  ['cost', 'Cost'],
-                  ['price', 'Price'],
-                  ['weight', 'Weight lb'],
-                  ['length', 'Length in'],
-                  ['width', 'Width in'],
-                  ['height', 'Height in'],
-                ].map(([key, label]) => (
-                  <label key={key} style={{ display: 'grid', gap: 5 }}>
-                    <span className="label">{label}</span>
-                    <input className="input" value={(manual as any)[key]} onChange={(e) => setManual((m) => ({ ...m, [key]: e.target.value }))} />
-                  </label>
-                ))}
-              </div>
-            )}
-            <button className="btn primary" onClick={runSingle} disabled={busy || (!selected && !manual.sku)}>
-              <Icon name="sparkle" size={13} /> {busy ? 'Analyzing...' : 'Run Cortex Product Research'}
-            </button>
-          </div>
-        </div>
 
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title"><Icon name="download" size={15} style={{ transform: 'rotate(180deg)' }} /> Bulk CSV analysis</div>
-              <div className="card-subtitle">Fallback or supplement when marketplace data is incomplete.</div>
-            </div>
-            <Chip dot={false}>CSV</Chip>
-          </div>
-          <div className="card-body" style={{ display: 'grid', gap: 12 }}>
-            <div style={{ padding: 18, border: '1px dashed var(--border)', borderRadius: 10, background: 'var(--bg-subtle)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 5 }}>Upload product CSV</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-                Recommended columns: sku, title, asin, cost, price, weight, length, width, height.
-              </div>
-              <input type="file" accept=".csv,text/csv" onChange={(e) => handleCsv(e.target.files?.[0] || null)} disabled={busy} />
-              {csvName && <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>{csvName}</div>}
-            </div>
-            {readiness?.blockers?.length ? (
-              <div style={{ display: 'grid', gap: 6 }}>
-                {readiness.blockers.slice(0, 3).map((blocker) => (
-                  <Chip key={blocker} tone="amber" dot={false}>{blocker}</Chip>
+              <div className="research-column-guide">
+                {['sku', 'title', 'asin', 'cost', 'price', 'weight', 'length', 'width', 'height'].map((column) => (
+                  <span key={column}>{column}</span>
                 ))}
               </div>
-            ) : (
-              <Chip tone="green" dot={false}>Ready for high-confidence enrichment</Chip>
-            )}
+
+              <button className="btn primary research-run-btn" onClick={runBulk} disabled={busy || !csvRows.length}>
+                <Icon name="sparkle" size={14} /> {busy ? 'Analyzing...' : 'Run bulk research'}
+              </button>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header">
+              <div className="card-title">What Cortex checks</div>
+            </div>
+            <div className="card-body" style={{ display: 'grid', gap: 10 }}>
+              <Impact label="Product identity" detail="Matches SKU, title, ASIN, or marketplace identity." />
+              <Impact label="Profit baseline" detail="Uses cost and selling price to determine margin readiness." />
+              <Impact label="Fulfillment baseline" detail="Uses weight and dimensions for pallet and parcel fit." />
+              <Impact label="Optimization readiness" detail="Creates a blocked notice when data is missing, not a fake approval." />
+              {readiness?.blockers?.length ? (
+                <div className="research-blockers">
+                  {readiness.blockers.slice(0, 4).map((blocker) => <Chip key={blocker} tone="amber" dot={false}>{blocker}</Chip>)}
+                </div>
+              ) : <Chip tone="green" dot={false}>Account ready for high-confidence enrichment</Chip>}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {(result || bulkResults.length > 0) && (
-        <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card research-results-card">
           <div className="card-header">
-            <div className="card-title">Latest Product Research output</div>
+            <div>
+              <div className="card-title">Research results</div>
+              <div className="card-subtitle">Use these results to complete missing data before sending SKUs into optimization.</div>
+            </div>
             <Chip tone="purple" dot={false}>{result ? 'Single item' : `${bulkResults.length} CSV rows`}</Chip>
           </div>
           <div className="table-wrap">
@@ -268,18 +406,18 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
               <thead>
                 <tr>
                   <th>SKU</th>
-                  <th>Risk</th>
-                  <th className="num">Opportunity</th>
-                  <th>Marketplace readiness</th>
+                  <th>Status</th>
+                  <th className="num">Score</th>
+                  <th>Readiness</th>
                   <th>Fulfillment</th>
-                  <th>Recommendation</th>
+                  <th>Next step</th>
                 </tr>
               </thead>
               <tbody>
                 {(result ? [result] : bulkResults).slice(0, 25).map((row) => (
                   <tr key={row.id || row.sku}>
                     <td className="mono strong">{row.sku}</td>
-                    <td><Chip tone={row.result.productRisk === 'needs_data' ? 'amber' : row.result.productRisk === 'strong_candidate' ? 'green' : 'blue'}>{String(row.result.productRisk || row.status).replace(/_/g, ' ')}</Chip></td>
+                    <td><Chip tone={riskTone(row.result.productRisk)}>{String(row.result.productRisk || row.status).replace(/_/g, ' ')}</Chip></td>
                     <td className="num mono strong">{row.result.opportunityScore || 0}</td>
                     <td>{String(row.result.marketplaceReadiness || 'unknown').replace(/_/g, ' ')}</td>
                     <td className="muted">{String(row.result.fulfillment?.ltlSuitability || row.result.fulfillment?.warehouseFit || 'pending').replace(/_/g, ' ')}</td>
@@ -292,17 +430,17 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
         </div>
       )}
 
-      <div className="row-2">
+      <div className="research-bottom-grid">
         <div className="card">
           <div className="card-header">
-            <div className="card-title">Recent runs</div>
+            <div className="card-title">Recent research</div>
             {latestRun?.confidence != null && <Confidence value={latestRun.confidence} />}
           </div>
           <div style={{ padding: 0 }}>
             {runs.length === 0 ? (
               <EmptyState>No Product Research runs yet.</EmptyState>
             ) : runs.slice(0, 8).map((run) => (
-              <div key={run.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+              <div key={run.id} className="research-run-row">
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700 }}>{String(run.runType).replace(/_/g, ' ')}</div>
                   <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{run.publicId} · {run.cortexStatus || 'pending cortex'}</div>
@@ -318,10 +456,10 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
             <div className="card-title">Feeds Optimize Suite</div>
             <Chip tone="purple" dot={false}>Reusable intelligence</Chip>
           </div>
-          <div className="card-body" style={{ display: 'grid', gap: 12 }}>
-            <Impact label="SKU opportunity score" detail="Improves SKU ranking inside Business Double and Inventory Plan." />
-            <Impact label="Pallet footprint" detail="Adds cube, weight, pallet fill, and LTL suitability before shipment planning." />
-            <Impact label="Marketplace readiness" detail="Separates marketplace-enriched confidence from CSV/manual fallback confidence." />
+          <div className="card-body research-impact-list">
+            <Impact label="Opportunity score" detail="Ranks products by enrichment and optimization potential." />
+            <Impact label="Pallet footprint" detail="Adds cube, weight, pallet fill, and LTL suitability." />
+            <Impact label="Marketplace readiness" detail="Separates marketplace-enriched confidence from CSV/manual fallback." />
             <Impact label="Warehouse fit" detail="Prepares placement logic while WMS truth remains required for final execution." />
             <button className="btn" onClick={() => onNavigate('double')}>
               <Icon name="double" size={13} /> Open Business Double
