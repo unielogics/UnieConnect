@@ -369,7 +369,21 @@ export type SupplierActivityResponse = {
 
 export type HeatmapResponse = {
   states: Array<{ state: string; demand: number; revenue: number; risk?: number; orders?: number }>;
-  warehouses: Array<{ id: string; name?: string; code?: string; state?: string; inventoryUnits?: number; activeSkus?: number; capacity?: number; region?: string; status?: string }>;
+  warehouses: Array<{
+    id: string;
+    name?: string;
+    code?: string;
+    city?: string | null;
+    state?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    inventoryUnits?: number;
+    activeSkus?: number;
+    capacity?: number;
+    region?: string;
+    status?: string;
+  }>;
+  itemStates?: Array<{ itemId?: string | null; sku: string; title?: string; state: string; orders: number; units: number; revenue: number }>;
 };
 
 export type LabelAuditResponse = {

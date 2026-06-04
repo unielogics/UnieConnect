@@ -625,6 +625,15 @@
 .uc-shell .sku-heatmap-card .card-header { align-items: center; }
 .uc-shell .heatmap-legend { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-tertiary); }
 .uc-shell .legend-gradient { width: 110px; height: 9px; border-radius: 999px; background: linear-gradient(90deg, var(--blue-soft), var(--amber), var(--red)); border: 1px solid var(--border-subtle); }
+.uc-shell .heatmap-table-scroll { max-width: 100%; overflow: auto; border-top: 1px solid var(--border-subtle); }
+.uc-shell .heatmap-state-table { min-width: 1280px; border-collapse: separate; border-spacing: 0; }
+.uc-shell .heatmap-state-table th, .uc-shell .heatmap-state-table td { min-width: 72px; }
+.uc-shell .heatmap-state-table .sticky-col { position: sticky; z-index: 2; background: var(--bg-elev); box-shadow: 1px 0 0 var(--border-subtle); }
+.uc-shell .heatmap-state-table thead .sticky-col { z-index: 3; }
+.uc-shell .heatmap-state-table .col-sku { left: 0; min-width: 150px; max-width: 150px; }
+.uc-shell .heatmap-state-table .col-title { left: 150px; min-width: 260px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uc-shell .heatmap-state-table .col-total { left: 410px; min-width: 118px; max-width: 118px; }
+.uc-shell .heat-demand-cell { border-left: 1px solid rgba(255,255,255,0.22); transition: background .12s ease; }
 .uc-shell .sku-heatmap-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border-subtle); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); }
 .uc-shell .sku-heatmap-summary > div { background: var(--bg-elev); padding: 10px 14px; }
 .uc-shell .sku-heatmap-summary span { display: block; font-size: 18px; line-height: 1; font-weight: 850; color: var(--text); }

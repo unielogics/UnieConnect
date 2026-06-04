@@ -102,7 +102,7 @@ export const BusinessDouble = (_: ScreenProps) => {
 
   const warehouses = (hm?.warehouses || []).map((w) => ({
     code: w.code || w.name || '',
-    state: w.state,
+    state: w.state || undefined,
     active: (w.inventoryUnits ?? 0) > 0 || (w.activeSkus ?? 0) > 0,
   }));
   const curNodes = warehouses.filter((w) => w.active).map((w) => w.code);

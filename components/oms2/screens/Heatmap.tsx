@@ -17,6 +17,7 @@ type Metric = 'demand' | 'orders' | 'revenue';
 
 export const Heatmap = ({ onSelectState }: ScreenProps) => {
   const [metric, setMetric] = useState<Metric>('demand');
+  const [tab, setTab] = useState<'map' | 'items'>('map');
   const [hover, setHover] = useState<string | null>(null);
   const [data, setData] = useState<HeatmapResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,12 +44,40 @@ export const Heatmap = ({ onSelectState }: ScreenProps) => {
   const getter = (d: { demand: number; orders: number; revenue: number }) =>
     metric === 'demand' ? d.demand : metric === 'orders' ? d.orders : d.revenue;
   const fmtV = (v: number) =>
-    metric === 'demand' ? `${Math.round(v * 100)}%` : metric === 'orders' ? v.toLocaleString() : fmt.money(v, { compact: true });
+    metric === 'demand' ? v.toLocaleString() : metric === 'orders' ? v.toLocaleString() : fmt.money(v, { compact: true });
   const all = Object.values(byState);
   const maxVal = Math.max(1, ...all.map(getter));
   const totalOrders = all.reduce((s, x) => s + x.orders, 0);
   const totalRev = all.reduce((s, x) => s + x.revenue, 0);
   const hoverData = hover ? byState[hover] : null;
+  const itemStates = data?.itemStates || [];
+  const stateColumns = useMemo(
+    () =>
+      Object.entries(byState)
+        .map(([state, d]) => ({ state, value: getter(d) }))
+        .sort((a, b) => b.value - a.value)
+        .map((s) => s.state),
+    [byState, metric]
+  );
+  const itemRows = useMemo(() => {
+    const grouped = new Map<string, { itemId?: string | null; sku: string; title?: string; totalOrders: number; totalUnits: number; totalRevenue: number; states: Record<string, { orders: number; units: number; revenue: number }> }>();
+    itemStates.forEach((row) => {
+      const key = row.itemId || row.sku;
+      const entry = grouped.get(key) || { itemId: row.itemId, sku: row.sku, title: row.title, totalOrders: 0, totalUnits: 0, totalRevenue: 0, states: {} };
+      const state = String(row.state || '').toUpperCase();
+      entry.totalOrders += num(row.orders);
+      entry.totalUnits += num(row.units);
+      entry.totalRevenue += num(row.revenue);
+      entry.states[state] = {
+        orders: (entry.states[state]?.orders || 0) + num(row.orders),
+        units: (entry.states[state]?.units || 0) + num(row.units),
+        revenue: (entry.states[state]?.revenue || 0) + num(row.revenue),
+      };
+      grouped.set(key, entry);
+    });
+    return Array.from(grouped.values()).sort((a, b) => b.totalOrders - a.totalOrders);
+  }, [itemStates]);
+  const maxItemStateOrders = Math.max(1, ...itemRows.flatMap((row) => Object.values(row.states).map((state) => state.orders)));
 
   return (
     <div className="page fade-in">
@@ -81,13 +110,22 @@ export const Heatmap = ({ onSelectState }: ScreenProps) => {
             <div className="stat good"><div className="stat-label">Revenue (30d)</div><div className="stat-value">{fmt.money(totalRev, { compact: true })}</div></div>
           </div>
 
-          <div className="card" style={{ marginBottom: 16 }}>
+          <div className="view-mode-tabs" style={{ marginBottom: 14 }}>
+            <button className={tab === 'map' ? 'active' : ''} onClick={() => setTab('map')}>
+              <Icon name="map" size={13} /> Map
+            </button>
+            <button className={tab === 'items' ? 'active' : ''} onClick={() => setTab('items')}>
+              <Icon name="list" size={13} /> Items by state
+            </button>
+          </div>
+
+          {tab === 'map' && <div className="card" style={{ marginBottom: 16 }}>
             <div className="card-header">
               <div>
                 <div className="card-title">
                   {metric === 'demand' ? 'Demand intensity' : metric === 'orders' ? 'Orders (30d)' : 'Revenue (30d)'} by state
                 </div>
-                <div className="card-subtitle">Interactive choropleth · hover for detail · click a state to drill in</div>
+                <div className="card-subtitle">Interactive choropleth with account warehouse pins · hover for detail · click a state to drill in</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>0</span>
@@ -103,6 +141,7 @@ export const Heatmap = ({ onSelectState }: ScreenProps) => {
                 fmtV={fmtV}
                 onSelectState={(c) => onSelectState && onSelectState(c)}
                 onHover={setHover}
+                warehouses={data.warehouses}
               />
               <div style={{ padding: 14, background: 'var(--bg-sunken)', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
                 {hoverData ? (
@@ -153,7 +192,65 @@ export const Heatmap = ({ onSelectState }: ScreenProps) => {
                 )}
               </div>
             </div>
-          </div>
+          </div>}
+
+          {tab === 'items' && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <div>
+                  <div className="card-title"><Icon name="box" size={15} /> Item demand by state</div>
+                  <div className="card-subtitle">SKU/state order summary. First columns stay fixed while states scroll horizontally.</div>
+                </div>
+                <Chip tone="purple" dot={false}>{itemRows.length} items</Chip>
+              </div>
+              {itemRows.length === 0 ? (
+                <EmptyState>No item-level order demand is available yet.</EmptyState>
+              ) : (
+                <div className="heatmap-table-scroll">
+                  <table className="data heatmap-state-table">
+                    <thead>
+                      <tr>
+                        <th className="sticky-col col-sku">SKU</th>
+                        <th className="sticky-col col-title">Item</th>
+                        <th className="sticky-col col-total num">Total orders</th>
+                        {stateColumns.map((state) => (
+                          <th key={state} className="num mono">{state}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {itemRows.map((row) => (
+                        <tr key={row.itemId || row.sku}>
+                          <td className="sticky-col col-sku mono strong">{row.sku}</td>
+                          <td className="sticky-col col-title">{row.title || row.sku}</td>
+                          <td className="sticky-col col-total num mono strong">{row.totalOrders.toLocaleString()}</td>
+                          {stateColumns.map((state) => {
+                            const cell = row.states[state];
+                            const orders = num(cell?.orders);
+                            const intensity = Math.max(0, Math.min(1, orders / maxItemStateOrders));
+                            return (
+                              <td
+                                key={state}
+                                className="num mono heat-demand-cell"
+                                style={{
+                                  background: `rgba(109, 40, 217, ${orders ? (0.08 + intensity * 0.82).toFixed(3) : '0.02'})`,
+                                  color: intensity > 0.55 ? '#fff' : 'var(--text)',
+                                  fontWeight: orders ? 800 : 500,
+                                }}
+                                title={`${row.sku} · ${state}: ${orders.toLocaleString()} orders, ${num(cell?.units).toLocaleString()} units, ${fmt.money(num(cell?.revenue), { compact: true })}`}
+                              >
+                                {orders || ''}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="card">
             <div className="card-header">
