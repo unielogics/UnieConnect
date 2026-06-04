@@ -16,7 +16,23 @@ import {
   CortexTask,
 } from '../../lib/oms';
 
-type Msg = { role: 'ai' | 'user'; body: React.ReactNode; muted?: boolean; sources?: Array<Record<string, unknown>> };
+type ChatAction = {
+  id?: string;
+  title?: string;
+  priority?: string;
+  screen?: string;
+  actionTarget?: string;
+  actionLabel?: string;
+  entityId?: string;
+};
+
+type Msg = {
+  role: 'ai' | 'user';
+  body: React.ReactNode;
+  muted?: boolean;
+  sources?: Array<Record<string, unknown>>;
+  actions?: ChatAction[];
+};
 
 const sourceLabel = (source: Record<string, unknown>) => {
   const name = String(source.source || 'oms').replace(/^oms_/, '').replace(/_/g, ' ');
@@ -38,6 +54,7 @@ const messageToHistory = (m: CortexChatMessage): Msg => ({
   role: m.role === 'user' ? 'user' : 'ai',
   muted: m.cortexStatus === 'degraded',
   sources: m.sources,
+  actions: (m.tasks || []) as ChatAction[],
   body: (
     <>
       <div className="ai-answer-text">{m.content}</div>
@@ -177,6 +194,7 @@ export const AICopilot = ({
           role: 'ai',
           muted: cortexUnavailable,
           sources: res.message?.sources,
+          actions: (res.message?.tasks || []) as ChatAction[],
           body: (
             <>
               <div className="ai-answer-text">{res.message?.content || 'Cortex returned no answer.'}</div>
@@ -244,6 +262,19 @@ export const AICopilot = ({
                 <div className="ai-sources">
                   {m.sources.slice(0, 4).map((source, idx) => (
                     <span key={idx}>{sourceLabel(source)}</span>
+                  ))}
+                </div>
+              ) : null}
+              {m.role === 'ai' && m.actions?.length ? (
+                <div className="ai-answer-actions">
+                  {m.actions.slice(0, 3).map((action, idx) => (
+                    <button
+                      key={`${action.id || action.title || 'action'}-${idx}`}
+                      className="ai-answer-action"
+                      onClick={() => onNavigate?.(action.actionTarget || action.screen || 'command', action.entityId || undefined)}
+                    >
+                      <Icon name="arrowRight" size={11} /> {action.actionLabel || action.title || 'Open'}
+                    </button>
                   ))}
                 </div>
               ) : null}

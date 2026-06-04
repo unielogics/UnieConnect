@@ -873,6 +873,9 @@
 .uc-shell .ai-answer-text { white-space: pre-line; }
 .uc-shell .ai-sources { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .uc-shell .ai-sources span { display: inline-flex; align-items: center; min-height: 18px; padding: 1px 6px; border: 1px solid var(--border-subtle); border-radius: 999px; background: var(--bg-active); color: var(--text-tertiary); font-size: 10.5px; font-weight: 650; }
+.uc-shell .ai-answer-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.uc-shell .ai-answer-action { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; max-width: 160px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--purple-soft); background: var(--purple-soft); color: var(--purple-text); font-size: 11px; font-weight: 750; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uc-shell .ai-answer-action:hover { border-color: var(--purple); background: var(--bg-elev); }
 .uc-shell .ai-msg.user .ai-avatar { background: linear-gradient(135deg, #f97316, #db2777); }
 .uc-shell .ai-card { border: 1px solid var(--purple-soft); background: linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 50%); border-radius: var(--radius-md); padding: 12px; font-size: 12px; display: flex; flex-direction: column; gap: 8px; }
 .uc-shell .ai-card h4 { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--text); }
