@@ -373,6 +373,7 @@ export default function UnieConnectApp() {
             <AICopilot
               section={section}
               onClose={() => setCopilotOpen(false)}
+              onNavigate={navigate}
               cortexAvailable={tweaks.cortexAvailable}
             />
           )}

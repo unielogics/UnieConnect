@@ -844,6 +844,7 @@
 .uc-shell .cortex-task-card { display: grid; gap: 10px; }
 .uc-shell .cortex-task-mini { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-secondary); }
 .uc-shell .cortex-task-mini strong { display: block; color: var(--text); font-size: 12.5px; margin-bottom: 2px; }
+.uc-shell .cortex-task-mini span:not(.task-priority) { display: block; line-height: 1.35; }
 .uc-shell .task-mini-actions { display: flex; gap: 4px; align-items: center; }
 .uc-shell .task-priority { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--border); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-secondary); background: var(--bg-active); }
 .uc-shell .task-priority.high { color: var(--red-text); background: var(--red-soft); border-color: var(--red); }

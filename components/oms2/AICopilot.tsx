@@ -2,15 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from './icons';
 import { Chip, Confidence } from './ui';
 import {
+  completeCortexTask,
   fetchCopilotContext,
   fetchCortexChatThread,
   fetchCortexChatThreads,
   fetchCortexChatHealth,
   fetchCortexTasks,
+  dismissCortexTask,
   sendCortexChat,
   CopilotContext,
   CortexChatMessage,
   CortexChatThread,
+  CortexTask,
 } from '../../lib/oms';
 
 type Msg = { role: 'ai' | 'user'; body: React.ReactNode; muted?: boolean };
@@ -58,15 +61,17 @@ const CopilotInput = ({ onSubmit, disabled }: { onSubmit: (q: string) => void; d
 export const AICopilot = ({
   section,
   onClose,
+  onNavigate,
   cortexAvailable,
 }: {
   section: string;
   onClose: () => void;
+  onNavigate?: (target: string, payload?: string) => void;
   cortexAvailable?: boolean;
 }) => {
   const [ctx, setCtx] = useState<CopilotContext | null>(null);
   const [history, setHistory] = useState<Msg[]>([]);
-  const [taskCount, setTaskCount] = useState(0);
+  const [tasks, setTasks] = useState<CortexTask[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [threads, setThreads] = useState<CortexChatThread[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
@@ -77,6 +82,18 @@ export const AICopilot = ({
     fetchCortexChatThreads(section)
       .then((r) => setThreads((r.threads || []).slice(0, 5)))
       .catch(() => setThreads([]));
+  };
+
+  const loadTasks = (refresh = false) => {
+    fetchCortexTasks({ status: 'open', screen: section, refresh, limit: 8 })
+      .then((r) => setTasks(r.tasks || []))
+      .catch(() => setTasks([]));
+  };
+
+  const updateTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
+    if (action === 'done') await completeCortexTask(task.id).catch(() => null);
+    else await dismissCortexTask(task.id).catch(() => null);
+    loadTasks(false);
   };
 
   const startNewThread = () => {
@@ -120,9 +137,7 @@ export const AICopilot = ({
       .catch(() => {
         setHistory([{ role: 'ai', body: 'Cortex context is temporarily unavailable. Operating views remain fully functional.', muted: true }]);
       });
-    fetchCortexTasks({ status: 'open', screen: section, refresh: true, limit: 8 })
-      .then((r) => setTaskCount((r.tasks || []).length))
-      .catch(() => setTaskCount(0));
+    loadTasks(true);
     loadThreads();
   }, [section]);
 
@@ -133,7 +148,7 @@ export const AICopilot = ({
     try {
       const res = await sendCortexChat({ screen: section, message: q, threadId });
       if (res.thread?.id) setThreadId(res.thread.id);
-      if (res.context?.tasks) setTaskCount(res.context.tasks.length);
+      if (res.context?.tasks) setTasks(res.context.tasks);
       setCortexHealth(res.cortex?.ok ? 'online' : 'offline');
       setHistory((h) => [
         ...h,
@@ -205,12 +220,36 @@ export const AICopilot = ({
           </div>
         ))}
 
-        {taskCount > 0 && (
-          <div className="ai-card cortex-context-card">
-            <h4>Account context</h4>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-              {taskCount} open readiness item{taskCount === 1 ? '' : 's'} are available in notifications. Ask Cortex about them, or use the bell for the task inbox.
+        {tasks.length > 0 && (
+          <div className="ai-card cortex-task-card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <h4>Active guidance</h4>
+              <Chip tone="purple" dot={false}>{tasks.length} open</Chip>
             </div>
+            {tasks.slice(0, 3).map((task) => (
+              <div key={task.id} className="cortex-task-mini">
+                <div>
+                  <span className={`task-priority ${task.priority}`}>{task.priority}</span>
+                  <strong>{task.title}</strong>
+                  {task.detail && <span>{task.detail}</span>}
+                </div>
+                <div className="task-mini-actions">
+                  <button
+                    className="icon-btn"
+                    data-hint="Open"
+                    onClick={() => onNavigate?.(task.actionTarget || task.screen || 'command', task.entityId || undefined)}
+                  >
+                    <Icon name="arrowRight" size={13} />
+                  </button>
+                  <button className="icon-btn" data-hint="Done" onClick={() => updateTask(task, 'done')}>
+                    <Icon name="check" size={13} />
+                  </button>
+                  <button className="icon-btn" data-hint="Dismiss" onClick={() => updateTask(task, 'dismiss')}>
+                    <Icon name="x" size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
