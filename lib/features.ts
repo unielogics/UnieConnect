@@ -158,6 +158,7 @@ export async function enableFeature(idOrSlug: string): Promise<{ success: boolea
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
+    body: JSON.stringify({}),
   });
 
   if (!res.ok) {
@@ -177,6 +178,7 @@ export async function disableFeature(idOrSlug: string): Promise<{ success: boole
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
+    body: JSON.stringify({}),
   });
 
   if (!res.ok) {
