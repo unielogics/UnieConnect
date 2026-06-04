@@ -135,7 +135,8 @@ export default function Signup() {
 
   if (!mounted || validating) {
     return (
-      <div className="auth-shell auth-shell-galaxy">
+      <div className="auth-shell auth-shell-galaxy auth-single">
+        <div className="auth-galaxy-bg" aria-hidden />
         <div className="auth-main" style={{ justifyContent: 'center', alignItems: 'center' }}>
           <div className="muted">Checking invite link…</div>
         </div>
@@ -145,10 +146,12 @@ export default function Signup() {
 
   if (valid === false) {
     return (
-      <div className="auth-shell auth-shell-galaxy">
+      <div className="auth-shell auth-shell-galaxy auth-single">
+        <div className="auth-galaxy-bg" aria-hidden />
         <div className="auth-main" style={{ justifyContent: 'center', alignItems: 'center' }}>
           <div className="auth-card" style={{ maxWidth: 400 }}>
             <div className="auth-card-head">
+              <img className="auth-card-logo" src="/unieconnect-logo.png" alt="UnieConnect" />
               <div className="title">Invalid or expired link</div>
               <div className="muted">This invite link is missing, expired, or has already been used. Ask your admin for a new link.</div>
             </div>
@@ -164,6 +167,23 @@ export default function Signup() {
   return (
     <div className="auth-shell auth-shell-galaxy">
       <div className="auth-galaxy-bg" aria-hidden />
+      <div className="auth-panel auth-panel-scroll">
+        <div className="auth-panel-inner">
+          <a className="auth-brand" href="/" aria-label="UnieConnect home">
+            <img src="/unieconnect-logo.png" alt="" />
+            <span>UnieConnect</span>
+          </a>
+          <div className="auth-banner">
+            <span className="auth-banner-dot" aria-hidden />
+            <span>Invite workflow</span>
+            <span className="auth-banner-sub">Account creation stays inside the same UnieConnect experience.</span>
+          </div>
+          <div className="auth-hero">
+            <h1 className="auth-hero-title">Join the operating system for connected commerce.</h1>
+            <p className="auth-hero-support">Create your account, then move directly into marketplace operations, warehouse truth, carrier audit, billing, and Cortex intelligence.</p>
+          </div>
+        </div>
+      </div>
       <div className="auth-main">
         <button
           type="button"
@@ -176,6 +196,7 @@ export default function Signup() {
         <div className="auth-card">
           <div className="auth-card-head">
             <div>
+              <img className="auth-card-logo" src="/unieconnect-logo.png" alt="UnieConnect" />
               <div className="eyebrow">You&apos;re invited</div>
               <div className="title">Create your account</div>
               <div className="muted">

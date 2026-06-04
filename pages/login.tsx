@@ -117,15 +117,20 @@ export default function Login() {
       <div className="auth-galaxy-bg" aria-hidden />
       <div className="auth-panel auth-panel-scroll">
         <div className="auth-panel-inner">
+          <a className="auth-brand" href="/" aria-label="UnieConnect home">
+            <img src="/unieconnect-logo.png" alt="" />
+            <span>UnieConnect</span>
+          </a>
+
           <div className="auth-banner">
             <span className="auth-banner-dot" aria-hidden />
-            <span>Launching soon</span>
-            <span className="auth-banner-sub">We&apos;re putting the finishing touches.</span>
+            <span>OMS command center</span>
+            <span className="auth-banner-sub">Marketplace, warehouse, billing, and Cortex intelligence.</span>
           </div>
 
           <div className="auth-hero">
-            <h1 className="auth-hero-title">Connect To The World</h1>
-            <p className="auth-hero-support">All of your ecommerce operations in one place. One platform. Every channel.</p>
+            <h1 className="auth-hero-title">Operate every channel from one intelligent control layer.</h1>
+            <p className="auth-hero-support">The same UnieConnect experience from the marketing site continues into the console: connected channels, warehouse truth, carrier audits, and Cortex recommendations.</p>
           </div>
 
           <section className="auth-features-wrap" aria-label="Features">
@@ -157,6 +162,7 @@ export default function Login() {
         <div className="auth-card">
           <div className="auth-card-head">
             <div>
+              <img className="auth-card-logo" src="/unieconnect-logo.png" alt="UnieConnect" />
               <div className="eyebrow">Welcome back</div>
               <div className="title">Sign in</div>
               <div className="muted">Use your Unie credentials to access the console.</div>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { TOKEN_KEY } from '../lib/api';
 import { SiteShell } from '../components/marketing/SiteShell';
+import { Logo } from '../components/marketing/Logo';
 
 // ---------------- Dashboard tab data (ported from landing.js) ----------------
 type DashTab = { kpis: [string, string, string][]; rows: [string, string, string, string][] };
@@ -503,7 +504,7 @@ function LandingContent() {
               </div>
             </div>
             <div className="cmp-col cmp-uc reveal d2">
-              <h3><span className="brand-mark" style={{ width: 26, height: 26, fontSize: 13 }}>U</span> UnieConnect</h3>
+              <h3><Logo size={26} /> UnieConnect</h3>
               <div className="cmp-list">
                 {['Connects marketplaces, APIs & warehouse activity', 'Centralizes nationwide fulfillment', 'Feeds AI with real operational data', 'Recommends actions with confidence & impact', 'Lets sellers approve decisions before problems grow', 'Turns the OMS into a command center'].map((t) => (
                   <div className="cmp-row" key={t}><span className="mk">✓</span> {t}</div>

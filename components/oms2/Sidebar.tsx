@@ -264,7 +264,7 @@ export const Sidebar = ({
     <>
       <aside className="sidebar-rail" ref={railRef}>
         <div className="sb-brand">
-          <img className="brand-logo-img" src="/logo.svg" alt="UnieConnect" />
+          <img className="brand-logo-img" src="/unieconnect-logo.png" alt="UnieConnect" />
         </div>
 
         <nav className="sb-nav">

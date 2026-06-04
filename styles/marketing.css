@@ -140,7 +140,8 @@
 }
 .uc-site .nav-inner { display: flex; align-items: center; gap: 28px; height: 68px; }
 .uc-site .brand { display: flex; align-items: center; gap: 11px; font-family: var(--display); font-weight: 600; font-size: 17px; }
-.uc-site .brand-logo { display: block; border-radius: 9px; box-shadow: var(--glow-sm); }
+.uc-site .brand-logo { display: block; border-radius: 9px; box-shadow: var(--glow-sm); object-fit: contain; background: #fff; }
+.uc-site h3 .brand-logo { display: inline-block; vertical-align: -6px; margin-right: 8px; }
 .uc-site .brand-mark {
   width: 32px; height: 32px; border-radius: 9px;
   background: linear-gradient(135deg, var(--violet) 0%, var(--violet-2) 100%);

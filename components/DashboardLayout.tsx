@@ -205,7 +205,7 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
     <div className={`oms-shell ${activeSectionId ? 'menu-open' : ''} ${copilotOpen ? 'copilot-open' : ''}`}>
       <aside className="oms-rail" aria-label="Primary">
         <Link href="/oms" className="oms-mark" title="UnieConnect OMS">
-          <span>UC</span>
+          <img src="/unieconnect-logo.png" alt="UnieConnect" />
         </Link>
         <div className="oms-rail-items">
           {availableSections.map((section) => (
