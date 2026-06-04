@@ -4,7 +4,7 @@ import { Chip, ProgressBar, fmt, Loading, ErrorState, EmptyState } from '../ui';
 import { fetchBillingProfit, BillingProfitResponse } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
-import { OptimizationImpact } from '../OptimizationImpact';
+import { CortexInlineBadge, CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
 
 const CAT_META: { key: string; label: string; desc: string; refund?: boolean }[] = [
   { key: 'storage', label: 'Storage', desc: 'Long-term tier avoidance, smarter pre-positioning' },
@@ -20,6 +20,7 @@ export const Billing = (_: ScreenProps) => {
   const [data, setData] = useState<BillingProfitResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('billing');
 
   const load = () => {
     setLoading(true);
@@ -67,8 +68,6 @@ export const Billing = (_: ScreenProps) => {
         </div>
       </div>
 
-      <OptimizationImpact screen="billing" title="Cost leak and profit optimization" />
-
       <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 50%)' }}>
         <div className="card-body" style={{ padding: 22 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr', gap: 28, alignItems: 'center' }}>
@@ -101,10 +100,14 @@ export const Billing = (_: ScreenProps) => {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <div>
-            <div className="card-title">Cost breakdown — current vs. suggested</div>
-            <div className="card-subtitle">Every line reconciled against WMS-allocated charges.</div>
+            <div className="card-title">
+              Cost breakdown — current vs. suggested
+              <CortexInlineBadge count={recommendations.length} />
+            </div>
+            <div className="card-subtitle">Every line reconciled against WMS-allocated charges. Cortex recommendations are attached directly to the affected row.</div>
           </div>
           <div style={{ display: 'flex', gap: 12, fontSize: 11.5 }}>
+            {screenRec && <CortexRowAction rec={screenRec} label onOpen={() => setSelectedRec(screenRec)} />}
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 10, height: 10, background: 'var(--text-tertiary)', borderRadius: 2 }} />
               <span style={{ color: 'var(--text-secondary)' }}>Current</span>
@@ -120,8 +123,22 @@ export const Billing = (_: ScreenProps) => {
           {cats.map((c) => {
             const delta = c.current - c.optimized;
             const good = c.refund ? c.optimized > c.current : delta > 0;
+            const rec = recFor(c.key, c.label);
             return (
-              <div key={c.key} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 80px', gap: 14, alignItems: 'center' }}>
+              <div
+                key={c.key}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '160px 1fr 80px auto',
+                  gap: 14,
+                  alignItems: 'center',
+                  padding: rec ? '10px 12px' : 0,
+                  margin: rec ? '-10px -12px' : 0,
+                  borderRadius: 8,
+                  background: rec ? 'var(--purple-soft)' : undefined,
+                  boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : undefined,
+                }}
+              >
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{c.label}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{c.desc}</div>
@@ -159,6 +176,9 @@ export const Billing = (_: ScreenProps) => {
                     {c.current ? ((delta / c.current) * 100).toFixed(0) : 0}%
                   </div>
                 </div>
+                <div>
+                  <CortexRowAction rec={rec} onOpen={() => rec && setSelectedRec(rec)} />
+                </div>
               </div>
             );
           })}
@@ -190,8 +210,9 @@ export const Billing = (_: ScreenProps) => {
               {perWh.map((w) => {
                 const d = num(w.current) - num(w.optimized);
                 const pct = w.current ? (d / num(w.current)) * 100 : 0;
+                const rec = recFor(w.code, w.region);
                 return (
-                  <tr key={w.code}>
+                  <tr key={w.code} style={{ background: rec ? 'var(--purple-soft)' : undefined, boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : undefined }}>
                     <td className="mono strong">{w.code}</td>
                     <td className="muted">{w.region || '—'}</td>
                     <td className="num mono">{fmt.money(num(w.current))}</td>
@@ -199,6 +220,7 @@ export const Billing = (_: ScreenProps) => {
                     <td className="num mono strong" style={{ color: 'var(--green-text)' }}>−{fmt.money(d)}</td>
                     <td>
                       <ProgressBar value={pct} max={30} color="green" showLabel height={5} />
+                      {rec && <div style={{ marginTop: 5 }}><CortexRowAction rec={rec} label onOpen={() => setSelectedRec(rec)} /></div>}
                     </td>
                   </tr>
                 );
@@ -207,6 +229,7 @@ export const Billing = (_: ScreenProps) => {
           </table>
         )}
       </div>
+      {recDrawer}
     </div>
   );
 };

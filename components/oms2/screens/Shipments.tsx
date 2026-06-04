@@ -14,7 +14,7 @@ import {
 } from '../../../lib/oms';
 import { num, monthShort } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
-import { OptimizationImpact } from '../OptimizationImpact';
+import { CortexInlineBadge, CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
 
 export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus = [] }: ScreenProps) => {
   const [plan, setPlan] = useState<InventoryPlanFull | null>(null);
@@ -24,6 +24,7 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
   const [err, setErr] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
+  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('shipments');
 
   const load = () => {
     setLoading(true);
@@ -105,21 +106,23 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
             <div className="stat warn"><div className="stat-label">Stockout-risk</div><div className="stat-value">{num(plan.proposed?.stockoutRiskSkus)}</div></div>
           </div>
 
-          <OptimizationImpact screen="shipments" title="Shipment and pallet optimization" onNavigate={onNavigate} />
-
           <div className="row-2" style={{ marginBottom: 16 }}>
             <div className="card">
               <div className="card-header">
                 <div>
                   <div className="card-title">
                     Planned inbound <Chip dot={false}>{inbound.length}</Chip>
+                    <CortexInlineBadge count={recommendations.length} />
                   </div>
                   <div className="card-subtitle">Click rows to stage SKUs for a shipment plan. Multi-select requires the same supplier.</div>
                 </div>
-                <div className="seg">
-                  <button className="active">All</button>
-                  <button>Open</button>
-                  <button>Received</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {screenRec && <CortexRowAction rec={screenRec} label onOpen={() => setSelectedRec(screenRec)} />}
+                  <div className="seg">
+                    <button className="active">All</button>
+                    <button>Open</button>
+                    <button>Received</button>
+                  </div>
                 </div>
               </div>
               {selectionNotice && (
@@ -153,6 +156,7 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                   <tbody>
                     {inbound.map((s) => {
                       const sel = isSelected(s.id);
+                      const rec = recFor(s.id, s.sku);
                       return (
                         <tr
                           key={s.id}
@@ -161,6 +165,7 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                           style={{
                             background: sel ? 'var(--accent-soft)' : undefined,
                             boxShadow: sel ? 'inset 3px 0 0 var(--accent)' : undefined,
+                            outline: rec ? '1px solid rgba(109,40,217,0.22)' : undefined,
                           }}
                         >
                           <td onClick={(e) => e.stopPropagation()}>
@@ -178,8 +183,11 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                           <td className="num mono strong">{num(s.proposedUnits).toLocaleString()}</td>
                           <td className="num mono">{num(s.palletCubeFt)}</td>
                           <td className="mono muted" style={{ textTransform: 'capitalize' }}>{s.serviceTier}</td>
-                          <td style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.recommendation || '—'}</td>
+                          <td style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {rec ? <span style={{ color: 'var(--purple-text)', fontWeight: 700 }}>{rec.summary || rec.title}</span> : s.recommendation || '—'}
+                          </td>
                           <td className="num" onClick={(e) => e.stopPropagation()}>
+                            <CortexRowAction rec={rec} onOpen={() => rec && setSelectedRec(rec)} />
                             <button className="btn ghost sm" onClick={() => onNavigate('sku-detail', s.id)} data-hint="Open SKU detail">
                               <Icon name="eye" size={12} />
                             </button>
@@ -218,8 +226,9 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                       <tbody>
                         {asns.map((asn) => {
                           const locked = ['cancelled', 'stopped', 'received', 'closed'].includes(String(asn.status || '').toLowerCase());
+                          const rec = recFor(asn.id, asn.publicId, asn.asnNumber, asn.shipmentPlanId);
                           return (
-                            <tr key={asn.id}>
+                            <tr key={asn.id} style={{ boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : undefined, background: rec ? 'var(--purple-soft)' : undefined }}>
                               <td>
                                 <div className="mono strong">{asn.displayId || asn.publicId || publicEntityId('AS', asn.id)}</div>
                                 <div className="mono muted" style={{ fontSize: 10.5 }}>{asn.asnNumber || asn.shipmentDisplayId || ''}</div>
@@ -236,6 +245,7 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                               <td><StatusChip status={asn.status || 'created'} /></td>
                               <td>
                                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                  <CortexRowAction rec={rec} onOpen={() => rec && setSelectedRec(rec)} />
                                   <button className="btn ghost sm" disabled={locked || acting === `stop:${asn.id}`} onClick={() => mutateAsn(asn, 'stop')}>
                                     Stop
                                   </button>
@@ -319,6 +329,7 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
               </div>
             </div>
           </div>
+          {recDrawer}
         </>
       )}
     </div>

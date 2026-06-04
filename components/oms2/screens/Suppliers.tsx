@@ -5,6 +5,7 @@ import {
   fetchOmsSupplierActivity,
   fetchOmsSuppliers,
   fetchOmsSkus,
+  OmsRecommendation,
   OmsSupplier,
   OmsSku,
   SupplierActivityRecord,
@@ -14,7 +15,7 @@ import { num, docTone } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 import type { SelSku } from '../SelectionBar';
 import { NewSupplierModal } from '../modals/NewSupplierModal';
-import { OptimizationImpact } from '../OptimizationImpact';
+import { CortexInlineBadge, CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
 
 const initials = (n: string) =>
   (n || '?').split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
@@ -112,6 +113,7 @@ export const Suppliers = ({
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('suppliers');
 
   const load = () => {
     setLoading(true);
@@ -159,8 +161,6 @@ export const Suppliers = ({
         </div>
       </div>
 
-      <OptimizationImpact screen="suppliers" title="Supplier pickup and replenishment optimization" onNavigate={onNavigate} />
-
       {suppliers.length === 0 ? (
         <div className="card">
           <EmptyState>Add a supplier manually or by CSV before creating inbound shipment plans.</EmptyState>
@@ -171,8 +171,12 @@ export const Suppliers = ({
             <div className="card-header">
               <div className="card-title">
                 Suppliers <Chip dot={false}>{suppliers.length}</Chip>
+                <CortexInlineBadge count={recommendations.length} />
               </div>
-              <button className="btn ghost sm"><Icon name="filter" size={12} /></button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {screenRec && <CortexRowAction rec={screenRec} onOpen={() => setSelectedRec(screenRec)} />}
+                <button className="btn ghost sm"><Icon name="filter" size={12} /></button>
+              </div>
             </div>
             <div style={{ padding: '0 14px 12px' }}>
               <div style={{ position: 'relative' }}>
@@ -191,6 +195,7 @@ export const Suppliers = ({
                 <EmptyState>No suppliers match that search.</EmptyState>
               ) : filtered.map((s) => {
                 const profile = s.pickupProfile || {};
+                const rec = recFor(s.id, s.name);
                 return (
                   <button
                     key={s.id}
@@ -201,7 +206,8 @@ export const Suppliers = ({
                       textAlign: 'left',
                       padding: '12px 14px',
                       borderBottom: '1px solid var(--border-subtle)',
-                      background: selected === s.id ? 'var(--accent-soft)' : 'transparent',
+                      background: rec ? 'var(--purple-soft)' : selected === s.id ? 'var(--accent-soft)' : 'transparent',
+                      boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : undefined,
                       cursor: 'pointer',
                     }}
                   >
@@ -219,6 +225,7 @@ export const Suppliers = ({
                         <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
                           {[s.region, profile.maxVehicleSize ? pickupVehicleLabels[profile.maxVehicleSize] || profile.maxVehicleSize : null, s.skuCount ? `${s.skuCount} SKUs` : null].filter(Boolean).join(' · ')}
                         </div>
+                        {rec && <div style={{ marginTop: 6 }}><Chip tone="purple" dot={false}>Cortex optimization</Chip></div>}
                       </div>
                     </div>
                   </button>
@@ -240,10 +247,13 @@ export const Suppliers = ({
                   .map((sk) => ({ id: sk.id, name: sk.title || sk.sku }));
                 onCreateShipmentWithSupplier && onCreateShipmentWithSupplier(supplier.id, sel);
               }}
+              recommendation={supplier ? recFor(supplier.id, supplier.name) : null}
+              onOpenRecommendation={(rec) => setSelectedRec(rec)}
             />
           )}
         </div>
       )}
+      {recDrawer}
     </div>
   );
 };
@@ -254,12 +264,16 @@ const SupplierDetail = ({
   onNavigate,
   onRefresh,
   onCreateShipment,
+  recommendation,
+  onOpenRecommendation,
 }: {
   supplier: OmsSupplier;
   skus: OmsSku[];
   onNavigate: ScreenProps['onNavigate'];
   onRefresh: () => void;
   onCreateShipment: () => void;
+  recommendation?: OmsRecommendation | null;
+  onOpenRecommendation: (rec: OmsRecommendation) => void;
 }) => {
   const [activity, setActivity] = useState<SupplierActivityResponse | null>(null);
   const [activityLoading, setActivityLoading] = useState(true);
@@ -322,6 +336,7 @@ const SupplierDetail = ({
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn ghost" onClick={() => setEditOpen(true)}><Icon name="settings" size={13} /> Edit</button>
+            <CortexRowAction rec={recommendation} label onOpen={() => recommendation && onOpenRecommendation(recommendation)} />
             <button className="btn"><Icon name="ledger" size={13} /> Terms</button>
             <button className="btn primary" onClick={onCreateShipment}>
               <Icon name="shipments" size={13} /> Create shipment plan

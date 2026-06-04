@@ -13,7 +13,7 @@ import {
 } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
-import { OptimizationImpact } from '../OptimizationImpact';
+import { CortexInlineBadge, CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
 
 type F = LabelAuditResponse['findings'][number];
 
@@ -69,6 +69,7 @@ export const LabelAudit = (_: ScreenProps) => {
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'late' | 'refund' | 'ontime'>('all');
   const ctx = useCtxMenu();
+  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('labels');
 
   const load = () => {
     setLoading(true);
@@ -158,8 +159,6 @@ export const LabelAudit = (_: ScreenProps) => {
         </div>
       </div>
 
-      <OptimizationImpact screen="labels" title="Carrier audit optimization" />
-
       {err ? (
         <div className="card"><ErrorState message={err} onRetry={load} /></div>
       ) : loading || !data ? (
@@ -247,6 +246,8 @@ export const LabelAudit = (_: ScreenProps) => {
 
           <div className="table-wrap">
             <div className="table-toolbar">
+              <CortexInlineBadge count={recommendations.length} />
+              {screenRec && <CortexRowAction rec={screenRec} label onOpen={() => setSelectedRec(screenRec)} />}
               {(['all', 'late', 'refund', 'ontime'] as const).map((f) => (
                 <button key={f} className={`filter-chip ${filter === f ? 'applied' : ''}`} onClick={() => setFilter(f)} style={{ cursor: 'pointer', textTransform: 'capitalize' }}>
                   {f === 'ontime' ? 'On-time' : f}
@@ -279,9 +280,14 @@ export const LabelAudit = (_: ScreenProps) => {
                 <tbody>
                   {filtered.map((l) => {
                     const delta = cost(l) - (optCost(l) || cost(l));
+                    const rec = recFor(l.id, l.order, l.trackingNumber, l.tracking, l.runId);
                     return (
                       <tr
                         key={l.id}
+                        style={{
+                          background: rec ? 'var(--purple-soft)' : undefined,
+                          boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : undefined,
+                        }}
                         onContextMenu={(e) =>
                           ctx.open(e, [
                             { label: 'Label' },
@@ -335,6 +341,7 @@ export const LabelAudit = (_: ScreenProps) => {
                           ) : (
                             <span className="muted">{l.recommendation || '—'}</span>
                           )}
+                          {rec && <div style={{ marginTop: 5 }}><CortexRowAction rec={rec} label onOpen={() => setSelectedRec(rec)} /></div>}
                         </td>
                       </tr>
                     );
@@ -374,6 +381,7 @@ export const LabelAudit = (_: ScreenProps) => {
       )}
       {uploadOpen && <LabelAuditUploadModal busy={uploading} onClose={() => setUploadOpen(false)} onSubmit={submitCsv} />}
       {runDetail && <RunDetailDrawer detail={runDetail} onClose={() => setRunDetail(null)} />}
+      {recDrawer}
     </div>
   );
 };
