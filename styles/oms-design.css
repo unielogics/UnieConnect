@@ -868,6 +868,8 @@
 .uc-shell .ai-msg .ai-avatar { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--purple), #c026d3); flex-shrink: 0; display: grid; place-items: center; color: white; font-size: 10px; font-weight: 700; }
 .uc-shell .ai-msg .ai-body { color: var(--text); }
 .uc-shell .ai-msg .ai-body strong { color: var(--text); font-weight: 600; }
+.uc-shell .ai-sources { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.uc-shell .ai-sources span { display: inline-flex; align-items: center; min-height: 18px; padding: 1px 6px; border: 1px solid var(--border-subtle); border-radius: 999px; background: var(--bg-active); color: var(--text-tertiary); font-size: 10.5px; font-weight: 650; }
 .uc-shell .ai-msg.user .ai-avatar { background: linear-gradient(135deg, #f97316, #db2777); }
 .uc-shell .ai-card { border: 1px solid var(--purple-soft); background: linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 50%); border-radius: var(--radius-md); padding: 12px; font-size: 12px; display: flex; flex-direction: column; gap: 8px; }
 .uc-shell .ai-card h4 { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--text); }

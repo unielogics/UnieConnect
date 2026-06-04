@@ -16,11 +16,28 @@ import {
   CortexTask,
 } from '../../lib/oms';
 
-type Msg = { role: 'ai' | 'user'; body: React.ReactNode; muted?: boolean };
+type Msg = { role: 'ai' | 'user'; body: React.ReactNode; muted?: boolean; sources?: Array<Record<string, unknown>> };
+
+const sourceLabel = (source: Record<string, unknown>) => {
+  const name = String(source.source || 'oms').replace(/^oms_/, '').replace(/_/g, ' ');
+  if (source.source === 'oms_data_readiness') return `readiness ${source.readinessScore ?? '—'}%`;
+  if (source.source === 'oms_cortex_tasks') return `tasks ${source.count ?? 0}`;
+  if (source.source === 'oms_recommendations') return `signals ${source.count ?? 0}`;
+  if (source.source === 'oms_context_samples') {
+    const parts = [
+      source.skus != null ? `${source.skus} SKUs` : '',
+      source.orders != null ? `${source.orders} orders` : '',
+      source.warehouses != null ? `${source.warehouses} WHs` : '',
+    ].filter(Boolean);
+    return parts.length ? parts.join(' · ') : 'OMS context';
+  }
+  return name;
+};
 
 const messageToHistory = (m: CortexChatMessage): Msg => ({
   role: m.role === 'user' ? 'user' : 'ai',
   muted: m.cortexStatus === 'degraded',
+  sources: m.sources,
   body: (
     <>
       <div>{m.content}</div>
@@ -155,6 +172,7 @@ export const AICopilot = ({
         {
           role: 'ai',
           muted: res.cortex?.ok === false,
+          sources: res.message?.sources,
           body: (
             <>
               <div>{res.message?.content || 'Cortex returned no answer.'}</div>
@@ -216,7 +234,16 @@ export const AICopilot = ({
         {history.map((m, i) => (
           <div key={i} className={`ai-msg ${m.role === 'user' ? 'user' : ''} ${m.muted ? 'muted' : ''}`}>
             <div className="ai-avatar">{m.role === 'user' ? 'You' : 'CX'}</div>
-            <div className="ai-body">{m.body}</div>
+            <div className="ai-body">
+              {m.body}
+              {m.role === 'ai' && m.sources?.length ? (
+                <div className="ai-sources">
+                  {m.sources.slice(0, 4).map((source, idx) => (
+                    <span key={idx}>{sourceLabel(source)}</span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
         ))}
 
