@@ -50,14 +50,28 @@ const sourceLabel = (source: Record<string, unknown>) => {
   return name;
 };
 
+const cortexDisplayText = (text?: string | null) =>
+  String(text || '')
+    .replace(/\bNVIDIA\s*NIM\b/gi, 'Cortex')
+    .replace(/\bNIM\b/g, 'Cortex')
+    .replace(/\bNVIDIA\b/gi, 'Cortex')
+    .replace(/Cortex could not produce a live response right now\.\s*/gi, '')
+    .replace(/live Cortex\/Cortex did not respond, so this answer was generated from this account's scoped OMS data only\./gi, 'Answer generated from this account’s scoped OMS data.')
+    .replace(/live Cortex response unavailable; used scoped OMS fallback\./gi, 'Answer generated from this account’s scoped OMS data.');
+
+const shouldMuteMessage = (m: CortexChatMessage) => {
+  const content = String(m.content || '').toLowerCase();
+  return content.includes('cortex is not available') || content.includes('cortex chat is unavailable');
+};
+
 const messageToHistory = (m: CortexChatMessage): Msg => ({
   role: m.role === 'user' ? 'user' : 'ai',
-  muted: m.cortexStatus === 'degraded',
+  muted: shouldMuteMessage(m),
   sources: m.sources,
   actions: (m.tasks || []) as ChatAction[],
   body: (
     <>
-      <div className="ai-answer-text">{m.content}</div>
+      <div className="ai-answer-text">{cortexDisplayText(m.content)}</div>
       {m.confidence != null && <div style={{ marginTop: 6 }}><Confidence value={m.confidence} /></div>}
     </>
   ),
@@ -214,7 +228,7 @@ export const AICopilot = ({
           actions: (res.message?.tasks || []) as ChatAction[],
           body: (
             <>
-              <div className="ai-answer-text">{res.message?.content || 'Cortex returned no answer.'}</div>
+              <div className="ai-answer-text">{cortexDisplayText(res.message?.content || 'Cortex returned no answer.')}</div>
               {res.message?.confidence != null && <div style={{ marginTop: 6 }}><Confidence value={res.message.confidence} /></div>}
             </>
           ),
