@@ -775,7 +775,17 @@
 .uc-shell .command-decision-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 16px; align-items: stretch; }
 .uc-shell .command-task-plan-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 0.82fr); gap: 16px; align-items: stretch; }
 .uc-shell .cortex-task-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); background: var(--bg-subtle); }
-.uc-shell .cortex-task-table { table-layout: fixed; min-width: 980px; }
+.uc-shell .cortex-task-table { table-layout: fixed; min-width: 1120px; }
+.uc-shell .cortex-task-table th,
+.uc-shell .cortex-task-table td { text-align: left; vertical-align: middle; }
+.uc-shell .cortex-task-table td { white-space: normal; }
+.uc-shell .cortex-task-table td:nth-child(2),
+.uc-shell .cortex-task-table td:nth-child(3),
+.uc-shell .cortex-task-table td:nth-child(4),
+.uc-shell .cortex-task-table td:nth-child(5) { white-space: nowrap; }
+.uc-shell .cortex-task-table .row-actions { flex-wrap: nowrap; justify-content: flex-start; align-items: center; gap: 6px; }
+.uc-shell .cortex-task-table .task-open-btn { min-width: 160px; max-width: 190px; justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uc-shell .cortex-task-table .icon-btn { flex: 0 0 auto; }
 .uc-shell .ai-plan-card { background: linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 62%); }
 .uc-shell .ai-plan-body { display: grid; gap: 14px; align-content: start; }
 .uc-shell .ai-plan-title { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
@@ -786,15 +796,15 @@
 .uc-shell .ai-plan-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 4px; flex-wrap: wrap; }
 .uc-shell .ai-plan-footer .btn { flex: 1 1 140px; justify-content: center; }
 .uc-shell .cortex-task-table th:nth-child(1),
-.uc-shell .cortex-task-table td:nth-child(1) { width: 48%; }
+.uc-shell .cortex-task-table td:nth-child(1) { width: 43%; }
 .uc-shell .cortex-task-table th:nth-child(2),
-.uc-shell .cortex-task-table td:nth-child(2) { width: 12%; }
+.uc-shell .cortex-task-table td:nth-child(2) { width: 11%; }
 .uc-shell .cortex-task-table th:nth-child(3),
 .uc-shell .cortex-task-table td:nth-child(3) { width: 14%; }
 .uc-shell .cortex-task-table th:nth-child(4),
-.uc-shell .cortex-task-table td:nth-child(4) { width: 14%; }
+.uc-shell .cortex-task-table td:nth-child(4) { width: 12%; }
 .uc-shell .cortex-task-table th:nth-child(5),
-.uc-shell .cortex-task-table td:nth-child(5) { width: 12%; }
+.uc-shell .cortex-task-table td:nth-child(5) { width: 20%; }
 @media (max-width: 1100px) {
   .uc-shell .row-2,
   .uc-shell .row-2-eq,

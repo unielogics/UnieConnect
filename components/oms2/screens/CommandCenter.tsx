@@ -402,7 +402,7 @@ const CortexTasksPanel = ({
                     <td>
                       <div className="row-actions">
                         <button
-                          className="btn ghost sm"
+                          className="btn ghost sm task-open-btn"
                           title={task.actionLabel || 'Open'}
                           onClick={() => onNavigate(task.actionTarget || task.screen || 'command', task.entityId || undefined)}
                         >
