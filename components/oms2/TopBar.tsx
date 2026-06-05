@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from './icons';
-import { completeCortexTask, dismissCortexTask, fetchCopilotContext, fetchCortexChatHealth, fetchCortexTasks, CortexTask } from '../../lib/oms';
+import { completeCortexTask, dismissCortexTask, fetchCortexChatHealth, fetchCortexTasks, CortexTask } from '../../lib/oms';
 
 export const TITLE_MAP: Record<string, [string, string]> = {
   command: ['Command Center', 'Live operating cockpit'],
@@ -73,13 +73,7 @@ export const TopBar = ({
         if (!cancelled) setCortexHealth(res.ok ? 'online' : 'offline');
       })
       .catch(() => {
-        fetchCopilotContext(section)
-          .then(() => {
-            if (!cancelled) setCortexHealth('online');
-          })
-          .catch(() => {
-            if (!cancelled) setCortexHealth('offline');
-          });
+        if (!cancelled) setCortexHealth('offline');
       });
     return () => {
       cancelled = true;

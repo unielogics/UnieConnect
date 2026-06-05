@@ -194,7 +194,6 @@ export const AICopilot = ({
     fetchCopilotContext(section)
       .then((c) => {
         setCtx(c);
-        if (cortexAvailable !== false) setCortexHealth('online');
         setHistory([
           { role: 'ai', body: c.summary || 'Cortex is grounded in this OMS account. Ask about the current screen, tasks, SKUs, orders, warehouses, audits, or readiness.' },
         ]);
