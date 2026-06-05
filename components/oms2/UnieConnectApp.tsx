@@ -39,10 +39,10 @@ import type { OmsOrder, OmsSku } from '../../lib/oms';
 import { fetchCurrentUser, type CurrentUser } from '../../lib/user';
 import { fetchUserFeatures, type Feature } from '../../lib/features';
 
-export type Tweaks = { theme: 'light' | 'dark'; accent: string; density: 'comfortable' | 'compact'; cortexAvailable: boolean };
+export type Tweaks = { theme: 'light' | 'dark'; accent: string; density: 'comfortable' | 'compact' };
 export const ACCENT_OPTIONS = ['#3157f6', '#6d28d9', '#0d9488', '#db2777'];
 const TWEAK_KEY = 'uc-oms-tweaks';
-const DEFAULT_TWEAKS: Tweaks = { theme: 'light', accent: '#3157f6', density: 'comfortable', cortexAvailable: true };
+const DEFAULT_TWEAKS: Tweaks = { theme: 'light', accent: '#3157f6', density: 'comfortable' };
 
 export type NavFn = (target: string, payload?: string) => void;
 
@@ -62,34 +62,7 @@ export interface ScreenProps {
   onSelectState?: (state: string) => void;
   onFeaturesChanged?: () => void;
   skuId?: string | null;
-  cortexAvailable?: boolean;
 }
-
-const CortexDegradedBanner = () => (
-  <div
-    style={{
-      position: 'fixed',
-      bottom: 80,
-      left: '50%',
-      transform: 'translateX(-50%)',
-      background: 'var(--amber-soft)',
-      color: 'var(--amber-text)',
-      border: '1px solid var(--amber)',
-      borderRadius: 8,
-      padding: '8px 14px',
-      fontSize: 12.5,
-      fontWeight: 600,
-      zIndex: 100,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      boxShadow: 'var(--shadow-md)',
-    }}
-  >
-    <Icon name="warning" size={14} />
-    Cortex unavailable — AI recommendations showing cached values (12 min stale). Operating views fully functional.
-  </div>
-);
 
 export default function UnieConnectApp() {
   const router = useRouter();
@@ -317,7 +290,6 @@ export default function UnieConnectApp() {
     onImportCsv: (entity) => setCsvImport(entity),
     onSelectState: (s: string) => setStateDetail(s),
     onFeaturesChanged: reloadUserFeatures,
-    cortexAvailable: tweaks.cortexAvailable,
   };
 
   const screens: Record<string, React.ReactNode> = {
@@ -364,7 +336,6 @@ export default function UnieConnectApp() {
               onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
               onOpenProfile={() => navigate('profile')}
               onNavigate={navigate}
-              cortexAvailable={tweaks.cortexAvailable}
             />
             <React.Fragment key={`${section}-${screenKey}`}>
               {screens[section] || <CommandCenter {...sp} />}
@@ -375,7 +346,6 @@ export default function UnieConnectApp() {
               section={section}
               onClose={() => setCopilotOpen(false)}
               onNavigate={navigate}
-              cortexAvailable={tweaks.cortexAvailable}
             />
           )}
 
@@ -470,8 +440,6 @@ export default function UnieConnectApp() {
           {stateDetail && (
             <StateDetailModal stateCode={stateDetail} onClose={() => setStateDetail(null)} />
           )}
-
-          {!tweaks.cortexAvailable && <CortexDegradedBanner />}
         </div>
       </CtxMenuProvider>
     </div>

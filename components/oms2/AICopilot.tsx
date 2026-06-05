@@ -110,12 +110,10 @@ export const AICopilot = ({
   section,
   onClose,
   onNavigate,
-  cortexAvailable,
 }: {
   section: string;
   onClose: () => void;
   onNavigate?: (target: string, payload?: string) => void;
-  cortexAvailable?: boolean;
 }) => {
   const [ctx, setCtx] = useState<CopilotContext | null>(null);
   const [history, setHistory] = useState<Msg[]>([]);
@@ -124,9 +122,7 @@ export const AICopilot = ({
   const [threadId, setThreadId] = useState<string | null>(null);
   const [threads, setThreads] = useState<CortexChatThread[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
-  const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>(
-    cortexAvailable === false ? 'offline' : 'checking'
-  );
+  const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [pending, setPending] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [signalsOpen, setSignalsOpen] = useState(false);
@@ -185,12 +181,10 @@ export const AICopilot = ({
   useEffect(() => {
     setThreadId(null);
     setThreads([]);
-    setCortexHealth(cortexAvailable === false ? 'offline' : 'checking');
-    if (cortexAvailable !== false) {
-      fetchCortexChatHealth(section)
-        .then((res) => setCortexHealth(res.ok ? 'online' : 'offline'))
-        .catch(() => null);
-    }
+    setCortexHealth('checking');
+    fetchCortexChatHealth(section)
+      .then((res) => setCortexHealth(res.ok ? 'online' : 'offline'))
+      .catch(() => setCortexHealth('offline'));
     fetchCopilotContext(section)
       .then((c) => {
         setCtx(c);

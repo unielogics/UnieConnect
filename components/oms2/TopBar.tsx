@@ -33,7 +33,6 @@ export const TopBar = ({
   onToggleTheme,
   onOpenProfile,
   onNavigate,
-  cortexAvailable,
 }: {
   section: string;
   copilotOpen: boolean;
@@ -42,14 +41,11 @@ export const TopBar = ({
   onToggleTheme: () => void;
   onOpenProfile?: () => void;
   onNavigate?: (target: string, payload?: string) => void;
-  cortexAvailable?: boolean;
 }) => {
   const [title] = TITLE_MAP[section] || ['', ''];
   const [tasksOpen, setTasksOpen] = useState(false);
   const [tasks, setTasks] = useState<CortexTask[]>([]);
-  const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>(
-    cortexAvailable === false ? 'offline' : 'checking'
-  );
+  const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
 
   const loadTasks = (refresh = false) => {
     fetchCortexTasks({ status: 'open', refresh, limit: 12 })
@@ -62,10 +58,6 @@ export const TopBar = ({
   }, [section]);
 
   useEffect(() => {
-    if (cortexAvailable === false) {
-      setCortexHealth('offline');
-      return;
-    }
     let cancelled = false;
     setCortexHealth('checking');
     fetchCortexChatHealth(section)
@@ -78,7 +70,7 @@ export const TopBar = ({
     return () => {
       cancelled = true;
     };
-  }, [section, cortexAvailable]);
+  }, [section]);
 
   const updateTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
     if (action === 'done') await completeCortexTask(task.id).catch(() => null);

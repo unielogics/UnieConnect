@@ -97,47 +97,6 @@ export const TweaksPanel = ({
         </div>
         <Section label="Density" />
         <Seg value={tweaks.density} options={['comfortable', 'compact']} onChange={(v) => setTweak('density', v)} />
-        <Section label="AI" />
-        <button
-          onClick={() => setTweak('cortexAvailable', !tweaks.cortexAvailable)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '8px 10px',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            fontSize: 12,
-            fontWeight: 600,
-            color: 'var(--text)',
-          }}
-        >
-          Cortex available
-          <span
-            style={{
-              width: 32,
-              height: 18,
-              borderRadius: 999,
-              background: tweaks.cortexAvailable ? 'var(--green)' : 'var(--bg-active)',
-              position: 'relative',
-              transition: 'background .15s',
-            }}
-          >
-            <span
-              style={{
-                position: 'absolute',
-                top: 2,
-                left: tweaks.cortexAvailable ? 16 : 2,
-                width: 14,
-                height: 14,
-                borderRadius: '50%',
-                background: '#fff',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
-                transition: 'left .15s',
-              }}
-            />
-          </span>
-        </button>
       </div>
     </div>
   );
