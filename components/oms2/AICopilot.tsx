@@ -287,7 +287,23 @@ export const AICopilot = ({
       loadThreads();
     } catch {
       setCortexHealth('offline');
-      setHistory((h) => [...h, { role: 'ai', body: 'Cortex chat is unavailable right now. No cross-account data was used or exposed.', muted: true }]);
+      setHistory((h) => [
+        ...h,
+        {
+          role: 'ai',
+          muted: true,
+          body: (
+            <>
+              <div className="ai-answer-text">Cortex chat is unavailable right now. No cross-account data was used or exposed.</div>
+              <div className="ai-answer-actions">
+                <button className="ai-answer-action" onClick={() => send(q)}>
+                  <Icon name="refresh" size={11} /> Retry
+                </button>
+              </div>
+            </>
+          ),
+        },
+      ]);
     } finally {
       setPending(false);
     }
