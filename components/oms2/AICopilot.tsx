@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
 import { Chip, Confidence } from './ui';
 import {
@@ -129,6 +129,7 @@ export const AICopilot = ({
   );
   const [pending, setPending] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const loadThreads = () => {
     fetchCortexChatThreads(section)
@@ -205,6 +206,10 @@ export const AICopilot = ({
     loadTasks(true);
     loadThreads();
   }, [section]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [history.length, pending, loadingThread]);
 
   const send = async (q: string) => {
     if (!q) return;
@@ -369,6 +374,7 @@ export const AICopilot = ({
             <div className="ai-body pulsing">Thinking...</div>
           </div>
         )}
+        <div ref={bottomRef} className="copilot-scroll-anchor" />
       </div>
 
       <div className="copilot-foot">
