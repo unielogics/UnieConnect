@@ -139,7 +139,11 @@ export const TopBar = ({
       <div className="topbar-task-wrap">
         <button className="icon-btn" data-hint="Cortex task inbox" onClick={() => setTasksOpen((v) => !v)}>
           <Icon name="bell" />
-          {tasks.length > 0 && <span className="pip" />}
+          {tasks.length > 0 && (
+            <span className={`task-count-badge ${highTaskCount ? 'urgent' : ''}`}>
+              {tasks.length > 9 ? '9+' : tasks.length}
+            </span>
+          )}
         </button>
         {tasksOpen && (
           <div className="task-popover">

@@ -471,6 +471,8 @@
 .uc-shell .icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius); color: var(--text-secondary); position: relative; }
 .uc-shell .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
 .uc-shell .icon-btn .pip { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); border: 1.5px solid var(--bg-elev); }
+.uc-shell .task-count-badge { position: absolute; top: 3px; right: 2px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--purple); color: white; border: 1.5px solid var(--bg-elev); font-size: 9px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.uc-shell .task-count-badge.urgent { background: var(--red); }
 .uc-shell .copilot-btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-elev); font-size: 12.5px; font-weight: 600; color: var(--text); }
 .uc-shell .copilot-btn .ai-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 3px var(--amber-soft); }
 .uc-shell .copilot-btn .ai-dot.online { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
