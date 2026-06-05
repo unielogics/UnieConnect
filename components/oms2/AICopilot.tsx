@@ -106,6 +106,7 @@ export const AICopilot = ({
   const [ctx, setCtx] = useState<CopilotContext | null>(null);
   const [history, setHistory] = useState<Msg[]>([]);
   const [tasks, setTasks] = useState<CortexTask[]>([]);
+  const [taskScope, setTaskScope] = useState<'screen' | 'account'>('screen');
   const [threadId, setThreadId] = useState<string | null>(null);
   const [threads, setThreads] = useState<CortexChatThread[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
@@ -123,7 +124,19 @@ export const AICopilot = ({
 
   const loadTasks = (refresh = false) => {
     fetchCortexTasks({ status: 'open', screen: section, refresh, limit: 8 })
-      .then((r) => setTasks(r.tasks || []))
+      .then((r) => {
+        if (r.tasks?.length) {
+          setTaskScope('screen');
+          setTasks(r.tasks || []);
+          return;
+        }
+        fetchCortexTasks({ status: 'open', refresh: false, limit: 8 })
+          .then((accountTasks) => {
+            setTaskScope('account');
+            setTasks(accountTasks.tasks || []);
+          })
+          .catch(() => setTasks([]));
+      })
       .catch(() => setTasks([]));
   };
 
@@ -186,7 +199,10 @@ export const AICopilot = ({
     try {
       const res = await sendCortexChat({ screen: section, message: q, threadId });
       if (res.thread?.id) setThreadId(res.thread.id);
-      if (res.context?.tasks) setTasks(res.context.tasks);
+      if (res.context?.tasks) {
+        setTaskScope('account');
+        setTasks(res.context.tasks);
+      }
       const cortexUnavailable = res.cortex?.health?.available === false;
       setCortexHealth(cortexUnavailable ? 'offline' : 'online');
       setHistory((h) => [
@@ -287,7 +303,7 @@ export const AICopilot = ({
           <div className={`ai-card cortex-task-card ${guidanceOpen ? 'open' : 'collapsed'}`}>
             <button className="cortex-guidance-toggle" onClick={() => setGuidanceOpen((open) => !open)}>
               <span>
-                <strong>Active guidance</strong>
+                <strong>{taskScope === 'screen' ? 'Screen guidance' : 'Account guidance'}</strong>
                 <small>{tasks.length} open · {tasks.filter((task) => task.priority === 'high').length} high priority</small>
               </span>
               <span className="guidance-toggle-right">
