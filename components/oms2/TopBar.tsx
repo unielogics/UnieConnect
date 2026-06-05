@@ -87,6 +87,11 @@ export const TopBar = ({
   };
   const highTaskCount = tasks.filter((task) => task.priority === 'high').length;
   const workAreas = Array.from(new Set(tasks.map((task) => task.actionTarget || task.screen).filter(Boolean))).slice(0, 3);
+  const systemStatusCopy = cortexHealth === 'online'
+    ? 'Cortex online'
+    : cortexHealth === 'offline'
+      ? 'Cortex offline'
+      : 'Checking Cortex';
 
   return (
     <header className="topbar">
@@ -94,9 +99,9 @@ export const TopBar = ({
         <span className="crumb">Unielogics ops</span>
         <span className="crumb-sep">/</span>
         <span className="crumb current">{title}</span>
-        <span className="crumb-status">
+        <span className={`crumb-status ${cortexHealth}`}>
           <span className="dot" />
-          All systems live
+          {systemStatusCopy}
         </span>
       </div>
 

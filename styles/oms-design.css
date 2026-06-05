@@ -458,7 +458,10 @@
 .uc-shell .crumb { color: var(--text-tertiary); }
 .uc-shell .crumb.current { color: var(--text); font-weight: 600; }
 .uc-shell .crumb-sep { color: var(--text-disabled); }
-.uc-shell .crumb-status { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; background: var(--green-soft); color: var(--green-text); border-radius: 999px; font-size: 11px; font-weight: 600; margin-left: 8px; }
+.uc-shell .crumb-status { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; background: var(--amber-soft); color: var(--amber-text); border-radius: 999px; font-size: 11px; font-weight: 600; margin-left: 8px; }
+.uc-shell .crumb-status.online { background: var(--green-soft); color: var(--green-text); }
+.uc-shell .crumb-status.offline { background: var(--red-soft); color: var(--red-text); }
+.uc-shell .crumb-status.checking { background: var(--amber-soft); color: var(--amber-text); }
 .uc-shell .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
 .uc-shell .topbar-search { flex: 0 1 380px; margin-left: auto; position: relative; }
 .uc-shell .topbar-search input { width: 100%; height: 32px; padding: 0 12px 0 32px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg); font-size: 12.5px; outline: none; }
