@@ -363,7 +363,7 @@ const CortexTasksPanel = ({
   return (
     <div className="card cortex-task-panel">
       <div className="card-header">
-        <div>
+        <div className="cortex-task-heading">
           <div className="card-title"><Icon name="sparkle" size={15} /> Cortex task inbox</div>
           <div className="card-subtitle">Readiness work that improves account intelligence. Approval decisions stay in the decision panel.</div>
         </div>
@@ -408,8 +408,10 @@ const CortexTasksPanel = ({
                         >
                           <Icon name="arrowRight" size={12} /> {task.actionLabel || 'Open'}
                         </button>
-                        <button className="icon-btn" data-hint="Mark done" onClick={() => onDecision(task, 'done')}><Icon name="check" size={13} /></button>
-                        <button className="icon-btn" data-hint="Dismiss" onClick={() => onDecision(task, 'dismiss')}><Icon name="x" size={13} /></button>
+                        <div className="task-decision-actions" aria-label="Task decision actions">
+                          <button className="icon-btn" data-hint="Mark done" aria-label="Mark task done" onClick={() => onDecision(task, 'done')}><Icon name="check" size={13} /></button>
+                          <button className="icon-btn" data-hint="Dismiss" aria-label="Dismiss task" onClick={() => onDecision(task, 'dismiss')}><Icon name="x" size={13} /></button>
+                        </div>
                       </div>
                     </td>
                   </tr>
