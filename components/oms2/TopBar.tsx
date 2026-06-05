@@ -59,16 +59,24 @@ export const TopBar = ({
 
   useEffect(() => {
     let cancelled = false;
-    setCortexHealth('checking');
-    fetchCortexChatHealth(section)
-      .then((res) => {
-        if (!cancelled) setCortexHealth(res.ok ? 'online' : 'offline');
-      })
-      .catch(() => {
-        if (!cancelled) setCortexHealth('offline');
-      });
+    const checkHealth = (showChecking = false) => {
+      if (showChecking) setCortexHealth('checking');
+      fetchCortexChatHealth(section)
+        .then((res) => {
+          if (!cancelled) setCortexHealth(res.ok ? 'online' : 'offline');
+        })
+        .catch(() => {
+          if (!cancelled) setCortexHealth('offline');
+        });
+    };
+    const onFocus = () => checkHealth(false);
+    checkHealth(true);
+    window.addEventListener('focus', onFocus);
+    const timer = window.setInterval(() => checkHealth(false), 60000);
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(timer);
     };
   }, [section]);
 

@@ -181,22 +181,40 @@ export const AICopilot = ({
   useEffect(() => {
     setThreadId(null);
     setThreads([]);
-    setCortexHealth('checking');
-    fetchCortexChatHealth(section)
-      .then((res) => setCortexHealth(res.ok ? 'online' : 'offline'))
-      .catch(() => setCortexHealth('offline'));
+    let cancelled = false;
+    const checkHealth = (showChecking = false) => {
+      if (showChecking) setCortexHealth('checking');
+      fetchCortexChatHealth(section)
+        .then((res) => {
+          if (!cancelled) setCortexHealth(res.ok ? 'online' : 'offline');
+        })
+        .catch(() => {
+          if (!cancelled) setCortexHealth('offline');
+        });
+    };
+    const onFocus = () => checkHealth(false);
+    checkHealth(true);
+    window.addEventListener('focus', onFocus);
+    const healthTimer = window.setInterval(() => checkHealth(false), 60000);
     fetchCopilotContext(section)
       .then((c) => {
+        if (cancelled) return;
         setCtx(c);
         setHistory([
           { role: 'ai', body: c.summary || 'Cortex is grounded in this OMS account. Ask about the current screen, tasks, SKUs, orders, warehouses, audits, or readiness.' },
         ]);
       })
       .catch(() => {
+        if (cancelled) return;
         setHistory([{ role: 'ai', body: 'Cortex context is temporarily unavailable. Operating views remain fully functional.', muted: true }]);
       });
     loadTasks(true);
     loadThreads();
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(healthTimer);
+    };
   }, [section]);
 
   useEffect(() => {
