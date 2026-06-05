@@ -135,14 +135,14 @@ export const AICopilot = ({
   };
 
   const loadTasks = (refresh = false) => {
-    fetchCortexTasks({ status: 'open', screen: section, refresh, limit: 8 })
+    return fetchCortexTasks({ status: 'open', screen: section, refresh, limit: 8 })
       .then((r) => {
         if (r.tasks?.length) {
           setTaskScope('screen');
           setTasks(r.tasks || []);
           return;
         }
-        fetchCortexTasks({ status: 'open', refresh: false, limit: 8 })
+        return fetchCortexTasks({ status: 'open', refresh: false, limit: 8 })
           .then((accountTasks) => {
             setTaskScope('account');
             setTasks(accountTasks.tasks || []);
@@ -208,12 +208,47 @@ export const AICopilot = ({
         if (cancelled) return;
         setHistory([{ role: 'ai', body: 'Cortex context is temporarily unavailable. Operating views remain fully functional.', muted: true }]);
       });
-    loadTasks(true);
     loadThreads();
     return () => {
       cancelled = true;
       window.removeEventListener('focus', onFocus);
       window.clearInterval(healthTimer);
+    };
+  }, [section]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshTasks = (refresh = false) => {
+      fetchCortexTasks({ status: 'open', screen: section, refresh, limit: 8 })
+        .then((r) => {
+          if (cancelled) return;
+          if (r.tasks?.length) {
+            setTaskScope('screen');
+            setTasks(r.tasks || []);
+            return;
+          }
+          fetchCortexTasks({ status: 'open', refresh: false, limit: 8 })
+            .then((accountTasks) => {
+              if (cancelled) return;
+              setTaskScope('account');
+              setTasks(accountTasks.tasks || []);
+            })
+            .catch(() => {
+              if (!cancelled) setTasks([]);
+            });
+        })
+        .catch(() => {
+          if (!cancelled) setTasks([]);
+        });
+    };
+    const onFocus = () => refreshTasks(false);
+    refreshTasks(true);
+    window.addEventListener('focus', onFocus);
+    const taskTimer = window.setInterval(() => refreshTasks(false), 90000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(taskTimer);
     };
   }, [section]);
 
