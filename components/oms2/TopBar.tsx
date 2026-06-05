@@ -54,7 +54,25 @@ export const TopBar = ({
   };
 
   useEffect(() => {
-    loadTasks(true);
+    let cancelled = false;
+    const refreshTasks = (refresh = false) => {
+      fetchCortexTasks({ status: 'open', refresh, limit: 12 })
+        .then((r) => {
+          if (!cancelled) setTasks(r.tasks || []);
+        })
+        .catch(() => {
+          if (!cancelled) setTasks([]);
+        });
+    };
+    const onFocus = () => refreshTasks(false);
+    refreshTasks(true);
+    window.addEventListener('focus', onFocus);
+    const timer = window.setInterval(() => refreshTasks(false), 90000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(timer);
+    };
   }, [section]);
 
   useEffect(() => {
