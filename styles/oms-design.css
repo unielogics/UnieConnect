@@ -870,17 +870,23 @@
 .uc-shell .copilot-chip { font-size: 11px; padding: 4px 8px; border-radius: 999px; background: var(--bg-active); color: var(--text-secondary); border: 1px solid var(--border); }
 .uc-shell .copilot-chip:hover { background: var(--purple-soft); color: var(--purple-text); border-color: var(--purple); }
 .uc-shell .ai-msg.muted .ai-body { border-color: var(--amber); background: var(--amber-soft); }
-.uc-shell .cortex-task-card { display: grid; gap: 10px; }
-.uc-shell .cortex-task-card.collapsed { background: var(--bg-subtle); border-color: var(--border-subtle); padding: 8px 10px; }
+.uc-shell .cortex-task-card,
+.uc-shell .cortex-signal-card { display: grid; gap: 10px; }
+.uc-shell .cortex-task-card.collapsed,
+.uc-shell .cortex-signal-card.collapsed { background: var(--bg-subtle); border-color: var(--border-subtle); padding: 8px 10px; }
 .uc-shell .cortex-guidance-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
 .uc-shell .cortex-guidance-toggle strong { display: block; font-size: 12.5px; color: var(--text); }
 .uc-shell .cortex-guidance-toggle small { display: block; margin-top: 1px; color: var(--text-secondary); font-size: 11px; }
-.uc-shell .guidance-toggle-right { display: inline-flex; align-items: center; gap: 6px; color: var(--text-tertiary); }
+.uc-shell .guidance-toggle-right { display: inline-flex; align-items: center; gap: 6px; color: var(--text-tertiary); flex: 0 0 auto; }
 .uc-shell .cortex-task-mini { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-secondary); }
 .uc-shell .cortex-task-mini strong { display: block; color: var(--text); font-size: 12.5px; margin-bottom: 2px; }
 .uc-shell .cortex-task-mini span:not(.task-priority) { display: block; line-height: 1.35; }
 .uc-shell .task-mini-actions { display: flex; gap: 4px; align-items: center; justify-content: flex-end; flex-wrap: wrap; max-width: 150px; }
 .uc-shell .task-action-label { max-width: 145px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-content: flex-start; }
+.uc-shell .cortex-signal-mini { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 8px 0; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-secondary); }
+.uc-shell .cortex-signal-mini strong { display: block; color: var(--text); font-size: 12.5px; line-height: 1.3; }
+.uc-shell .cortex-signal-mini span { display: block; margin-top: 3px; line-height: 1.35; }
+.uc-shell .cortex-signal-mini small { display: block; margin-top: 5px; color: var(--text-tertiary); font-size: 10.5px; }
 .uc-shell .task-priority { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--border); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-secondary); background: var(--bg-active); }
 .uc-shell .task-priority.high { color: var(--red-text); background: var(--red-soft); border-color: var(--red); }
 .uc-shell .task-priority.normal { color: var(--purple-text); background: var(--purple-soft); border-color: var(--purple); }
