@@ -600,6 +600,28 @@
 .uc-shell .sku-field-help { font-size: 10.5px; color: var(--text-tertiary); line-height: 1.2; }
 .uc-shell .sku-field-error { font-size: 11px; line-height: 1.25; color: var(--red-text); }
 .uc-shell .sku-field-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.uc-shell .sku-triple-editor { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.uc-shell .sku-triple-editor .span-all { grid-column: 1 / -1; }
+.uc-shell .sku-category-editor,
+.uc-shell .sku-images-editor { display: flex; flex-direction: column; gap: 6px; }
+.uc-shell .sku-upload-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.uc-shell .sku-upload-control:hover { border-color: var(--accent-border); background: var(--accent-soft); }
+.uc-shell .sku-upload-control.disabled { opacity: .65; cursor: wait; }
+.uc-shell .sku-upload-control input { display: none; }
 .uc-shell .sku-intel-minibar { margin-bottom: 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-elev); }
 .uc-shell .sku-intel-minibar-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; }
 .uc-shell .sku-intel-copy { min-width: 0; display: grid; gap: 6px; }
