@@ -3,6 +3,7 @@ import { Icon } from '../icons';
 import { Chip, StatusChip, ProgressBar, fmt, Loading, ErrorState, EmptyState } from '../ui';
 import {
   fetchOmsSkuDetail,
+  fetchOmsSkus,
   fetchProductResearchResult,
   fetchRecommendations,
   OmsRecommendation,
@@ -584,12 +585,34 @@ const CategoryEditor = ({
   onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
 }) => {
   const current = splitCategory(value);
+  const [accountNodes, setAccountNodes] = useState<{ category: string; subcategories: string[] }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetchOmsSkus({ limit: 500 } as any)
+      .then((result) => {
+        if (!alive) return;
+        const map = new Map<string, Set<string>>();
+        for (const sku of result.skus || []) {
+          const cat = String((sku as any).category || '').trim();
+          const sub = String((sku as any).subCategory || '').trim();
+          if (!cat) continue;
+          if (!map.has(cat)) map.set(cat, new Set());
+          if (sub) map.get(cat)?.add(sub);
+        }
+        setAccountNodes(Array.from(map.entries()).map(([category, subs]) => ({ category, subcategories: Array.from(subs) })));
+      })
+      .catch(() => setAccountNodes([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
   const customNodes = useMemo(loadCustomCategories, []);
-  const customCategoryNames = customNodes.map((node) => node.category);
+  const customCategoryNames = [...customNodes, ...accountNodes].map((node) => node.category);
   const categories = Array.from(new Set([...amazonCategoryNames, ...customCategoryNames, current.category].filter(Boolean))).sort();
   const subcategories = Array.from(new Set([
     ...amazonSubcategoriesFor(current.category),
     ...(customNodes.find((node) => node.category.toLowerCase() === current.category.toLowerCase())?.subcategories || []),
+    ...(accountNodes.find((node) => node.category.toLowerCase() === current.category.toLowerCase())?.subcategories || []),
     current.subCategory,
   ].filter(Boolean))).sort();
   const update = (next: { category?: string; subCategory?: string }) => {
