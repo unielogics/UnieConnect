@@ -1,17 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, StatusChip, ProgressBar, fmt, Loading, ErrorState, EmptyState } from '../ui';
 import {
   fetchOmsSkuDetail,
+  fetchOmsSkus,
   fetchProductResearchResult,
   fetchRecommendations,
   OmsRecommendation,
   OmsSkuEnrichmentUpdate,
   OmsSkuDetail,
   ProductResearchResult,
+  uploadCatalogImage,
   updateOmsSkuEnrichment,
 } from '../../../lib/oms';
 import { num, docTone, riskLabel, channelColor } from '../../../lib/oms-adapters';
+import { amazonCategoryNames, amazonSubcategoriesFor } from '../../../lib/amazon-category-tree';
 import type { ScreenProps } from '../UnieConnectApp';
 import { AmazonListingDrawer, RecommendationDrawer } from './InventoryNetwork';
 
@@ -244,6 +247,105 @@ const parseNumberOrNull = (value: string) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const identityPart = (value: string) => value.replace(/[^a-z0-9]/gi, '').toUpperCase();
+
+const splitIdentity = (value: string) => {
+  const [upc = '', ean = '', asin = ''] = value.split(/[|/]/).map((part) => identityPart(part));
+  return { upc, ean, asin };
+};
+
+const splitCategory = (value: string) => {
+  const [category = '', subCategory = ''] = value.split('|').map((part) => part.trim());
+  return { category, subCategory };
+};
+
+const cleanDimensionToken = (value: string) => {
+  const cleaned = value.replace(/[^\d.]/g, '');
+  const [whole = '', decimals = ''] = cleaned.split('.');
+  return decimals ? `${whole || '0'}.${decimals.slice(0, 2)}` : whole;
+};
+
+const parseDimensionEntry = (raw: string) => {
+  const value = String(raw || '').trim();
+  if (/[x,]/i.test(value)) {
+    const [length = '', width = '', height = ''] = value.split(/[x,]/i).map((part) => cleanDimensionToken(part));
+    return { length, width, height };
+  }
+  const compact = value.replace(/[^\d.]/g, '');
+  const dotIndex = compact.indexOf('.');
+  if (dotIndex >= 0) {
+    const beforeDot = compact.slice(0, dotIndex).replace(/\D/g, '');
+    const decimals = compact.slice(dotIndex + 1).replace(/\D/g, '').slice(0, 2);
+    const length = beforeDot.slice(0, 2);
+    const width = beforeDot.slice(2, 4);
+    const remainingHeight = beforeDot.slice(4);
+    const decimalHeight = `0.${decimals}`;
+    return {
+      length,
+      width,
+      height: remainingHeight ? `${remainingHeight}.${decimals}` : decimalHeight,
+    };
+  }
+  const digits = compact.replace(/\D/g, '');
+  return {
+    length: digits.slice(0, 2),
+    width: digits.slice(2, 4),
+    height: digits.slice(4, 6),
+  };
+};
+
+const dimensionPayloadFromEntry = (entry: string) => {
+  const parts = parseDimensionEntry(entry);
+  return {
+    length: parseNumberOrNull(parts.length),
+    width: parseNumberOrNull(parts.width),
+    height: parseNumberOrNull(parts.height),
+  };
+};
+
+const dimensionEntryFromDimensions = (dimensions?: OmsSkuDetail['dimensions'] | null) => {
+  const d = dimensions || {};
+  return [d.length, d.width, d.height].map((v) => (v == null ? '' : String(v))).join(' x ');
+};
+
+const dimensionPreview = (entry: string) => {
+  const parts = parseDimensionEntry(entry);
+  const values = [parts.length, parts.width, parts.height].filter((part) => part !== '');
+  return values.length ? `${parts.length || '-'} x ${parts.width || '-'} x ${parts.height || '-'} in` : 'Type compact dimensions, e.g. 1010.05';
+};
+
+const rememberCustomCategory = (categoryValue: string) => {
+  if (typeof window === 'undefined') return;
+  const { category, subCategory } = splitCategory(categoryValue);
+  if (!category && !subCategory) return;
+  const key = 'uc-oms-custom-amazon-categories';
+  let existing: { category: string; subcategories: string[] }[] = [];
+  try {
+    existing = JSON.parse(window.localStorage.getItem(key) || '[]');
+  } catch {
+    existing = [];
+  }
+  const idx = existing.findIndex((node) => node.category.toLowerCase() === category.toLowerCase());
+  if (idx >= 0) {
+    if (subCategory && !existing[idx].subcategories.some((s) => s.toLowerCase() === subCategory.toLowerCase())) {
+      existing[idx] = { ...existing[idx], subcategories: [...existing[idx].subcategories, subCategory] };
+    }
+  } else if (category) {
+    existing.push({ category, subcategories: subCategory ? [subCategory] : [] });
+  }
+  window.localStorage.setItem(key, JSON.stringify(existing.slice(-80)));
+};
+
+const loadCustomCategories = () => {
+  if (typeof window === 'undefined') return [] as { category: string; subcategories: string[] }[];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem('uc-oms-custom-amazon-categories') || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 const ItemDetailsPanel = ({ data, onSaved }: { data: OmsSkuDetail; onSaved: (detail: OmsSkuDetail) => void }) => {
   const attrs = data.attributes || {};
   const meta = data.metadata || {};
@@ -257,17 +359,16 @@ const ItemDetailsPanel = ({ data, onSaved }: { data: OmsSkuDetail; onSaved: (det
     { key: 'size', label: 'Size', value: firstValue(attrs.size, meta.size, attrs.variant, meta.variant), missing: !firstValue(attrs.size, meta.size, attrs.variant, meta.variant), kind: 'text', payload: (value) => ({ size: value }) },
     { key: 'weight', label: 'Weight', value: data.weight ? `${num(data.weight)} lb` : '', missing: !data.weight, kind: 'number', payload: (value) => ({ weight: parseNumberOrNull(value) }) },
     { key: 'dimensions', label: 'Dimensions', value: dimText(data.dimensions), missing: !dimText(data.dimensions), kind: 'dimensions', payload: (value) => {
-      const [length, width, height] = value.split(/[x,]/i).map((part) => parseNumberOrNull(part));
-      return { dimensions: { length, width, height } };
+      return { dimensions: dimensionPayloadFromEntry(value) };
     } },
     { key: 'identity', label: 'UPC / EAN / ASIN', value: identityValue, missing: !identityValue, kind: 'identity', payload: (value) => {
-      const [upc = '', ean = '', asin = ''] = value.split(/[|/]/).map((part) => part.trim());
+      const { upc, ean, asin } = splitIdentity(value);
       return { upc, ean, asin };
     } },
     { key: 'images', label: 'Images', value: images.length ? `${images.length} image${images.length === 1 ? '' : 's'}` : '', missing: !images.length, kind: 'images', payload: (value) => ({ images: value.split(/\r?\n/).map((url) => url.trim()).filter(Boolean) }) },
     { key: 'price', label: 'Price', value: data.price != null ? `$${num(data.price).toFixed(2)}` : '', missing: data.price == null, kind: 'number', payload: (value) => ({ price: parseNumberOrNull(value) }) },
     { key: 'category', label: 'Category', value: categoryValue, missing: !categoryValue, kind: 'category', payload: (value) => {
-      const [category = '', subCategory = ''] = value.split(/[|/]/).map((part) => part.trim());
+      const { category, subCategory } = splitCategory(value);
       return { category, subCategory };
     } },
     { key: 'supplierId', label: 'Supplier', value: data.supplierId || '', missing: !data.supplierId, kind: 'text', payload: (value) => ({ supplierId: value }) },
@@ -304,11 +405,10 @@ const editableInitialValue = (
 ) => {
   if (field.kind === 'images') return options.images.join('\n');
   if (field.kind === 'dimensions') {
-    const d = options.dimensions || {};
-    return [d.length, d.width, d.height].map((v) => (v == null ? '' : String(v))).join(' x ');
+    return dimensionEntryFromDimensions(options.dimensions);
   }
-  if (field.kind === 'identity') return [options.identifiers.upc, options.identifiers.ean, options.identifiers.asin].join(' / ');
-  if (field.kind === 'category') return [options.category.category, options.category.subCategory].join(' / ');
+  if (field.kind === 'identity') return [options.identifiers.upc, options.identifiers.ean, options.identifiers.asin].join('|');
+  if (field.kind === 'category') return [options.category.category, options.category.subCategory].join('|');
   if (field.kind === 'number') return field.value.replace(/[$,]| lb/g, '');
   return field.value;
 };
@@ -334,15 +434,28 @@ const EditableDetailField = ({
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
   const begin = () => {
     setValue(editableInitialValue(field, { images, dimensions, identifiers, category }));
     setError('');
     setEditing(true);
   };
+  const onEditorKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setEditing(false);
+      return;
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void save();
+    }
+  };
   const save = async () => {
     setSaving(true);
     setError('');
     try {
+      if (field.kind === 'category') rememberCustomCategory(value);
       const next = await updateOmsSkuEnrichment(skuId, field.payload(value));
       onSaved(next);
       setEditing(false);
@@ -366,24 +479,215 @@ const EditableDetailField = ({
   return (
     <div className={`sku-detail-field editing ${field.missing ? 'missing' : ''}`}>
       <div className="kv-label">{field.label}</div>
-      {field.kind === 'textarea' || field.kind === 'images' ? (
-        <textarea className="sku-field-input textarea" value={value} onChange={(e) => setValue(e.target.value)} rows={field.kind === 'images' ? 3 : 2} />
+      {field.kind === 'dimensions' ? (
+        <DimensionEditor value={value} onChange={setValue} onKeyDown={onEditorKeyDown} />
+      ) : field.kind === 'identity' ? (
+        <IdentityEditor value={value} onChange={setValue} onKeyDown={onEditorKeyDown} />
+      ) : field.kind === 'category' ? (
+        <CategoryEditor value={value} onChange={setValue} onKeyDown={onEditorKeyDown} />
+      ) : field.kind === 'images' ? (
+        <ImagesEditor
+          value={value}
+          onChange={setValue}
+          onKeyDown={onEditorKeyDown}
+          uploading={uploading}
+          onUpload={async (files) => {
+            if (!files.length) return;
+            setUploading(true);
+            setError('');
+            try {
+              const uploaded = await Promise.all(files.map((file) => uploadCatalogImage(file)));
+              const current = value.split(/\r?\n/).map((url) => url.trim()).filter(Boolean);
+              setValue([...current, ...uploaded.map((file) => file.url)].join('\n'));
+            } catch (e: any) {
+              setError(e.message || 'Image upload failed');
+            } finally {
+              setUploading(false);
+            }
+          }}
+        />
+      ) : field.kind === 'textarea' ? (
+        <textarea className="sku-field-input textarea" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onEditorKeyDown} rows={2} />
       ) : (
-        <input className="sku-field-input" value={value} onChange={(e) => setValue(e.target.value)} />
-      )}
-      {(field.kind === 'dimensions' || field.kind === 'identity' || field.kind === 'category') && (
-        <div className="sku-field-help">
-          {field.kind === 'dimensions' ? 'length x width x height' : field.kind === 'identity' ? 'UPC / EAN / ASIN' : 'Category / Sub-category'}
-        </div>
+        <input className="sku-field-input" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onEditorKeyDown} />
       )}
       {error && <div className="sku-field-error">{error}</div>}
       <div className="sku-field-actions">
-        <button className="btn primary sm" onClick={save} disabled={saving}><Icon name="check" size={11} /> {saving ? 'Saving' : 'Save'}</button>
-        <button className="btn sm" onClick={() => setEditing(false)} disabled={saving}>Cancel</button>
+        <button className="btn primary sm" onClick={save} disabled={saving || uploading}><Icon name="check" size={11} /> {saving ? 'Saving' : 'Save'}</button>
+        <button className="btn sm" onClick={() => setEditing(false)} disabled={saving || uploading}>Cancel</button>
       </div>
     </div>
   );
 };
+
+const DimensionEditor = ({
+  value,
+  onChange,
+  onKeyDown,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
+}) => {
+  const update = (raw: string) => {
+    const cleaned = raw.replace(/[^\d.x,\s]/gi, '');
+    onChange(cleaned);
+  };
+  return (
+    <>
+      <input
+        className="sku-field-input"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => update(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="1010.05"
+        autoFocus
+      />
+      <div className="sku-field-help">
+        {dimensionPreview(value)}. Type 1010.05 for 10 x 10 x 0.05. Enter saves.
+      </div>
+    </>
+  );
+};
+
+const IdentityEditor = ({
+  value,
+  onChange,
+  onKeyDown,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
+}) => {
+  const current = splitIdentity(value);
+  const update = (key: 'upc' | 'ean' | 'asin', next: string) => {
+    const merged = { ...current, [key]: identityPart(next) };
+    onChange([merged.upc, merged.ean, merged.asin].join('|'));
+  };
+  return (
+    <div className="sku-triple-editor">
+      <input className="sku-field-input" value={current.upc} onChange={(e) => update('upc', e.target.value)} onKeyDown={onKeyDown} placeholder="UPC" autoFocus />
+      <input className="sku-field-input" value={current.ean} onChange={(e) => update('ean', e.target.value)} onKeyDown={onKeyDown} placeholder="EAN" />
+      <input className="sku-field-input" value={current.asin} onChange={(e) => update('asin', e.target.value)} onKeyDown={onKeyDown} placeholder="ASIN" />
+      <div className="sku-field-help span-all">Letters and numbers only. Enter saves.</div>
+    </div>
+  );
+};
+
+const CategoryEditor = ({
+  value,
+  onChange,
+  onKeyDown,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
+}) => {
+  const current = splitCategory(value);
+  const [accountNodes, setAccountNodes] = useState<{ category: string; subcategories: string[] }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetchOmsSkus({ limit: 500 } as any)
+      .then((result) => {
+        if (!alive) return;
+        const map = new Map<string, Set<string>>();
+        for (const sku of result.skus || []) {
+          const cat = String((sku as any).category || '').trim();
+          const sub = String((sku as any).subCategory || '').trim();
+          if (!cat) continue;
+          if (!map.has(cat)) map.set(cat, new Set());
+          if (sub) map.get(cat)?.add(sub);
+        }
+        setAccountNodes(Array.from(map.entries()).map(([category, subs]) => ({ category, subcategories: Array.from(subs) })));
+      })
+      .catch(() => setAccountNodes([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const customNodes = useMemo(loadCustomCategories, []);
+  const customCategoryNames = [...customNodes, ...accountNodes].map((node) => node.category);
+  const categories = Array.from(new Set([...amazonCategoryNames, ...customCategoryNames, current.category].filter(Boolean))).sort();
+  const subcategories = Array.from(new Set([
+    ...amazonSubcategoriesFor(current.category),
+    ...(customNodes.find((node) => node.category.toLowerCase() === current.category.toLowerCase())?.subcategories || []),
+    ...(accountNodes.find((node) => node.category.toLowerCase() === current.category.toLowerCase())?.subcategories || []),
+    current.subCategory,
+  ].filter(Boolean))).sort();
+  const update = (next: { category?: string; subCategory?: string }) => {
+    onChange([next.category ?? current.category, next.subCategory ?? current.subCategory].join('|'));
+  };
+  return (
+    <div className="sku-category-editor">
+      <input
+        className="sku-field-input"
+        value={current.category}
+        onChange={(e) => update({ category: e.target.value, subCategory: '' })}
+        onKeyDown={onKeyDown}
+        list="uc-amazon-category-list"
+        placeholder="Amazon category"
+        autoFocus
+      />
+      <datalist id="uc-amazon-category-list">
+        {categories.map((cat) => <option key={cat} value={cat} />)}
+      </datalist>
+      <input
+        className="sku-field-input"
+        value={current.subCategory}
+        onChange={(e) => update({ subCategory: e.target.value })}
+        onKeyDown={onKeyDown}
+        list="uc-amazon-subcategory-list"
+        placeholder="Sub-category"
+      />
+      <datalist id="uc-amazon-subcategory-list">
+        {subcategories.map((sub) => <option key={sub} value={sub} />)}
+      </datalist>
+      <div className="sku-field-help">Amazon category tree suggestions plus custom account values. Enter saves.</div>
+    </div>
+  );
+};
+
+const ImagesEditor = ({
+  value,
+  onChange,
+  onKeyDown,
+  uploading,
+  onUpload,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
+  uploading: boolean;
+  onUpload: (files: File[]) => Promise<void>;
+}) => (
+  <div className="sku-images-editor">
+    <textarea
+      className="sku-field-input textarea"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
+      rows={3}
+      placeholder="One image URL per line"
+      autoFocus
+    />
+    <label className={`sku-upload-control ${uploading ? 'disabled' : ''}`}>
+      <Icon name="download" size={12} style={{ transform: 'rotate(180deg)' }} />
+      {uploading ? 'Uploading to S3...' : 'Upload image files'}
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        multiple
+        disabled={uploading}
+        onChange={(event) => {
+          void onUpload(Array.from(event.target.files || []));
+          event.currentTarget.value = '';
+        }}
+      />
+    </label>
+    <div className="sku-field-help">Upload files or paste image links. Shift+Enter adds a new line; Enter saves.</div>
+  </div>
+);
 
 const SkuIntelligenceStrip = ({
   productIntel,
