@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, Loading, EmptyState, Modal } from '../ui';
 import { apiFetch, fetchCommandCenter, fetchHeatmap, fetchLabelAudit } from '../../../lib/oms';
-import { oauthApiUrl, TOKEN_KEY } from '../../../lib/api';
+import { apiUrl, authFetch, oauthApiUrl, TOKEN_KEY } from '../../../lib/api';
 import { timeAgo } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 
@@ -51,6 +51,19 @@ const normalizeShop = (value: string) =>
     .replace(/\/.*$/, '')
     .replace(/^www\./, '')
     .toLowerCase();
+
+const missingFieldLabels: Record<string, string> = {
+  firstName: 'First name',
+  lastName: 'Last name',
+  email: 'Email',
+  phone: 'Phone',
+  llcName: 'LLC / legal name',
+  billingAddressLine1: 'Billing address line 1',
+  billingCity: 'Billing city',
+  billingState: 'Billing state',
+  billingZipCode: 'Billing ZIP',
+  billingCountry: 'Billing country',
+};
 
 const ConnectionCard = ({
   c,
@@ -121,6 +134,7 @@ const ConnectNewModal = ({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
 
   const startMarketplace = async () => {
     const token = localStorage.getItem(TOKEN_KEY);
@@ -130,6 +144,7 @@ const ConnectNewModal = ({
     }
     setBusy(true);
     setError(null);
+    setMissingFields([]);
     setMessage(null);
     try {
       const url = new URL(oauthApiUrl(`/api/v1/auth/${kind}/start`));
@@ -170,16 +185,34 @@ const ConnectNewModal = ({
     }
     setBusy(true);
     setError(null);
+    setMissingFields([]);
     setMessage(null);
     try {
-      const res = await apiFetch<any>('/oms/connect', {
+      const res = await authFetch(apiUrl('/api/v1/oms/connect'), {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ connectionCode: code }),
       });
-      setMessage(res?.message || `Warehouse ${res?.warehouseCode || code} connected.`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const nextError: any = new Error(data?.message || data?.error || `WMS connection failed (${res.status})`);
+        nextError.status = res.status;
+        nextError.payload = data;
+        throw nextError;
+      }
+      setMessage(data?.message || `Warehouse ${data?.warehouseCode || code} connected.`);
       onConnected();
     } catch (err: any) {
-      setError(err?.message || 'WMS connection failed');
+      const payload = err?.payload || {};
+      const fields = Array.isArray(payload?.missingFields) ? payload.missingFields.map(String) : [];
+      setMissingFields(fields);
+      if (payload?.error === 'profile_incomplete') {
+        setError(payload?.message || 'Complete your OMS profile before connecting a warehouse.');
+      } else if (err?.status === 404 && String(err?.message || '').includes('integration-credentials')) {
+        setError('The warehouse accepted the connection, but its WMS credential route is not active yet. UnieLogics needs to finish the warehouse bridge setup.');
+      } else {
+        setError(err?.message || 'WMS connection failed');
+      }
     } finally {
       setBusy(false);
     }
@@ -225,6 +258,7 @@ const ConnectNewModal = ({
               onClick={() => {
                 setKind(o.id);
                 setError(null);
+                setMissingFields([]);
                 setMessage(null);
               }}
               style={{ width: '100%', marginBottom: 6 }}
@@ -274,6 +308,53 @@ const ConnectNewModal = ({
                   }}
                 />
                 <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 8 }}>This creates the OMS-WMS bridge, stores scoped client credentials, and starts WMS event syncing for this account.</div>
+                {(error || message) && (
+                  <div
+                    role={error ? 'alert' : 'status'}
+                    style={{
+                      marginTop: 14,
+                      padding: 14,
+                      borderRadius: 8,
+                      border: `1px solid ${error ? 'rgba(220, 38, 38, 0.35)' : 'rgba(22, 163, 74, 0.38)'}`,
+                      background: error ? 'rgba(220, 38, 38, 0.08)' : 'rgba(22, 163, 74, 0.1)',
+                      color: error ? 'var(--red-text)' : 'var(--green-text)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 900 }}>
+                      <Icon name={error ? 'warning' : 'check'} size={15} />
+                      {error ? 'Warehouse connection blocked' : 'Warehouse connection saved'}
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: 12.5, color: error ? 'var(--red-text)' : 'var(--green-text)' }}>
+                      {error || message}
+                    </div>
+                    {missingFields.length > 0 && (
+                      <>
+                        <div style={{ marginTop: 12, fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Complete these profile fields
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                          {missingFields.map((field) => (
+                            <span key={field} className="chip outline" style={{ fontSize: 11, borderColor: 'rgba(220, 38, 38, 0.35)' }}>
+                              {missingFieldLabels[field] || field}
+                            </span>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn primary"
+                          style={{ marginTop: 12 }}
+                          onClick={() => {
+                            onClose();
+                            if (typeof window !== 'undefined') window.location.href = '/oms?view=profile';
+                          }}
+                        >
+                          <Icon name="settings" size={13} />
+                          Open Profile Settings
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {(kind === 'amazon' || kind === 'ebay') && (

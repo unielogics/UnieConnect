@@ -14,6 +14,19 @@ type Warehouse = {
   connectedAt?: string;
 };
 
+const missingFieldLabels: Record<string, string> = {
+  firstName: 'First name',
+  lastName: 'Last name',
+  email: 'Email',
+  phone: 'Phone',
+  llcName: 'LLC / legal name',
+  billingAddressLine1: 'Billing address line 1',
+  billingCity: 'Billing city',
+  billingState: 'Billing state',
+  billingZipCode: 'Billing ZIP',
+  billingCountry: 'Billing country',
+};
+
 export default function ConnectWarehousePage() {
   const [mounted, setMounted] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -23,6 +36,7 @@ export default function ConnectWarehousePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
   const [addModalOpen, setAddModalOpen] = useState(false);
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -69,6 +83,7 @@ export default function ConnectWarehousePage() {
     setMessage(null);
     setError(false);
     setProfileIncomplete(false);
+    setMissingFields([]);
     setConnectSuccess(false);
     setTestResult(null);
     try {
@@ -94,10 +109,10 @@ export default function ConnectWarehousePage() {
         }, 1200);
       } else {
         const isProfileIncomplete = res.status === 400 && data.error === 'profile_incomplete';
-        setMessage(isProfileIncomplete ? (data.message || 'Complete your profile before connecting.') : (data.error || data.message || 'Connection failed.'));
+        setMissingFields(Array.isArray(data.missingFields) ? data.missingFields.map(String) : []);
+        setMessage(isProfileIncomplete ? (data.message || 'Complete your profile before connecting.') : (data.message || data.error || 'Connection failed.'));
         setError(true);
         setProfileIncomplete(!!isProfileIncomplete);
-        if (isProfileIncomplete) setAddModalOpen(false);
       }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Connection failed.');
@@ -166,6 +181,7 @@ export default function ConnectWarehousePage() {
     setConnectionCode('');
     setMessage(null);
     setError(false);
+    setMissingFields([]);
     setAddModalOpen(true);
   };
 
@@ -189,21 +205,28 @@ export default function ConnectWarehousePage() {
           role="alert"
           style={{
             marginBottom: 16,
-            padding: 14,
-            borderRadius: 8,
-            background: 'var(--error-bg, #fef2f2)',
-            border: '1px solid var(--error, #b91c1c)',
+            padding: 18,
+            borderRadius: 12,
+            background: '#fff7ed',
+            border: '1px solid #fdba74',
             color: 'var(--error, #b91c1c)',
             fontSize: 14,
           }}
         >
-          {message}
-          {' '}
-          <Link href="/profile" style={{ fontWeight: 600, textDecoration: 'underline' }}>
-            Go to Profile
+          <div style={{ fontWeight: 900, color: '#9a3412', marginBottom: 6 }}>Profile required before warehouse connection</div>
+          <div style={{ color: '#7c2d12' }}>{message}</div>
+          {missingFields.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              {missingFields.map((field) => (
+                <span key={field} style={{ padding: '5px 8px', borderRadius: 999, background: '#ffedd5', border: '1px solid #fed7aa', color: '#9a3412', fontSize: 12, fontWeight: 700 }}>
+                  {missingFieldLabels[field] || field}
+                </span>
+              ))}
+            </div>
+          )}
+          <Link href="/profile" className="button-primary" style={{ display: 'inline-flex', marginTop: 12, textDecoration: 'none' }}>
+            Open Profile Settings
           </Link>
-          {' '}
-          to complete your account and try again.
         </div>
       )}
       <section className="card users-table-card">
@@ -370,14 +393,38 @@ export default function ConnectWarehousePage() {
               )}
             </button>
             {message && (
-              <span
+              <div
+                role={error ? 'alert' : 'status'}
                 style={{
+                  width: '100%',
+                  padding: 14,
+                  borderRadius: 10,
+                  border: `1px solid ${error ? '#fecaca' : '#86efac'}`,
+                  background: error ? '#fef2f2' : '#dcfce7',
                   fontSize: 14,
-                  color: error ? 'var(--error, #b91c1c)' : 'var(--success, #15803d)',
+                  color: error ? '#991b1b' : '#166534',
                 }}
               >
-                {message}
-              </span>
+                <div style={{ fontWeight: 900, marginBottom: 4 }}>
+                  {error ? 'Connection needs attention' : 'Warehouse connection saved'}
+                </div>
+                <div>{message}</div>
+                {missingFields.length > 0 && (
+                  <>
+                    <div style={{ marginTop: 10, fontSize: 12, fontWeight: 800 }}>Missing profile fields:</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                      {missingFields.map((field) => (
+                        <span key={field} style={{ padding: '5px 8px', borderRadius: 999, background: '#fee2e2', border: '1px solid #fecaca', fontSize: 12, fontWeight: 700 }}>
+                          {missingFieldLabels[field] || field}
+                        </span>
+                      ))}
+                    </div>
+                    <Link href="/profile" className="button-primary" style={{ display: 'inline-flex', marginTop: 12, textDecoration: 'none' }}>
+                      Open Profile Settings
+                    </Link>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </form>

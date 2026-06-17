@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, Loading } from '../ui';
 import { TOKEN_KEY, apiUrl } from '../../../lib/api';
@@ -23,6 +23,7 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState('');
   const [msg, setMsg] = useState('');
+  const [msgTone, setMsgTone] = useState<'success' | 'error' | 'info'>('info');
   const [profile, setProfile] = useState({
     firstName: '',
     lastName: '',
@@ -58,10 +59,26 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
 
   useEffect(load, []);
 
+  const readiness = useMemo(() => {
+    const required = [
+      ['First name', profile.firstName],
+      ['Last name', profile.lastName],
+      ['Phone', profile.phone],
+      ['LLC / legal name', profile.llcName],
+      ['Billing address line 1', profile.billingAddress.addressLine1],
+      ['Billing city', profile.billingAddress.city],
+      ['Billing state', profile.billingAddress.state],
+      ['Billing ZIP', profile.billingAddress.zipCode],
+    ] as const;
+    const missing = required.filter(([, value]) => !String(value || '').trim()).map(([label]) => label);
+    return { missing, ready: missing.length === 0 };
+  }, [profile]);
+
   const saveProfile = async () => {
     if (!token) return;
     setSaving('profile');
     setMsg('');
+    setMsgTone('info');
     try {
       const res = await fetch(apiUrl('/api/v1/auth/me'), {
         method: 'PATCH',
@@ -71,8 +88,11 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error || body?.message || 'Save failed');
-      setMsg('Profile saved.');
+      setMsgTone('success');
+      setMsg('Saved. Your OMS profile is updated for warehouse connections.');
+      window.setTimeout(() => setMsg((current) => (current.startsWith('Saved.') ? '' : current)), 4500);
     } catch (e: any) {
+      setMsgTone('error');
       setMsg(e.message || 'Save failed');
     } finally {
       setSaving('');
@@ -83,6 +103,7 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
     if (!token) return;
     setSaving('password');
     setMsg('');
+    setMsgTone('info');
     try {
       const res = await fetch(apiUrl('/api/v1/auth/change-password'), {
         method: 'POST',
@@ -93,8 +114,10 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error || body?.message || 'Password update failed');
       setPassword({ oldPwd: '', newPwd: '' });
+      setMsgTone('success');
       setMsg('Password updated.');
     } catch (e: any) {
+      setMsgTone('error');
       setMsg(e.message || 'Password update failed');
     } finally {
       setSaving('');
@@ -105,11 +128,14 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
     if (!file) return;
     setSaving('avatar');
     setMsg('');
+    setMsgTone('info');
     try {
       const uploaded = await uploadProfileAvatar(file);
       setProfile((p) => ({ ...p, avatarUrl: uploaded.url }));
+      setMsgTone('success');
       setMsg('Profile image saved.');
     } catch (e: any) {
+      setMsgTone('error');
       setMsg(e.message || 'Image upload failed');
     } finally {
       setSaving('');
@@ -136,7 +162,59 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
         ))}
       </div>
 
-      {msg && <div className="card" style={{ padding: 10, marginBottom: 14, color: msg.includes('failed') || msg.includes('Could') ? 'var(--red-text)' : 'var(--green-text)' }}>{msg}</div>}
+      {msg && (
+        <div
+          className="card"
+          role="status"
+          style={{
+            padding: '14px 16px',
+            marginBottom: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            borderColor: msgTone === 'success' ? 'rgba(22, 163, 74, 0.45)' : msgTone === 'error' ? 'rgba(220, 38, 38, 0.4)' : 'var(--border)',
+            background: msgTone === 'success' ? 'rgba(22, 163, 74, 0.1)' : msgTone === 'error' ? 'rgba(220, 38, 38, 0.08)' : 'var(--panel)',
+            color: msgTone === 'success' ? 'var(--green-text)' : msgTone === 'error' ? 'var(--red-text)' : 'var(--text-secondary)',
+            fontWeight: 800,
+          }}
+        >
+          <Icon name={msgTone === 'success' ? 'check' : msgTone === 'error' ? 'warning' : 'sparkle'} size={16} />
+          <span>{msg}</span>
+        </div>
+      )}
+
+      <div
+        className="card"
+        style={{
+          marginBottom: 14,
+          padding: '14px 16px',
+          borderColor: readiness.ready ? 'rgba(22, 163, 74, 0.35)' : 'rgba(245, 158, 11, 0.35)',
+          background: readiness.ready ? 'rgba(22, 163, 74, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontWeight: 900, color: readiness.ready ? 'var(--green-text)' : 'var(--amber-text)' }}>
+              {readiness.ready ? 'Warehouse connection profile ready' : 'Warehouse connection profile needs attention'}
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 4 }}>
+              WMS requires name, phone, legal name, and billing address before a warehouse can be linked.
+            </div>
+          </div>
+          <Chip tone={readiness.ready ? 'green' : 'amber'} dot={false}>
+            {readiness.ready ? 'Ready' : `${readiness.missing.length} missing`}
+          </Chip>
+        </div>
+        {!readiness.ready && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+            {readiness.missing.map((field) => (
+              <span key={field} className="chip outline" style={{ fontSize: 11, borderColor: 'rgba(245, 158, 11, 0.45)', color: 'var(--amber-text)' }}>
+                {field}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
 
       {loading ? <div className="card"><Loading rows={6} /></div> : (
         <div className="card">
