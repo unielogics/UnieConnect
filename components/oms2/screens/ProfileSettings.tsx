@@ -64,7 +64,7 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
     setMsg('');
     try {
       const res = await fetch(apiUrl('/api/v1/auth/me'), {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         credentials: 'include',
         body: JSON.stringify(profile),
@@ -85,7 +85,7 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
     setMsg('');
     try {
       const res = await fetch(apiUrl('/api/v1/auth/change-password'), {
-        method: 'PATCH',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         credentials: 'include',
         body: JSON.stringify({ oldPassword: password.oldPwd, newPassword: password.newPwd }),
