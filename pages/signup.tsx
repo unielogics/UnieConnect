@@ -11,7 +11,8 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function Signup() {
   const router = useRouter();
-  const { token: inviteToken } = router.query;
+  const queryInviteToken = router.query.token || router.query.invite;
+  const inviteToken = typeof queryInviteToken === 'string' ? queryInviteToken : undefined;
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [validating, setValidating] = useState(true);
@@ -44,7 +45,7 @@ export default function Signup() {
   }, [theme, mounted]);
 
   useEffect(() => {
-    if (typeof inviteToken !== 'string' || !inviteToken) {
+    if (!inviteToken) {
       setValidating(false);
       setValid(false);
       return;
@@ -58,9 +59,13 @@ export default function Signup() {
         setValid(data.valid === true);
         setInviteRole(data.role || null);
         const metadata = data.metadata || {};
+        const prefill = metadata.prefillProfile || {};
         setAuditReference(metadata.audit_reference || null);
         setAuditCompany(metadata.company || null);
-        if (metadata.email) setEmail(String(metadata.email));
+        if (metadata.email || prefill.email) setEmail(String(metadata.email || prefill.email));
+        if (prefill.firstName) setFirstName(String(prefill.firstName));
+        if (prefill.lastName) setLastName(String(prefill.lastName));
+        if (prefill.phone) setPhone(String(prefill.phone));
       } catch {
         if (!cancelled) setValid(false);
       } finally {
@@ -84,7 +89,7 @@ export default function Signup() {
     e.preventDefault();
     setError(null);
     setStatusMessage(null);
-    if (typeof inviteToken !== 'string' || !inviteToken) {
+    if (!inviteToken) {
       setError('Invalid or missing invite link.');
       return;
     }
