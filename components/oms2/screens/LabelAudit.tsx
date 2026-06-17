@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
 import {
   createLabelAuditRun,
@@ -405,6 +405,7 @@ const LabelAuditUploadModal = ({
   const [filename, setFilename] = useState('');
   const [rows, setRows] = useState<LabelAuditCsvRow[]>([]);
   const [message, setMessage] = useState('');
+  useCloseOnOmsNavigation(onClose);
   const handleFile = async (file: File | null) => {
     if (!file) return;
     const text = await file.text();
@@ -460,36 +461,40 @@ const LabelAuditUploadModal = ({
   );
 };
 
-const RunDetailDrawer = ({ detail, onClose }: { detail: { run: LabelAuditRun; findings: LabelAuditResponse['findings'] }; onClose: () => void }) => (
-  <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
-    <div className="modal" style={{ width: 'min(52vw, 820px)', minWidth: 560, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(e) => e.stopPropagation()}>
-      <div className="modal-head">
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 800 }}>{detail.run.publicId} · {detail.run.filename || 'CSV upload'}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{detail.run.rowCount.toLocaleString()} rows · {detail.run.findingsCount.toLocaleString()} findings · {fmt.money(detail.run.estimatedRefunds)} refunds</div>
+const RunDetailDrawer = ({ detail, onClose }: { detail: { run: LabelAuditRun; findings: LabelAuditResponse['findings'] }; onClose: () => void }) => {
+  useCloseOnOmsNavigation(onClose);
+
+  return (
+    <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
+      <div className="modal" style={{ width: 'min(52vw, 820px)', minWidth: 560, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>{detail.run.publicId} · {detail.run.filename || 'CSV upload'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{detail.run.rowCount.toLocaleString()} rows · {detail.run.findingsCount.toLocaleString()} findings · {fmt.money(detail.run.estimatedRefunds)} refunds</div>
+          </div>
+          <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
         </div>
-        <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
-      </div>
-      <div className="modal-body">
-        {detail.findings.length === 0 ? (
-          <Loading rows={4} />
-        ) : (
-          <table className="data">
-            <thead><tr><th>Tracking</th><th>Order</th><th>Issue</th><th className="num">Refund</th><th>Recommendation</th></tr></thead>
-            <tbody>
-              {detail.findings.map((f) => (
-                <tr key={f.id}>
-                  <td className="mono strong">{f.trackingNumber || f.tracking || '—'}</td>
-                  <td className="mono">{f.order || '—'}</td>
-                  <td>{issueChip(f)}</td>
-                  <td className="num mono strong">{num(f.refundAmount ?? f.refund) ? fmt.money(num(f.refundAmount ?? f.refund)) : '—'}</td>
-                  <td>{f.recommendation || 'Review carrier evidence.'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <div className="modal-body">
+          {detail.findings.length === 0 ? (
+            <Loading rows={4} />
+          ) : (
+            <table className="data">
+              <thead><tr><th>Tracking</th><th>Order</th><th>Issue</th><th className="num">Refund</th><th>Recommendation</th></tr></thead>
+              <tbody>
+                {detail.findings.map((f) => (
+                  <tr key={f.id}>
+                    <td className="mono strong">{f.trackingNumber || f.tracking || '—'}</td>
+                    <td className="mono">{f.order || '—'}</td>
+                    <td>{issueChip(f)}</td>
+                    <td className="num mono strong">{num(f.refundAmount ?? f.refund) ? fmt.money(num(f.refundAmount ?? f.refund)) : '—'}</td>
+                    <td>{f.recommendation || 'Review carrier evidence.'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};

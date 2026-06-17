@@ -32,6 +32,13 @@ import {
 import { TOKEN_KEY } from '../lib/api';
 import { canManageUsers, fetchCurrentUser, getRoleFromToken, type CurrentUser } from '../lib/user';
 
+const OMS_NAVIGATION_START_EVENT = 'unieconnect:oms-navigation-start';
+
+function emitNavigationStart() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(OMS_NAVIGATION_START_EVENT));
+}
+
 interface DashboardLayoutProps {
   children: ReactNode;
   title?: string;
@@ -215,7 +222,10 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
               className={`oms-rail-button ${routeSection === section.id ? 'active-route' : ''} ${activeSectionId === section.id ? 'active' : ''}`}
               title={section.label}
               aria-label={section.label}
-              onClick={() => setActiveSectionId((id) => (id === section.id ? null : section.id))}
+              onClick={() => {
+                emitNavigationStart();
+                setActiveSectionId((id) => (id === section.id ? null : section.id));
+              }}
             >
               {section.icon}
             </button>
@@ -254,7 +264,10 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
                 key={item.href}
                 href={item.href}
                 className={`oms-secondary-link ${router.asPath === item.href ? 'active' : ''}`}
-                onClick={() => setActiveSectionId(null)}
+                onClick={() => {
+                  emitNavigationStart();
+                  setActiveSectionId(null);
+                }}
               >
                 <span>
                   <strong>{item.label}</strong>

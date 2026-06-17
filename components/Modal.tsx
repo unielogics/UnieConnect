@@ -1,6 +1,8 @@
 import { useEffect, ReactNode } from 'react';
 import { X } from 'lucide-react';
 
+const OMS_NAVIGATION_START_EVENT = 'unieconnect:oms-navigation-start';
+
 const sizeClasses = {
   sm: 'max-w-md',
   small: 'max-w-md',
@@ -61,6 +63,13 @@ export function Modal({
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose, closeOnEscape]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleNavigationStart = () => onClose();
+    window.addEventListener(OMS_NAVIGATION_START_EVENT, handleNavigationStart);
+    return () => window.removeEventListener(OMS_NAVIGATION_START_EVENT, handleNavigationStart);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

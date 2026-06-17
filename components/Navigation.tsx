@@ -4,6 +4,13 @@ import { useRouter } from 'next/router';
 import { fetchUserFeatures, Feature } from '../lib/features';
 import { getIcon } from '../lib/icons';
 
+const OMS_NAVIGATION_START_EVENT = 'unieconnect:oms-navigation-start';
+
+function emitNavigationStart() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(OMS_NAVIGATION_START_EVENT));
+}
+
 interface NavItem {
   label: string;
   href: string;
@@ -148,7 +155,10 @@ export default function Navigation({ sidebarCollapsed = false, onNavigate, canMa
                     isActive ? 'active bg-[#3b82f6] text-white' : 'text-gray-300 hover:bg-[#374151] hover:text-white'
                   }`}
                   title={item.label}
-                  onClick={onNavigate}
+                  onClick={() => {
+                    emitNavigationStart();
+                    onNavigate?.();
+                  }}
                 >
                   <span className="nav-icon flex-shrink-0 w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5">
                     {getIcon(item.icon)}

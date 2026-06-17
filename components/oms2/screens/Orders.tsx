@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
 import { CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
 import { cancelOrder, fetchOmsOrders, OmsOrder, publicEntityId } from '../../../lib/oms';
@@ -36,6 +36,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
   const [cancelTarget, setCancelTarget] = useState<OmsOrder | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  useCloseOnOmsNavigation(() => setCancelTarget(null), !!cancelTarget);
   const ctx = useCtxMenu();
   const { recFor, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('orders');
 

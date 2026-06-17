@@ -8,6 +8,7 @@ import { Icon } from './icons';
 import { AICopilot } from './AICopilot';
 import { ShipmentWizard } from './ShipmentWizard';
 import { OrderModal } from './OrderModal';
+import { emitOmsNavigationStart } from './ui';
 import { CommandCenter } from './screens/CommandCenter';
 import { BusinessDouble } from './screens/BusinessDouble';
 import { InventoryPlan } from './screens/InventoryPlan';
@@ -91,6 +92,7 @@ export default function UnieConnectApp() {
   const bumpScreen = useCallback(() => setScreenKey((k) => k + 1), []);
 
   const closeTransientUi = useCallback(() => {
+    emitOmsNavigationStart();
     setShowWizard(false);
     setOrderModal(null);
     setForcedSupplierId(null);

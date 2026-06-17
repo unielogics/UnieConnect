@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, EmptyState, ErrorState, fmt, Loading, StatusChip } from '../ui';
+import { Chip, EmptyState, ErrorState, fmt, Loading, StatusChip, useCloseOnOmsNavigation } from '../ui';
 import {
   fetchWarehouseDetail,
   fetchWarehouseOverview,
@@ -165,6 +165,7 @@ const WarehouseDrawer = ({
   onClose: () => void;
 }) => {
   const [tab, setTab] = useState<Tab>('overview');
+  useCloseOnOmsNavigation(onClose);
   const wh = detail?.warehouse || warehouse;
   const tabs: Array<[Tab, string, number | undefined]> = [
     ['overview', 'Overview', undefined],
@@ -359,4 +360,3 @@ const SimpleTable = ({ headers, empty, children }: { headers: string[]; empty: s
     </div>
   );
 };
-

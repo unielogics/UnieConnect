@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, Sparkline, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, Sparkline, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation } from '../ui';
 import { DecisionComparison } from '../DecisionComparison';
 import { useCtxMenu } from '../ContextMenu';
 import {
@@ -302,25 +302,29 @@ const DrawerShell = ({
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
-}) => (
-  <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
-    <div
-      className="modal"
-      style={{ width: 'min(33vw, 480px)', minWidth: 380, maxHeight: '100vh', height: '100vh', borderRadius: 0 }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="modal-head">
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 800 }}>{title}</div>
-          {subtitle && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{subtitle}</div>}
+}) => {
+  useCloseOnOmsNavigation(onClose);
+
+  return (
+    <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
+      <div
+        className="modal"
+        style={{ width: 'min(33vw, 480px)', minWidth: 380, maxHeight: '100vh', height: '100vh', borderRadius: 0 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>{title}</div>
+            {subtitle && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{subtitle}</div>}
+          </div>
+          <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
         </div>
-        <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+        <div className="modal-body">{children}</div>
+        {footer && <div className="modal-foot">{footer}</div>}
       </div>
-      <div className="modal-body">{children}</div>
-      {footer && <div className="modal-foot">{footer}</div>}
     </div>
-  </div>
-);
+  );
+};
 
 export const RecommendationDrawer = ({ rec, onClose, onChanged }: { rec: OmsRecommendation; onClose: () => void; onChanged: () => void }) => {
   const [busy, setBusy] = useState('');

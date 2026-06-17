@@ -1,5 +1,21 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Icon } from './icons';
+
+export const OMS_NAVIGATION_START_EVENT = 'unieconnect:oms-navigation-start';
+
+export function emitOmsNavigationStart() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(OMS_NAVIGATION_START_EVENT));
+}
+
+export function useCloseOnOmsNavigation(onClose: () => void, enabled = true) {
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return;
+    const close = () => onClose();
+    window.addEventListener(OMS_NAVIGATION_START_EVENT, close);
+    return () => window.removeEventListener(OMS_NAVIGATION_START_EVENT, close);
+  }, [enabled, onClose]);
+}
 
 export type Tone = 'default' | 'green' | 'amber' | 'red' | 'blue' | 'purple' | 'outline';
 
@@ -403,31 +419,35 @@ export const Modal = ({
   width?: number | string;
   fullscreen?: boolean;
   chrome?: React.ReactNode;
-}) => (
-  <div className={`modal-overlay ${fullscreen ? 'fullscreen' : ''}`} onClick={fullscreen ? undefined : onClose}>
-    <div className="modal" style={!fullscreen ? { width: width || undefined } : undefined} onClick={(e) => e.stopPropagation()}>
-      <div className="modal-head">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1 }}>
-          {fullscreen && (
-            <button className="btn ghost sm" onClick={onClose}>
-              <Icon name="chevron" size={11} style={{ transform: 'rotate(180deg)' }} /> Back
-            </button>
-          )}
-          <div>
-            <div style={{ fontSize: fullscreen ? 18 : 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{title}</div>
-            {subtitle && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{subtitle}</div>}
+}) => {
+  useCloseOnOmsNavigation(onClose);
+
+  return (
+    <div className={`modal-overlay ${fullscreen ? 'fullscreen' : ''}`} onClick={fullscreen ? undefined : onClose}>
+      <div className="modal" style={!fullscreen ? { width: width || undefined } : undefined} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1 }}>
+            {fullscreen && (
+              <button className="btn ghost sm" onClick={onClose}>
+                <Icon name="chevron" size={11} style={{ transform: 'rotate(180deg)' }} /> Back
+              </button>
+            )}
+            <div>
+              <div style={{ fontSize: fullscreen ? 18 : 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{title}</div>
+              {subtitle && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{subtitle}</div>}
+            </div>
+            {chrome}
           </div>
-          {chrome}
+          <button className="icon-btn" onClick={onClose}>
+            <Icon name="x" />
+          </button>
         </div>
-        <button className="icon-btn" onClick={onClose}>
-          <Icon name="x" />
-        </button>
+        <div className="modal-body">{children}</div>
+        {footer && <div className="modal-foot">{footer}</div>}
       </div>
-      <div className="modal-body">{children}</div>
-      {footer && <div className="modal-foot">{footer}</div>}
     </div>
-  </div>
-);
+  );
+};
 
 export const useToggle = (init = false): [boolean, () => void, (v: boolean) => void] => {
   const [v, setV] = useState(init);
