@@ -12,6 +12,24 @@ const anyNum = (s: any, k: string, d: number) => {
   return Number.isFinite(n) ? n : d;
 };
 
+const warehouseName = (warehouse?: OmsWarehouseOverview | null) =>
+  warehouse?.facilityName || warehouse?.name || warehouse?.warehouseCode || warehouse?.code || 'Receiving warehouse';
+
+const warehouseAddress = (warehouse?: OmsWarehouseOverview | null) => {
+  if (!warehouse) return '';
+  const address = warehouse.address || {};
+  const line1 = warehouse.addressLine1 || String(address.addressLine1 || address.line1 || address.street1 || address.street || '');
+  const line2 = warehouse.addressLine2 || String(address.addressLine2 || address.line2 || address.street2 || '');
+  const city = warehouse.city || String(address.city || '');
+  const state = warehouse.state || String(address.stateOrProvinceCode || address.state || '');
+  const postal = warehouse.postalCode || String(address.postalCode || address.postal || address.zip || '');
+  const country = warehouse.countryCode || String(address.countryCode || address.country || '');
+  return [line1, line2, [city, state, postal].filter(Boolean).join(', ').replace(', ', ', '), country].filter(Boolean).join(' · ');
+};
+
+const warehouseByCode = (warehouses: OmsWarehouseOverview[], code: string) =>
+  warehouses.find((warehouse) => (warehouse.warehouseCode || warehouse.code) === code);
+
 const StepBar = ({ step }: { step: number }) => {
   const steps = ['Supplier', 'Logistics', 'Configure', 'Review'];
   return (
@@ -246,8 +264,16 @@ export const ShipmentWizard = ({
       const d = routedDestinations[s.id];
       groups[d] = (groups[d] || 0) + (config[s.id]?.cartons || 0) * (config[s.id]?.unitsPerCarton || 0);
     });
-    return Object.entries(groups).map(([wh, units]) => ({ wh, units }));
-  }, [list, routedDestinations, config]);
+    return Object.entries(groups).map(([wh, units]) => {
+      const warehouse = warehouseByCode(warehouses, wh);
+      return {
+        wh,
+        units,
+        name: hasConnectedWarehouses ? warehouseName(warehouse) : wh,
+        address: hasConnectedWarehouses ? warehouseAddress(warehouse) : '',
+      };
+    });
+  }, [config, hasConnectedWarehouses, list, routedDestinations, warehouses]);
 
   const totals = useMemo(() => {
     let units = 0;
@@ -504,10 +530,16 @@ export const ShipmentWizard = ({
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {warehousesLoaded && destSummary.map((d) => (
-                      <span key={d.wh} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'var(--bg-elev)', border: '1px solid var(--border)', fontSize: 11.5, fontWeight: 600 }}>
-                        <span className="mono" style={{ color: hasConnectedWarehouses ? 'var(--green-text)' : 'var(--purple-text)' }}>{d.wh}</span>
-                        <span style={{ color: 'var(--text-secondary)' }}>{d.units.toLocaleString()}u</span>
-                      </span>
+                      <div key={d.wh} style={{ minWidth: 220, maxWidth: 360, padding: '8px 10px', borderRadius: 8, background: 'var(--bg-elev)', border: '1px solid var(--border)', fontSize: 11.5 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+                          <span style={{ fontWeight: 800 }}>{d.name}</span>
+                          <span className="mono" style={{ color: hasConnectedWarehouses ? 'var(--green-text)' : 'var(--purple-text)' }}>{d.units.toLocaleString()}u</span>
+                        </div>
+                        <div style={{ color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                          {d.address || (hasConnectedWarehouses ? d.wh : 'Projected receiving network')}
+                        </div>
+                        {hasConnectedWarehouses && <div className="mono" style={{ color: 'var(--text-tertiary)', marginTop: 3 }}>{d.wh}</div>}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -617,10 +649,16 @@ export const ShipmentWizard = ({
               <ReviewCard title={hasConnectedWarehouses ? 'Destinations · connected warehouses' : 'Destinations · national network'} tone={hasConnectedWarehouses ? 'green' : 'purple'}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {destSummary.map((d) => (
-                    <span key={d.wh} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'var(--bg-elev)', border: `1px solid ${hasConnectedWarehouses ? 'var(--green-soft)' : 'var(--purple-soft)'}`, fontSize: 11.5, fontWeight: 600 }}>
-                      <span className="mono" style={{ color: hasConnectedWarehouses ? 'var(--green-text)' : 'var(--purple-text)' }}>{d.wh}</span>
-                      <span style={{ color: 'var(--text-secondary)' }}>{d.units.toLocaleString()}u</span>
-                    </span>
+                    <div key={d.wh} style={{ minWidth: 220, flex: '1 1 220px', padding: '8px 10px', borderRadius: 8, background: 'var(--bg-elev)', border: `1px solid ${hasConnectedWarehouses ? 'var(--green-soft)' : 'var(--purple-soft)'}`, fontSize: 11.5 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontWeight: 800 }}>{d.name}</span>
+                        <span className="mono" style={{ color: hasConnectedWarehouses ? 'var(--green-text)' : 'var(--purple-text)' }}>{d.units.toLocaleString()}u</span>
+                      </div>
+                      <div style={{ color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                        {d.address || (hasConnectedWarehouses ? d.wh : 'Projected receiving network')}
+                      </div>
+                      {hasConnectedWarehouses && <div className="mono" style={{ color: 'var(--text-tertiary)', marginTop: 3 }}>{d.wh}</div>}
+                    </div>
                   ))}
                 </div>
               </ReviewCard>
@@ -666,11 +704,16 @@ export const ShipmentWizard = ({
                 <tbody>
                   {list.map((sku) => {
                     const c = config[sku.id];
+                    const routedCode = routedDestinations[sku.id];
+                    const routedWarehouse = warehouseByCode(warehouses, routedCode);
                     return (
                       <tr key={sku.id}>
                         <td className="mono strong">{(sku as any).sku || sku.id}</td>
                         <td>{sku.name}</td>
-                        <td className="mono" style={{ color: 'var(--purple-text)' }}>{routedDestinations[sku.id]}</td>
+                        <td>
+                          <div style={{ fontWeight: 700 }}>{hasConnectedWarehouses ? warehouseName(routedWarehouse) : routedCode}</div>
+                          <div className="muted" style={{ fontSize: 11 }}>{hasConnectedWarehouses ? warehouseAddress(routedWarehouse) || routedCode : 'Projected receiving network'}</div>
+                        </td>
                         <td className="num mono">{c.unitsPerCarton}</td>
                         <td className="num mono">{c.cartons}</td>
                         <td className="num mono strong">{(c.cartons * c.unitsPerCarton).toLocaleString()}</td>

@@ -166,8 +166,13 @@ export type OmsWarehouseOverview = {
   facilityId?: string | null;
   facilityCode?: string | null;
   facilityName?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
   city?: string | null;
   state?: string | null;
+  postalCode?: string | null;
+  countryCode?: string | null;
+  address?: Record<string, unknown>;
   region?: string | null;
   inventoryUnits: number;
   activeSkus: number;
