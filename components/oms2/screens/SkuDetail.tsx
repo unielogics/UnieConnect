@@ -22,6 +22,34 @@ import { AmazonListingDrawer, RecommendationDrawer } from './InventoryNetwork';
 
 type Tab = 'overview' | 'heatmap' | 'warehouses' | 'history' | 'channels' | 'billing' | 'orders';
 
+const skuBaseline = (sku: OmsSkuDetail, productIntel: ProductResearchResult | null) => {
+  const result = productIntel?.result;
+  const missing = new Set(result?.missingData || []);
+  const hasDims = Boolean(sku.dimensions?.length && sku.dimensions?.width && sku.dimensions?.height);
+  const hasWeight = num(sku.weight) > 0;
+  const hasPrice = sku.price != null && num(sku.price) > 0;
+  const hasCost = num((sku.metadata as any)?.cost ?? (sku.attributes as any)?.cost ?? sku.cost) > 0;
+  if (hasDims && hasWeight) missing.delete('dimensions_weight');
+  if (hasPrice) missing.delete('selling_price');
+  if (hasCost) missing.delete('cost');
+  const effectiveMissing = Array.from(missing);
+  const requirements = [
+    { label: 'Dimensions', met: hasDims || !effectiveMissing.includes('dimensions_weight') },
+    { label: 'Weight', met: hasWeight || !effectiveMissing.includes('dimensions_weight') },
+    { label: 'Cost', met: hasCost || !effectiveMissing.includes('cost') },
+    { label: 'Selling price', met: hasPrice || !effectiveMissing.includes('selling_price') },
+    { label: 'Demand source', met: !effectiveMissing.includes('marketplace_or_csv_demand') },
+  ];
+  return {
+    requirements,
+    effectiveMissing,
+    score: result?.opportunityScore ?? '—',
+    summary: effectiveMissing.length
+      ? `Complete ${effectiveMissing.map((m) => m.replace(/_/g, ' ')).join(', ')} before high-confidence optimization.`
+      : (result?.recommendedAction || 'SKU baseline is ready for Cortex optimization.'),
+  };
+};
+
 export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected }: ScreenProps & { onBack?: () => void }) => {
   const [data, setData] = useState<OmsSkuDetail | null>(null);
   const [productIntel, setProductIntel] = useState<ProductResearchResult | null>(null);
@@ -45,7 +73,14 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         setData(detail);
         fetchProductResearchResult(detail.sku).then(setProductIntel).catch(() => setProductIntel(null));
         fetchRecommendations({ entityType: 'sku', status: 'open', limit: 5 }).then((r) => {
-          setRecommendations((r.recommendations || []).filter((rec) => rec.entityId === detail.id || rec.entityId === detail.sku));
+          const seen = new Set<string>();
+          const matching = (r.recommendations || []).filter((rec) => rec.entityId === detail.id || rec.entityId === detail.sku);
+          setRecommendations(matching.filter((rec) => {
+            const key = [rec.recommendationType || '', rec.requiredAction || '', rec.approvalState || ''].join('|');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }));
         }).catch(() => setRecommendations([]));
       })
       .catch((e) => setErr(e.message || 'Failed to load SKU'))
@@ -64,6 +99,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
   const rev = num(intel.revenue30d);
   const gp = num(intel.grossProfit30d);
   const keepaUnavailable = data.keepaUnavailable || data.enrichmentMarker === '*' || ['keepa_unavailable', 'missing_asin'].includes(String(data.enrichmentState || '').toLowerCase());
+  const baseline = skuBaseline(data, productIntel);
 
   return (
     <div className="page fade-in">
@@ -136,15 +172,28 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
                 </>
               )}
             </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 12 }}>
+              {baseline.requirements.map((req) => (
+                <span key={req.label} className={`requirement-pill ${req.met ? 'met' : 'missing'}`}>
+                  {req.met ? <Icon name="check" size={10} /> : <Icon name="warning" size={10} />}
+                  {req.label}
+                </span>
+              ))}
+              <Chip tone={baseline.effectiveMissing.length ? 'amber' : 'green'} dot={false}>Score {baseline.score}</Chip>
+              {recommendations.length > 0 && <Chip tone="purple" dot={false}>{recommendations.length} open rec{recommendations.length === 1 ? '' : 's'}</Chip>}
+            </div>
+            <div style={{ marginTop: 7, fontSize: 12, color: baseline.effectiveMissing.length ? 'var(--amber-text)' : 'var(--green-text)', fontWeight: 700 }}>
+              {baseline.summary}
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             {recommendations[0] && (
-              <button className="btn ghost cortex-action" onClick={() => setSelectedRec(recommendations[0])} data-hint="Review Cortex optimization">
+              <button className="btn primary cortex-action" onClick={() => setSelectedRec(recommendations[0])} data-hint="Review Cortex optimization">
                 <span className="icon-alert-wrap">
                   <Icon name="sparkle" size={13} />
                   <span className="icon-alert-dot" />
                 </span>
-                Cortex
+                Review Cortex
               </button>
             )}
             <button className="btn ghost" onClick={() => setAmazonOpen(true)} data-hint="Amazon listing draft">
@@ -175,14 +224,6 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         <KpiTile label="Velocity / 30d" value={num(intel.velocity30d).toLocaleString()} unit="u" />
         <KpiTile label="Revenue / 30d" value={fmt.money(rev, { compact: true })} sub={`${fmt.money(gp, { compact: true })} GP`} tone="good" />
       </div>
-
-      <SkuIntelligenceStrip
-        sku={data}
-        productIntel={productIntel}
-        recommendations={recommendations}
-        onNavigate={onNavigate}
-        onOpenRecommendation={() => recommendations[0] && setSelectedRec(recommendations[0])}
-      />
 
       <div className="tabs" style={{ marginBottom: 16 }}>
         {([
@@ -393,6 +434,7 @@ const ItemDetailsPanel = ({ data, onSaved }: { data: OmsSkuDetail; onSaved: (det
     };
   }, []);
   const supplierName = data.supplierId ? suppliers.find((supplier) => supplier.id === data.supplierId)?.name || data.supplierId : '';
+  const costValue = num((data.metadata as any)?.cost ?? (data.attributes as any)?.cost ?? data.cost);
   const fields: DetailField[] = [
     { key: 'subtitle', label: 'Subtitle', value: firstValue(data.subtitle, meta.subtitle, meta.subTitle), missing: !firstValue(data.subtitle, meta.subtitle, meta.subTitle), kind: 'text', payload: (value) => ({ subtitle: value }) },
     { key: 'brand', label: 'Brand', value: firstValue(data.brand, meta.brand, attrs.brand), missing: !firstValue(data.brand, meta.brand, attrs.brand), kind: 'text', payload: (value) => ({ brand: value }) },
@@ -413,7 +455,7 @@ const ItemDetailsPanel = ({ data, onSaved }: { data: OmsSkuDetail; onSaved: (det
       return { category, subCategory };
     } },
     { key: 'supplierId', label: 'Supplier', value: supplierName, supplierId: data.supplierId || null, missing: !data.supplierId, kind: 'supplier', payload: (value) => ({ supplierId: value || null }) },
-    { key: 'marketplaceSource', label: 'Marketplace source', value: firstValue(meta.source, meta.importSource, meta.channel, data.asin ? 'Amazon enriched' : ''), missing: !firstValue(meta.source, meta.importSource, meta.channel, data.asin ? 'Amazon enriched' : ''), kind: 'text', payload: (value) => ({ marketplaceSource: value }) },
+    { key: 'cost', label: 'Cost', value: `$${costValue.toFixed(2)}`, missing: costValue <= 0, kind: 'number', payload: (value) => ({ cost: parseNumberOrNull(value) ?? 0 }) },
   ];
   const missing = fields.filter((field) => field.missing).length;
   const complete = Math.round(((fields.length - missing) / fields.length) * 100);

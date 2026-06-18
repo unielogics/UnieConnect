@@ -137,7 +137,11 @@ const decisionContext = (rec: OmsRecommendation) => {
   const impact = rec.estimatedImpact || {};
   const recType = String(rec.recommendationType || '').toLowerCase();
   const action = String(rec.requiredAction || '').replace(/_/g, ' ');
-  const missingFields = Array.isArray((rec.sourceSummary as any)?.blockers) ? (rec.sourceSummary as any).blockers : [];
+  const recMissingFields = [
+    ...(Array.isArray((current as any).missingFields) ? (current as any).missingFields : []),
+    ...(Array.isArray((suggested as any).requiredFields) ? (suggested as any).requiredFields : []),
+  ].filter(Boolean);
+  const accountBlockers = Array.isArray((rec.sourceSummary as any)?.blockers) ? (rec.sourceSummary as any).blockers : [];
 
   if (recType.includes('product_research')) {
     const completeness = Number((current as any).dataCompleteness ?? 0);
@@ -162,7 +166,7 @@ const decisionContext = (rec: OmsRecommendation) => {
     return {
       current: [
         formatValue(current),
-        missingFields.length ? `Open blocker: ${missingFields[0]}` : '',
+        recMissingFields.length ? `Open blocker: ${recMissingFields[0]}` : accountBlockers.length ? `Account blocker: ${accountBlockers[0]}` : '',
       ].filter(Boolean),
       suggested: [
         formatValue(suggested),

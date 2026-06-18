@@ -217,6 +217,7 @@ export type OmsSkuDetail = {
   dimensions?: { length?: number; width?: number; height?: number } | null;
   weight?: number | null;
   price?: number;
+  cost?: number;
   margin?: number;
   attributes?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
@@ -708,6 +709,7 @@ export type OmsSkuEnrichmentUpdate = {
   asin?: string | null;
   images?: string[];
   price?: number | null;
+  cost?: number | null;
   category?: string | null;
   subCategory?: string | null;
   supplierId?: string | null;
