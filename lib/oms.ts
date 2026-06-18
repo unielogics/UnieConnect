@@ -134,6 +134,14 @@ export type BusinessDoubleResponse = {
     savings: Record<string, number>;
     autonomousAfterApproval: string[];
     approvalRequiredFor: string[];
+    source?: {
+      authority?: string;
+      cortexRunId?: string | null;
+      sellerOptimizationRunId?: string | null;
+      sellerOptimizationStatus?: string | null;
+      confidence?: number | null;
+      generatedAt?: string;
+    };
   };
   latestApproved?: unknown;
   persistence: string;
@@ -154,6 +162,14 @@ export type CommandCenterFull = {
 export type InventoryPlanFull = {
   horizon?: string;
   generatedAt?: string;
+  source?: {
+    authority?: string;
+    cortexRunId?: string | null;
+    sellerOptimizationRunId?: string | null;
+    sellerOptimizationStatus?: string | null;
+    confidence?: number | null;
+    generatedAt?: string;
+  };
   current: { skuCount?: number; warehouseCount?: number; stockoutRiskSkus?: number; estimatedMonthlyCost?: number } & Record<string, number>;
   proposed: { warehouseCount?: number; stockoutRiskSkus?: number; estimatedMonthlyCost?: number; sharedPalletCandidates?: number } & Record<string, number>;
   months: Array<{ month: string; projectedUnits: number; proposedReplenishment: number; savings: number }>;

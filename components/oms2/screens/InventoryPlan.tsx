@@ -20,6 +20,14 @@ const actionFor = (s: OmsSku): { action: string; tone: 'blue' | 'purple' | 'gree
   return { action: 'hold', tone: 'amber' };
 };
 
+const intelligenceAuthorityLabel = (authority?: string) => {
+  const value = String(authority || '').toLowerCase();
+  if (value.includes('cortex_seller_optimization')) return 'Cortex seller optimization';
+  if (value.includes('oms_cached')) return 'Cached Cortex run';
+  if (value.includes('fallback')) return 'Local fallback';
+  return authority ? authority.replace(/_/g, ' ') : 'Cortex pending';
+};
+
 export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenProps) => {
   const [plan, setPlan] = useState<InventoryPlanFull | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,8 +96,9 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
         </div>
         <div className="page-actions">
           <Chip tone="purple" dot={false}>
-            Cortex:Demand · {plan.generatedAt ? new Date(plan.generatedAt).toLocaleDateString() : 'live'}
+            {intelligenceAuthorityLabel(plan.source?.authority)} · {plan.generatedAt ? new Date(plan.generatedAt).toLocaleDateString() : 'live'}
           </Chip>
+          {plan.source?.authority?.includes('fallback') && <Chip tone="amber" dot={false}>Run Seller Optimization</Chip>}
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Re-forecast</button>
           <button className="btn"><Icon name="download" size={13} /> Export plan</button>
         </div>

@@ -33,6 +33,14 @@ const METRIC_LABELS: Record<string, { label: string; unit?: string; inverse?: bo
   slaDays: { label: 'SLA (days)', unit: 'd' },
 };
 
+const intelligenceAuthorityLabel = (authority?: string) => {
+  const value = String(authority || '').toLowerCase();
+  if (value.includes('cortex_seller_optimization')) return 'Cortex seller optimization';
+  if (value.includes('oms_cached')) return 'Cached Cortex run';
+  if (value.includes('fallback')) return 'Local fallback';
+  return authority ? authority.replace(/_/g, ' ') : 'Cortex pending';
+};
+
 export const BusinessDouble = (_: ScreenProps) => {
   const [bd, setBd] = useState<BusinessDoubleResponse | null>(null);
   const [hm, setHm] = useState<HeatmapResponse | null>(null);
@@ -132,9 +140,14 @@ export const BusinessDouble = (_: ScreenProps) => {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, alignItems: 'center', padding: 16 }}>
           <div>
-            <Chip tone={latestOpt ? 'purple' : 'amber'} dot={false}>{latestOpt ? 'Latest Seller Optimization loaded' : 'No Seller Optimization run yet'}</Chip>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <Chip tone={latestOpt ? 'purple' : 'amber'} dot={false}>{latestOpt ? 'Latest Seller Optimization loaded' : 'No Seller Optimization run yet'}</Chip>
+              <Chip tone={plan.source?.authority?.includes('fallback') ? 'amber' : 'purple'} dot={false}>
+                {intelligenceAuthorityLabel(plan.source?.authority)}
+              </Chip>
+            </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
-              Optimize Suite uses marketplace connections first, CSV/manual data as fallback, and WMS truth for execution readiness.
+              Optimize Suite uses Cortex seller optimization first, marketplace connections as primary data, CSV/manual data as fallback, and WMS truth for execution readiness.
             </div>
           </div>
           <div className="kv">
