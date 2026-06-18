@@ -303,7 +303,19 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
       ) : (
         <SkuMarginView skus={filtered} onOpenSku={(id) => onNavigate('sku-detail', id)} />
       )}
-      {selectedRec && <RecommendationDrawer rec={selectedRec} onClose={() => setSelectedRec(null)} onChanged={load} />}
+      {selectedRec && (
+        <RecommendationDrawer
+          rec={selectedRec}
+          onClose={() => setSelectedRec(null)}
+          onChanged={load}
+          onResolveMissingData={(_, rec) => {
+            const target = rec.entityId || selectedRec.entityId;
+            setSelectedRec(null);
+            if (target) onNavigate('sku-detail', String(target));
+          }}
+          resolveMissingLabel="Open SKU cleanup"
+        />
+      )}
       {amazonSku && <AmazonListingDrawer sku={amazonSku} onClose={() => setAmazonSku(null)} />}
     </div>
   );
@@ -345,11 +357,34 @@ const DrawerShell = ({
   );
 };
 
-export const RecommendationDrawer = ({ rec, onClose, onChanged }: { rec: OmsRecommendation; onClose: () => void; onChanged: () => void }) => {
+const recommendationMissingFields = (rec: OmsRecommendation) =>
+  Array.from(new Set([
+    ...(Array.isArray((rec.currentValue as any)?.missingFields) ? (rec.currentValue as any).missingFields : []),
+    ...(Array.isArray((rec.optimizedValue as any)?.requiredFields) ? (rec.optimizedValue as any).requiredFields : []),
+  ].map((field) => String(field || '').trim()).filter(Boolean)));
+
+export const RecommendationDrawer = ({
+  rec,
+  onClose,
+  onChanged,
+  onResolveMissingData,
+  resolveMissingLabel,
+}: {
+  rec: OmsRecommendation;
+  onClose: () => void;
+  onChanged: () => void;
+  onResolveMissingData?: (missingFields: string[], rec: OmsRecommendation) => void;
+  resolveMissingLabel?: string;
+}) => {
   const [busy, setBusy] = useState('');
   const [edit, setEdit] = useState(false);
   const [current, setCurrent] = useState(JSON.stringify(rec.currentValue || {}, null, 2));
   const [optimized, setOptimized] = useState(JSON.stringify(rec.optimizedValue || {}, null, 2));
+  const missingFields = recommendationMissingFields(rec);
+  const isMissingDataBlocker =
+    String(rec.approvalState || '').toLowerCase() === 'blocked' ||
+    String(rec.requiredAction || '').toLowerCase().includes('missing') ||
+    missingFields.length > 0;
   const act = async (action: 'approve' | 'reject') => {
     setBusy(action);
     try {
@@ -370,6 +405,38 @@ export const RecommendationDrawer = ({ rec, onClose, onChanged }: { rec: OmsReco
     >
       <div style={{ display: 'grid', gap: 14 }}>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{rec.summary}</div>
+        {isMissingDataBlocker && (
+          <div
+            style={{
+              border: '1px solid var(--amber-border)',
+              background: 'var(--amber-soft)',
+              borderRadius: 10,
+              padding: 12,
+              display: 'grid',
+              gap: 10,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--amber-text)', fontWeight: 850 }}>
+              <Icon name="warning" size={14} />
+              Cortex is waiting on baseline data
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+              This is not an approval decision yet. Cortex can create a stronger optimization only after the SKU has the required operating fields.
+            </div>
+            {missingFields.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {missingFields.map((field) => (
+                  <Chip key={field} tone="amber" dot={false}>{field.replace(/_/g, ' ')}</Chip>
+                ))}
+              </div>
+            )}
+            {onResolveMissingData && (
+              <button className="btn primary sm" onClick={() => onResolveMissingData(missingFields, rec)}>
+                <Icon name="settings" size={12} /> {resolveMissingLabel || 'Fix missing data'}
+              </button>
+            )}
+          </div>
+        )}
         <DecisionComparison rec={rec} busy={!!busy} onApprove={() => act('approve')} onDeny={() => act('reject')} />
         {edit && (
           <>

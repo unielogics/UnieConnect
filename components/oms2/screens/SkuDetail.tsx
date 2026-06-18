@@ -50,6 +50,18 @@ const skuBaseline = (sku: OmsSkuDetail, productIntel: ProductResearchResult | nu
   };
 };
 
+const skuCleanupFieldFor = (missingFields: string[], sku: OmsSkuDetail) => {
+  const normalized = missingFields.map((field) => String(field || '').toLowerCase().replace(/[_-]+/g, ' '));
+  if (normalized.some((field) => field.includes('cost'))) return 'cost';
+  if (normalized.some((field) => field.includes('dimension')) && !sku.dimensions?.length) return 'dimensions';
+  if (normalized.some((field) => field.includes('dimension')) && !sku.dimensions?.width) return 'dimensions';
+  if (normalized.some((field) => field.includes('dimension')) && !sku.dimensions?.height) return 'dimensions';
+  if (normalized.some((field) => field.includes('weight'))) return 'weight';
+  if (normalized.some((field) => field.includes('selling') || field.includes('price'))) return 'price';
+  if (normalized.some((field) => field.includes('marketplace') || field.includes('demand'))) return 'channels';
+  return 'cost';
+};
+
 export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected }: ScreenProps & { onBack?: () => void }) => {
   const [data, setData] = useState<OmsSkuDetail | null>(null);
   const [productIntel, setProductIntel] = useState<ProductResearchResult | null>(null);
@@ -76,7 +88,12 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
           const seen = new Set<string>();
           const matching = (r.recommendations || []).filter((rec) => rec.entityId === detail.id || rec.entityId === detail.sku);
           setRecommendations(matching.filter((rec) => {
-            const key = [rec.recommendationType || '', rec.requiredAction || '', rec.approvalState || ''].join('|');
+            const fields = [
+              ...(Array.isArray((rec.currentValue as any)?.missingFields) ? (rec.currentValue as any).missingFields : []),
+              ...(Array.isArray((rec.optimizedValue as any)?.requiredFields) ? (rec.optimizedValue as any).requiredFields : []),
+            ].map((field) => String(field || '').toLowerCase()).sort();
+            const isBaselineBlocker = String(rec.requiredAction || '').toLowerCase() === 'complete_missing_product_data';
+            const key = [isBaselineBlocker ? 'sku_baseline_blocker' : rec.recommendationType || '', rec.requiredAction || '', rec.approvalState || '', fields.join(',')].join('|');
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
@@ -100,6 +117,21 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
   const gp = num(intel.grossProfit30d);
   const keepaUnavailable = data.keepaUnavailable || data.enrichmentMarker === '*' || ['keepa_unavailable', 'missing_asin'].includes(String(data.enrichmentState || '').toLowerCase());
   const baseline = skuBaseline(data, productIntel);
+  const openMissingDataField = (missingFields: string[]) => {
+    const field = skuCleanupFieldFor(missingFields.length ? missingFields : baseline.effectiveMissing, data);
+    setSelectedRec(null);
+    if (field === 'channels') {
+      setTab('channels');
+      return;
+    }
+    window.setTimeout(() => {
+      const element = document.querySelector(`[data-sku-detail-field="${field}"]`) as HTMLElement | null;
+      if (!element) return;
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.click();
+      element.focus?.();
+    }, 80);
+  };
 
   return (
     <div className="page fade-in">
@@ -262,7 +294,15 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
           </div>
         </div>
       )}
-      {selectedRec && <RecommendationDrawer rec={selectedRec} onClose={() => setSelectedRec(null)} onChanged={load} />}
+      {selectedRec && (
+        <RecommendationDrawer
+          rec={selectedRec}
+          onClose={() => setSelectedRec(null)}
+          onChanged={load}
+          onResolveMissingData={(missingFields) => openMissingDataField(missingFields)}
+          resolveMissingLabel="Fix missing SKU field"
+        />
+      )}
       {amazonOpen && <AmazonListingDrawer sku={{ id: data.id, sku: data.sku, title: data.title }} onClose={() => setAmazonOpen(false)} />}
     </div>
   );
@@ -556,7 +596,13 @@ const EditableDetailField = ({
 
   if (!editing) {
     return (
-      <button type="button" onClick={begin} className={`sku-detail-field editable ${field.missing ? 'missing' : ''}`} data-hint={`Edit ${field.label}`}>
+      <button
+        type="button"
+        onClick={begin}
+        className={`sku-detail-field editable ${field.missing ? 'missing' : ''}`}
+        data-hint={`Edit ${field.label}`}
+        data-sku-detail-field={field.key}
+      >
         <div className="kv-label">{field.label}</div>
         <div className="kv-value">{field.value || 'Missing'}</div>
         <Icon name="settings" size={11} className="field-edit-icon" />
@@ -565,7 +611,7 @@ const EditableDetailField = ({
   }
 
   return (
-    <div className={`sku-detail-field editing ${field.missing ? 'missing' : ''}`}>
+    <div className={`sku-detail-field editing ${field.missing ? 'missing' : ''}`} data-sku-detail-field={field.key}>
       <div className="kv-label">{field.label}</div>
       {field.kind === 'dimensions' ? (
         <DimensionEditor value={value} onChange={setValue} onKeyDown={onEditorKeyDown} />
