@@ -3,6 +3,7 @@ import { Icon } from './icons';
 import { Modal, Chip } from './ui';
 import type { SelSku } from './SelectionBar';
 import { fetchOmsSuppliers, createShipmentDraft, confirmShipmentDraft, fetchShipmentPalletLabels, retryShipmentVendorEmail, fetchWarehouseOverview, OmsSupplier, OmsWarehouseOverview } from '../../lib/oms';
+import { fetchShipmentPricingPreview, type ShipmentPricingPreview } from '../../lib/shipment-plan';
 
 type Cfg = Record<string, { unitsPerCarton: number; cartons: number; palletize: boolean }>;
 type VendorEmailStatus = 'sent' | 'queued' | 'failed' | 'not_configured';
@@ -18,6 +19,36 @@ const anyNum = (s: any, k: string, d: number) => {
   const v = s?.[k];
   const n = typeof v === 'string' ? parseFloat(v) : v;
   return Number.isFinite(n) ? n : d;
+};
+
+const money = (value: unknown) => {
+  const n = Number(value || 0);
+  return `$${Number.isFinite(n) ? n.toFixed(2) : '0.00'}`;
+};
+
+const previewDueToday = (preview?: ShipmentPricingPreview | null) => {
+  if (!preview) return 0;
+  if (typeof preview.dueToday === 'number') return preview.dueToday;
+  return Number(preview.dueToday?.amount || 0);
+};
+
+const previewWarehouseTotal = (warehouse: any) =>
+  Number(warehouse?.feePreview?.total ?? warehouse?.totalEstimatedCost ?? warehouse?.totals?.estimatedTotal ?? 0);
+
+const previewWarehousePerUnit = (warehouse: any, fallback?: unknown) =>
+  Number(warehouse?.feePreview?.perUnit ?? warehouse?.totalEstimatedCostPerUnit ?? warehouse?.estimatedCostPerUnit ?? fallback ?? 0);
+
+const pricingScopeLabel = (scope?: string) => {
+  switch (String(scope || '').toLowerCase()) {
+    case 'anchor_only':
+      return 'Single connected warehouse';
+    case 'anchor_priority_network':
+      return 'Anchor-priority network';
+    case 'full_network':
+      return 'Full Cortex network';
+    default:
+      return scope ? scope.replace(/_/g, ' ') : 'Cortex pricing';
+  }
 };
 
 const warehouseName = (warehouse?: OmsWarehouseOverview | null) =>
@@ -168,6 +199,141 @@ const ReviewCard = ({ title, children, tone }: { title: string; children: React.
   </div>
 );
 
+const CortexPricingPanel = ({
+  preview,
+  loading,
+  error,
+  units,
+}: {
+  preview: ShipmentPricingPreview | null;
+  loading: boolean;
+  error?: string | null;
+  units: number;
+}) => {
+  if (loading) {
+    return (
+      <div className="card" style={{ padding: 16, marginBottom: 14 }}>
+        <div className="card-title"><Icon name="sparkle" size={14} /> Cortex pricing intelligence</div>
+        <div className="card-subtitle">Calculating fulfillment, label, storage, and transportation exposure…</div>
+      </div>
+    );
+  }
+
+  if (!preview && error) {
+    return (
+      <div className="card" style={{ padding: 16, marginBottom: 14, borderColor: 'var(--amber-border)', background: 'var(--amber-soft)' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <Icon name="warning" size={15} style={{ color: 'var(--amber-text)', marginTop: 2 }} />
+          <div>
+            <div style={{ fontWeight: 850, color: 'var(--amber-text)' }}>Cortex pricing unavailable</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 3 }}>{error}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!preview) return null;
+
+  const warehouses = Array.isArray(preview.warehouses) ? preview.warehouses : [];
+  const current = warehouses.find((warehouse: any) => warehouse.isAnchor || warehouse.scopeRole === 'anchor') || warehouses[0] || {};
+  const optimized = warehouses.length
+    ? warehouses.reduce((best: any, warehouse: any) => {
+        const next = previewWarehousePerUnit(warehouse, preview.totals?.estimatedPerUnit);
+        const currentBest = previewWarehousePerUnit(best, preview.totals?.estimatedPerUnit);
+        return !best || (next > 0 && next < currentBest) ? warehouse : best;
+      }, warehouses[0])
+    : {};
+  const totals = preview.totals || {};
+  const fee = preview.feePreview || {};
+  const currentPerUnit = previewWarehousePerUnit(current, totals.estimatedPerUnit);
+  const optimizedPerUnit = previewWarehousePerUnit(optimized, totals.estimatedPerUnit);
+  const labelAvg = Number(totals.labelWeightedAverage ?? (current as any)?.weightedLabelCostPerUnit ?? 0);
+  const total = Number(totals.estimatedTotal ?? previewWarehouseTotal(current));
+  const dueToday = previewDueToday(preview);
+  const confidence = preview.confidence == null ? null : Math.round(Number(preview.confidence) * 100);
+
+  return (
+    <div className="card" style={{ marginBottom: 14 }}>
+      <div className="card-header">
+        <div>
+          <div className="card-title"><Icon name="sparkle" size={14} /> Cortex pricing intelligence</div>
+          <div className="card-subtitle">
+            Estimated cost to receive, fulfill, store, and ship. Warehouse fees are charged when services are performed.
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Chip tone={String(preview.rateShopScope || '').includes('full') ? 'purple' : 'green'} dot={false}>{pricingScopeLabel(preview.rateShopScope)}</Chip>
+          {confidence != null && <Chip tone={confidence >= 70 ? 'green' : 'amber'} dot={false}>{confidence}% confidence</Chip>}
+        </div>
+      </div>
+      <div className="card-body" style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10 }}>
+          <ReviewCard title="Current / unit">
+            <strong>{money(currentPerUnit)}</strong>
+            <div className="muted" style={{ fontSize: 11 }}>{(current as any)?.warehouseCode || 'modeled'}</div>
+          </ReviewCard>
+          <ReviewCard title="Optimized / unit" tone={optimizedPerUnit && optimizedPerUnit < currentPerUnit ? 'green' : 'purple'}>
+            <strong>{money(optimizedPerUnit || currentPerUnit)}</strong>
+            <div className="muted" style={{ fontSize: 11 }}>{(optimized as any)?.warehouseCode || 'modeled'}</div>
+          </ReviewCard>
+          <ReviewCard title="Fulfillment / unit">
+            <strong>{money(fee.fulfillmentFeePerUnit ?? currentPerUnit)}</strong>
+            <div className="muted" style={{ fontSize: 11 }}>pick, pack, receive</div>
+          </ReviewCard>
+          <ReviewCard title="48-state label avg">
+            <strong>{money(labelAvg)}</strong>
+            <div className="muted" style={{ fontSize: 11 }}>parcel exposure</div>
+          </ReviewCard>
+          <ReviewCard title="Storage / month">
+            <strong>{money(totals.storageMonthlyEstimate)}</strong>
+            <div className="muted" style={{ fontSize: 11 }}>{units.toLocaleString()} units</div>
+          </ReviewCard>
+          <ReviewCard title="Due today" tone={dueToday > 0 ? 'purple' : 'green'}>
+            <strong>{money(dueToday)}</strong>
+            <div className="muted" style={{ fontSize: 11 }}>{dueToday > 0 ? 'transport due now' : '$0 unless pickup selected'}</div>
+          </ReviewCard>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 12 }}>
+          <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-sunken)' }}>
+            <div style={{ fontSize: 11, fontWeight: 850, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8 }}>Cost breakdown</div>
+            {[
+              ['Receiving / prep / LAB', totals.receivingPrepLabEstimate],
+              ['Fulfillment estimate', totals.fulfillmentEstimate],
+              ['Label weighted average', labelAvg],
+              ['Transportation estimate', totals.transportationEstimate],
+              ['Estimated total', total],
+            ].map(([label, value]) => (
+              <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, marginBottom: 6 }}>
+                <span>{label}</span>
+                <strong>{money(value)}</strong>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-sunken)' }}>
+            <div style={{ fontSize: 11, fontWeight: 850, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8 }}>Controls & blockers</div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'var(--text-secondary)' }}>
+              {preview.feeTimingNotice || 'Warehouse fees are billed when services are performed. Due today is $0.00 unless supplier pickup or paid transportation is selected.'}
+            </div>
+            {(preview.blockers || []).length > 0 && (
+              <div style={{ display: 'grid', gap: 5, marginTop: 10 }}>
+                {(preview.blockers || []).slice(0, 4).map((blocker) => (
+                  <div key={blocker} style={{ color: 'var(--amber-text)', fontSize: 12, fontWeight: 700 }}>• {String(blocker).replace(/_/g, ' ')}</div>
+                ))}
+              </div>
+            )}
+            {preview.sourceLabels?.length ? (
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 10 }}>
+                {preview.sourceLabels.slice(0, 4).map((label) => <Chip key={label} dot={false}>{label.replace(/_/g, ' ')}</Chip>)}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const ShipmentWizard = ({
   skus,
   forcedSupplierId,
@@ -195,6 +361,9 @@ export const ShipmentWizard = ({
   const [completion, setCompletion] = useState<ShipmentCompletion | null>(null);
   const [retryingEmail, setRetryingEmail] = useState(false);
   const [downloadingLabels, setDownloadingLabels] = useState(false);
+  const [pricingPreview, setPricingPreview] = useState<ShipmentPricingPreview | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingError, setPricingError] = useState<string | null>(null);
   const [config, setConfig] = useState<Cfg>(() =>
     list.reduce((acc, s) => ({ ...acc, [s.id]: { unitsPerCarton: 24, cartons: 20, palletize: true } }), {})
   );
@@ -307,6 +476,47 @@ export const ShipmentWizard = ({
       pallets,
     };
   }, [config, needsLTL, list]);
+
+  const pricingItems = useMemo(() => list.map((s) => {
+    const c = config[s.id] || { unitsPerCarton: 24, cartons: 1, palletize: true };
+    return {
+      sku: String((s as any).sku || s.name || s.id),
+      quantity: Math.max(1, c.cartons * c.unitsPerCarton),
+      boxCount: Math.max(1, c.cartons),
+    };
+  }), [config, list]);
+
+  const pricingKey = useMemo(
+    () => JSON.stringify({ pricingItems, facilityId: primaryFacilityId, needsLTL, routingMode }),
+    [pricingItems, primaryFacilityId, needsLTL, routingMode],
+  );
+
+  useEffect(() => {
+    if (completion || step !== 4 || !pricingItems.length) return;
+    let alive = true;
+    setPricingLoading(true);
+    setPricingError(null);
+    fetchShipmentPricingPreview({
+      facilityId: primaryFacilityId || undefined,
+      supplierPickupRequired: Boolean(needsLTL),
+      items: pricingItems,
+    })
+      .then((preview) => {
+        if (!alive) return;
+        setPricingPreview(preview);
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setPricingPreview(null);
+        setPricingError(error?.message || 'Cortex pricing preview failed.');
+      })
+      .finally(() => {
+        if (alive) setPricingLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [completion, step, pricingKey]);
 
   const supplier = suppliers.find((s) => s.id === supplierId);
   const supplierMatchCount = supplier ? list.filter((sk) => (supplier.skus || []).includes(sk.id) || (sk as any).supplierId === supplier.id).length : 0;
@@ -794,6 +1004,12 @@ export const ShipmentWizard = ({
                 <strong>Auto-generated</strong> on submit · {hasConnectedWarehouses ? 'pushed to connected destination WMS' : 'held as projected until WMS connection'}
               </ReviewCard>
             </div>
+            <CortexPricingPanel
+              preview={pricingPreview}
+              loading={pricingLoading}
+              error={pricingError}
+              units={totals.units}
+            />
             <div className="card" style={{ marginBottom: 14 }}>
               <div className="card-header">
                 <div className="card-title">SKUs in this plan ({list.length})</div>

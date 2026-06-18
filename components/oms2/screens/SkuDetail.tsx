@@ -17,6 +17,7 @@ import {
 } from '../../../lib/oms';
 import { num, docTone, riskLabel, channelColor } from '../../../lib/oms-adapters';
 import { amazonCategoryNames, amazonSubcategoriesFor } from '../../../lib/amazon-category-tree';
+import { fetchShipmentPricingPreview, type ShipmentPricingPreview } from '../../../lib/shipment-plan';
 import type { ScreenProps } from '../UnieConnectApp';
 import { AmazonListingDrawer, RecommendationDrawer } from './InventoryNetwork';
 
@@ -62,9 +63,43 @@ const skuCleanupFieldFor = (missingFields: string[], sku: OmsSkuDetail) => {
   return 'cost';
 };
 
+const money = (value: unknown) => {
+  const n = Number(value || 0);
+  return `$${Number.isFinite(n) ? n.toFixed(2) : '0.00'}`;
+};
+
+const warehousePerUnit = (warehouse: any, fallback?: unknown) =>
+  Number(warehouse?.feePreview?.perUnit ?? warehouse?.totalEstimatedCostPerUnit ?? warehouse?.estimatedCostPerUnit ?? fallback ?? 0);
+
+const skuPricingSummary = (preview?: ShipmentPricingPreview | null) => {
+  if (!preview) return null;
+  const warehouses = Array.isArray(preview.warehouses) ? preview.warehouses : [];
+  const current = warehouses.find((warehouse: any) => warehouse.isAnchor || warehouse.scopeRole === 'anchor') || warehouses[0] || {};
+  const optimized = warehouses.length
+    ? warehouses.reduce((best: any, warehouse: any) => {
+        const next = warehousePerUnit(warehouse, preview.totals?.estimatedPerUnit);
+        const currentBest = warehousePerUnit(best, preview.totals?.estimatedPerUnit);
+        return !best || (next > 0 && next < currentBest) ? warehouse : best;
+      }, warehouses[0])
+    : {};
+  return {
+    current,
+    optimized,
+    currentPerUnit: warehousePerUnit(current, preview.totals?.estimatedPerUnit),
+    optimizedPerUnit: warehousePerUnit(optimized, preview.totals?.estimatedPerUnit),
+    labelAvg: Number(preview.totals?.labelWeightedAverage ?? (current as any)?.weightedLabelCostPerUnit ?? 0),
+    storage: Number(preview.totals?.storageMonthlyEstimate ?? 0),
+    fulfillment: Number(preview.feePreview?.fulfillmentFeePerUnit ?? warehousePerUnit(current, preview.totals?.estimatedPerUnit)),
+    confidence: preview.confidence == null ? null : Math.round(Number(preview.confidence) * 100),
+  };
+};
+
 export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected }: ScreenProps & { onBack?: () => void }) => {
   const [data, setData] = useState<OmsSkuDetail | null>(null);
   const [productIntel, setProductIntel] = useState<ProductResearchResult | null>(null);
+  const [pricingPreview, setPricingPreview] = useState<ShipmentPricingPreview | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingError, setPricingError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
   const [selectedRec, setSelectedRec] = useState<OmsRecommendation | null>(null);
   const [amazonOpen, setAmazonOpen] = useState(false);
@@ -84,6 +119,15 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
       .then((detail) => {
         setData(detail);
         fetchProductResearchResult(detail.sku).then(setProductIntel).catch(() => setProductIntel(null));
+        setPricingLoading(true);
+        setPricingError(null);
+        fetchShipmentPricingPreview({ items: [{ sku: detail.sku, quantity: 1, boxCount: 1 }] })
+          .then(setPricingPreview)
+          .catch((error) => {
+            setPricingPreview(null);
+            setPricingError(error?.message || 'Cortex pricing preview unavailable.');
+          })
+          .finally(() => setPricingLoading(false));
         fetchRecommendations({ entityType: 'sku', status: 'open', limit: 5 }).then((r) => {
           const seen = new Set<string>();
           const matching = (r.recommendations || []).filter((rec) => rec.entityId === detail.id || rec.entityId === detail.sku);
@@ -249,6 +293,12 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
 
       <ItemDetailsPanel data={data} onSaved={setData} />
 
+      <SkuCortexEconomicsCard
+        preview={pricingPreview}
+        loading={pricingLoading}
+        error={pricingError}
+      />
+
       <div className="stat-grid cols-5" style={{ marginBottom: 16 }}>
         <KpiTile label="On hand" value={num(intel.available).toLocaleString()} unit="u" sub={`across ${data.warehouses.length} WHs`} />
         <KpiTile label="Inbound" value={num(intel.inbound).toLocaleString()} unit="u" sub={num(intel.inbound) > 0 ? 'ASNs en route' : 'no inbound'} />
@@ -318,6 +368,86 @@ const KpiTile = ({ label, value, unit, sub, tone }: { label: string; value: Reac
     {sub && <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{sub}</div>}
   </div>
 );
+
+const SkuCortexEconomicsCard = ({
+  preview,
+  loading,
+  error,
+}: {
+  preview: ShipmentPricingPreview | null;
+  loading: boolean;
+  error?: string | null;
+}) => {
+  const summary = skuPricingSummary(preview);
+  if (loading) {
+    return (
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-body" style={{ padding: 16 }}>
+          <div className="card-title"><Icon name="sparkle" size={15} /> Cortex fulfillment economics</div>
+          <div className="card-subtitle">Modeling current vs optimized fulfillment and 48-state label exposure…</div>
+        </div>
+      </div>
+    );
+  }
+  if (!summary) {
+    return (
+      <div className="card" style={{ marginBottom: 16, borderColor: error ? 'var(--amber-border)' : 'var(--border)' }}>
+        <div className="card-body" style={{ padding: 16 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <Icon name={error ? 'warning' : 'sparkle'} size={15} style={{ color: error ? 'var(--amber-text)' : 'var(--purple)' }} />
+            <div>
+              <div style={{ fontWeight: 850 }}>Cortex fulfillment economics</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 3 }}>
+                {error || 'Pricing intelligence will appear once Cortex has enough warehouse or network data.'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  const savings = summary.currentPerUnit > 0 && summary.optimizedPerUnit > 0
+    ? Math.max(0, summary.currentPerUnit - summary.optimizedPerUnit)
+    : 0;
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card-header">
+        <div>
+          <div className="card-title"><Icon name="sparkle" size={15} /> Cortex fulfillment economics</div>
+          <div className="card-subtitle">Per-unit model for fulfillment cost, shipping label exposure, and optimized warehouse routing.</div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Chip tone={String(preview?.rateShopScope || '').includes('full') ? 'purple' : 'green'} dot={false}>
+            {String(preview?.rateShopScope || 'pricing').replace(/_/g, ' ')}
+          </Chip>
+          {summary.confidence != null && <Chip tone={summary.confidence >= 70 ? 'green' : 'amber'} dot={false}>{summary.confidence}% confidence</Chip>}
+        </div>
+      </div>
+      <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
+        {[
+          ['Current / unit', money(summary.currentPerUnit), (summary.current as any)?.warehouseCode || 'modeled'],
+          ['Optimized / unit', money(summary.optimizedPerUnit || summary.currentPerUnit), (summary.optimized as any)?.warehouseCode || 'modeled'],
+          ['Potential savings', money(savings), savings > 0 ? 'per unit' : 'no better node yet'],
+          ['48-state label avg', money(summary.labelAvg), 'parcel exposure'],
+          ['Storage / month', money(summary.storage), 'estimated'],
+        ].map(([label, value, sub]) => (
+          <div key={String(label)} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-sunken)' }}>
+            <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)', fontWeight: 800 }}>{label}</div>
+            <div style={{ fontSize: 18, fontWeight: 850, marginTop: 5 }}>{value}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 3 }}>{sub}</div>
+          </div>
+        ))}
+      </div>
+      {(preview?.blockers || []).length > 0 && (
+        <div className="card-body" style={{ paddingTop: 0, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {(preview?.blockers || []).slice(0, 4).map((blocker) => (
+            <Chip key={blocker} tone="amber" dot={false}>{String(blocker).replace(/_/g, ' ')}</Chip>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const firstValue = (...values: unknown[]) => {
   const found = values.find((value) => value != null && String(value).trim() !== '');
