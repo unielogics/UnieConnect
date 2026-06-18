@@ -20,6 +20,9 @@ export type CatalogProduct = {
   sku: string;
   title: string;
   asin?: string;
+  enrichmentState?: string;
+  enrichmentMarker?: string;
+  keepaUnavailable?: boolean;
   imageUrl?: string;
   source: 'item' | 'amazon';
   supplierId?: string;
@@ -34,6 +37,19 @@ export type CatalogProduct = {
     receiving?: number;
   };
 };
+
+function KeepaMarker({ item }: { item?: { keepaUnavailable?: boolean; enrichmentMarker?: string } | null }) {
+  if (!item?.keepaUnavailable && item?.enrichmentMarker !== '*') return null;
+  return (
+    <span
+      title="Keepa enrichment unavailable; Cortex will use manual/marketplace data."
+      aria-label="Keepa enrichment unavailable"
+      className="ml-1 font-black text-amber-600"
+    >
+      *
+    </span>
+  );
+}
 
 type SortField =
   | 'inbound'
@@ -168,6 +184,9 @@ export default function CatalogPage() {
       sku: i.sku,
       title: i.title,
       asin: i.asin,
+      enrichmentState: i.enrichmentState,
+      enrichmentMarker: i.enrichmentMarker,
+      keepaUnavailable: i.keepaUnavailable,
       imageUrl: i.image,
       source: 'item' as const,
       supplierId: i.supplierId,
@@ -458,9 +477,11 @@ export default function CatalogPage() {
                       </td>
                       <td className="py-3 px-4 font-medium text-gray-900">
                         {p.sku}
+                        <KeepaMarker item={p} />
                       </td>
                       <td className="py-3 px-4 text-gray-700">
                         {p.title || '—'}
+                        <KeepaMarker item={p} />
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex gap-1 flex-wrap">

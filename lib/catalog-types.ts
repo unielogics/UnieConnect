@@ -10,6 +10,9 @@ export type CatalogItem = {
   asin?: string;
   category?: string;
   subCategory?: string;
+  enrichmentState?: string;
+  enrichmentMarker?: string;
+  keepaUnavailable?: boolean;
   lob?: string;
   weight?: number;
   dimensions?: { length: number; width: number; height: number };

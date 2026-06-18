@@ -76,6 +76,16 @@ const allImages = (item: CatalogItem): string[] => {
 export function CatalogItemView({ item, supplierName }: CatalogItemViewProps) {
   const images = allImages(item);
   const mainImage = images[0];
+  const keepaUnavailable = item.keepaUnavailable || item.enrichmentMarker === '*';
+  const keepaMarker = keepaUnavailable ? (
+    <span
+      title="Keepa enrichment unavailable; Cortex will use manual/marketplace data."
+      aria-label="Keepa enrichment unavailable"
+      className="ml-1 font-black text-amber-600"
+    >
+      *
+    </span>
+  ) : null;
   const [wmsActivities, setWmsActivities] = useState<WmsActivities | null>(null);
   const [wmsLoading, setWmsLoading] = useState(false);
 
@@ -150,8 +160,19 @@ export function CatalogItemView({ item, supplierName }: CatalogItemViewProps) {
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs text-gray-500 font-mono mb-1">SKU {item.sku}</div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">{item.title || 'Untitled'}</h2>
+          <div className="text-xs text-gray-500 font-mono mb-1">
+            SKU {item.sku}
+            {keepaMarker}
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">
+            {item.title || 'Untitled'}
+            {keepaMarker}
+          </h2>
+          {keepaUnavailable && (
+            <p className="text-xs font-medium text-amber-700 mb-3">
+              Keepa enrichment unavailable; using manual/marketplace data.
+            </p>
+          )}
           {item.description && (
             <p className="text-sm text-gray-600 line-clamp-4 mb-4">{item.description}</p>
           )}
