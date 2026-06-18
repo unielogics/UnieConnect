@@ -9,7 +9,9 @@ import {
   OmsRecommendation,
   OmsSkuEnrichmentUpdate,
   OmsSkuDetail,
+  OmsSupplier,
   ProductResearchResult,
+  fetchOmsSuppliers,
   uploadCatalogImage,
   updateOmsSkuEnrichment,
 } from '../../../lib/oms';
@@ -230,11 +232,12 @@ const dimText = (dimensions?: OmsSkuDetail['dimensions'] | null) => {
   return l && w && h ? `${l} x ${w} x ${h} in` : '';
 };
 
-type DetailFieldKind = 'text' | 'textarea' | 'number' | 'dimensions' | 'identity' | 'images' | 'category';
+type DetailFieldKind = 'text' | 'textarea' | 'number' | 'dimensions' | 'identity' | 'images' | 'category' | 'supplier';
 type DetailField = {
   key: string;
   label: string;
   value: string;
+  supplierId?: string | null;
   missing: boolean;
   kind: DetailFieldKind;
   payload: (value: string) => OmsSkuEnrichmentUpdate;
@@ -347,11 +350,31 @@ const loadCustomCategories = () => {
 };
 
 const ItemDetailsPanel = ({ data, onSaved }: { data: OmsSkuDetail; onSaved: (detail: OmsSkuDetail) => void }) => {
+  const [suppliers, setSuppliers] = useState<OmsSupplier[]>([]);
+  const [supplierLoadFailed, setSupplierLoadFailed] = useState(false);
   const attrs = data.attributes || {};
   const meta = data.metadata || {};
   const images = [data.image, ...(data.images || [])].filter(Boolean);
   const identityValue = [data.upc, data.ean, data.asin].filter(Boolean).join(' / ');
   const categoryValue = [data.category, data.subCategory].filter(Boolean).join(' / ');
+  useEffect(() => {
+    let alive = true;
+    fetchOmsSuppliers()
+      .then((result) => {
+        if (!alive) return;
+        setSuppliers(result.suppliers || []);
+        setSupplierLoadFailed(false);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setSuppliers([]);
+        setSupplierLoadFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const supplierName = data.supplierId ? suppliers.find((supplier) => supplier.id === data.supplierId)?.name || data.supplierId : '';
   const fields: DetailField[] = [
     { key: 'subtitle', label: 'Subtitle', value: firstValue(data.subtitle, meta.subtitle, meta.subTitle), missing: !firstValue(data.subtitle, meta.subtitle, meta.subTitle), kind: 'text', payload: (value) => ({ subtitle: value }) },
     { key: 'brand', label: 'Brand', value: firstValue(data.brand, meta.brand, attrs.brand), missing: !firstValue(data.brand, meta.brand, attrs.brand), kind: 'text', payload: (value) => ({ brand: value }) },
@@ -371,7 +394,7 @@ const ItemDetailsPanel = ({ data, onSaved }: { data: OmsSkuDetail; onSaved: (det
       const { category, subCategory } = splitCategory(value);
       return { category, subCategory };
     } },
-    { key: 'supplierId', label: 'Supplier', value: data.supplierId || '', missing: !data.supplierId, kind: 'text', payload: (value) => ({ supplierId: value }) },
+    { key: 'supplierId', label: 'Supplier', value: supplierName, supplierId: data.supplierId || null, missing: !data.supplierId, kind: 'supplier', payload: (value) => ({ supplierId: value || null }) },
     { key: 'marketplaceSource', label: 'Marketplace source', value: firstValue(meta.source, meta.importSource, meta.channel, data.asin ? 'Amazon enriched' : ''), missing: !firstValue(meta.source, meta.importSource, meta.channel, data.asin ? 'Amazon enriched' : ''), kind: 'text', payload: (value) => ({ marketplaceSource: value }) },
   ];
   const missing = fields.filter((field) => field.missing).length;
@@ -387,7 +410,7 @@ const ItemDetailsPanel = ({ data, onSaved }: { data: OmsSkuDetail; onSaved: (det
       </div>
       <div className="sku-detail-grid">
         {fields.map((field) => (
-          <EditableDetailField key={field.key} skuId={data.id} field={field} images={images as string[]} dimensions={data.dimensions} identifiers={{ upc: data.upc || '', ean: data.ean || '', asin: data.asin || '' }} category={{ category: data.category || '', subCategory: data.subCategory || '' }} onSaved={onSaved} />
+          <EditableDetailField key={field.key} skuId={data.id} field={field} images={images as string[]} dimensions={data.dimensions} identifiers={{ upc: data.upc || '', ean: data.ean || '', asin: data.asin || '' }} category={{ category: data.category || '', subCategory: data.subCategory || '' }} suppliers={suppliers} supplierLoadFailed={supplierLoadFailed} onSaved={onSaved} />
         ))}
       </div>
     </div>
@@ -409,6 +432,7 @@ const editableInitialValue = (
   }
   if (field.kind === 'identity') return [options.identifiers.upc, options.identifiers.ean, options.identifiers.asin].join('|');
   if (field.kind === 'category') return [options.category.category, options.category.subCategory].join('|');
+  if (field.kind === 'supplier') return field.supplierId || '';
   if (field.kind === 'number') return field.value.replace(/[$,]| lb/g, '');
   return field.value;
 };
@@ -420,6 +444,8 @@ const EditableDetailField = ({
   dimensions,
   identifiers,
   category,
+  suppliers,
+  supplierLoadFailed,
   onSaved,
 }: {
   skuId: string;
@@ -428,6 +454,8 @@ const EditableDetailField = ({
   dimensions?: OmsSkuDetail['dimensions'] | null;
   identifiers: { upc: string; ean: string; asin: string };
   category: { category: string; subCategory: string };
+  suppliers: OmsSupplier[];
+  supplierLoadFailed?: boolean;
   onSaved: (detail: OmsSkuDetail) => void;
 }) => {
   const [editing, setEditing] = useState(false);
@@ -506,6 +534,18 @@ const EditableDetailField = ({
             }
           }}
         />
+      ) : field.kind === 'supplier' ? (
+        <>
+          <select className="sku-field-input" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onEditorKeyDown} autoFocus>
+            <option value="">No supplier assigned</option>
+            {suppliers.map((supplier) => (
+              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+            ))}
+          </select>
+          <div className="sku-field-help">
+            {supplierLoadFailed ? 'Supplier list could not load. You can still clear the assignment.' : suppliers.length ? 'Supplier assignment is saved to the SKU master record.' : 'No suppliers exist yet. Create suppliers before assigning this SKU.'}
+          </div>
+        </>
       ) : field.kind === 'textarea' ? (
         <textarea className="sku-field-input textarea" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onEditorKeyDown} rows={2} />
       ) : (

@@ -157,7 +157,7 @@ export const Suppliers = ({
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
           </button>
           <button className="btn"><Icon name="download" size={13} /> Export</button>
-          <button className="btn primary" onClick={onNewSupplier}><Icon name="plus" size={13} /> Add supplier</button>
+          <button className="btn primary" onClick={() => onNewSupplier?.()}><Icon name="plus" size={13} /> Add supplier</button>
         </div>
       </div>
 

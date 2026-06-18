@@ -71,7 +71,7 @@ export const NewSupplierModal = ({
   supplier,
 }: {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (supplier?: OmsSupplier) => void;
   supplier?: OmsSupplier | null;
 }) => {
   const profile = supplier?.pickupProfile || {};
@@ -172,7 +172,7 @@ export const NewSupplierModal = ({
           metadata: { pickupProfile },
         });
       }
-      onSuccess();
+      onSuccess(s as unknown as OmsSupplier);
     } catch (e: any) {
       setErr(e.message || `Failed to ${editing ? 'update' : 'create'} supplier`);
       setSaving(false);

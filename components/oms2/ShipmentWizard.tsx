@@ -151,7 +151,7 @@ export const ShipmentWizard = ({
 }: {
   skus: SelSku[];
   forcedSupplierId?: string | null;
-  onNewSupplier?: () => void;
+  onNewSupplier?: (onCreated?: (supplier?: OmsSupplier) => void) => void;
   onClose: () => void;
   onComplete: () => void;
 }) => {
@@ -159,6 +159,8 @@ export const ShipmentWizard = ({
   const [step, setStep] = useState(1);
   const [suppliers, setSuppliers] = useState<OmsSupplier[]>([]);
   const [supplierId, setSupplierId] = useState<string | null>(forcedSupplierId || null);
+  const [supplierReloadToken, setSupplierReloadToken] = useState(0);
+  const [assignSupplierToSkus, setAssignSupplierToSkus] = useState(false);
   const [needsLTL, setNeedsLTL] = useState<boolean | null>(null);
   const [needsLabels, setNeedsLabels] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -177,7 +179,21 @@ export const ShipmentWizard = ({
         }
       })
       .catch(() => {});
-  }, []);
+  }, [supplierReloadToken]);
+
+  useEffect(() => {
+    if (forcedSupplierId) setSupplierId(forcedSupplierId);
+  }, [forcedSupplierId]);
+
+  const handleCreateSupplier = () => {
+    onNewSupplier?.((created) => {
+      if (created?.id) {
+        setSuppliers((current) => [created, ...current.filter((supplier) => supplier.id !== created.id)]);
+        setSupplierId(created.id);
+      }
+      setSupplierReloadToken((token) => token + 1);
+    });
+  };
 
   const routedDestinations = useMemo(() => {
     const acc: Record<string, string> = {};
@@ -227,6 +243,9 @@ export const ShipmentWizard = ({
   const supplier = suppliers.find((s) => s.id === supplierId);
   const supplierMatchCount = supplier ? list.filter((sk) => (supplier.skus || []).includes(sk.id) || (sk as any).supplierId === supplier.id).length : 0;
   const hasAnySupplierMatch = suppliers.some((sp) => list.some((sk) => (sp.skus || []).includes(sk.id) || (sk as any).supplierId === sp.id));
+  const unassignedSupplierCount = list.filter((sk) => !(sk as any).supplierId).length;
+  const differentSupplierCount = supplierId ? list.filter((sk) => (sk as any).supplierId && (sk as any).supplierId !== supplierId).length : 0;
+  const needsSupplierReassignment = Boolean(supplierId && (unassignedSupplierCount > 0 || differentSupplierCount > 0));
   const canAdvance = step === 1 ? !!supplierId : step === 2 ? needsLTL !== null && needsLabels !== null : true;
 
   const submit = async () => {
@@ -235,6 +254,7 @@ export const ShipmentWizard = ({
     try {
       const body = {
         supplierId,
+        assignSupplierToSkus,
         requiresBol: !!needsLTL,
         requiresLabels: !!needsLabels,
         selectedItems: list.map((s) => ({
@@ -247,7 +267,10 @@ export const ShipmentWizard = ({
         packagePlan: { pallets: totals.pallets, totalUnits: totals.units, totalCartons: totals.cartons },
       };
       const { draft } = await createShipmentDraft(body);
-      await confirmShipmentDraft(draft.id, body);
+      const result = await confirmShipmentDraft(draft.id, body);
+      if (result?.status === 'needs_input' || result?.status === 'needs_setup') {
+        throw new Error(String(result.message || 'Shipment needs more setup before it can be confirmed.'));
+      }
       onComplete();
     } catch (e: any) {
       setSubmitErr(e.message || 'Submission failed');
@@ -314,7 +337,7 @@ export const ShipmentWizard = ({
                       Create a supplier first, then return to this shipment plan. Supplier data is required for pickup rules, labels, BOL context, and ASN routing.
                     </div>
                   </div>
-                  <button className="btn primary" onClick={onNewSupplier}>
+                  <button className="btn primary" onClick={handleCreateSupplier}>
                     <Icon name="plus" size={13} /> Create supplier
                   </button>
                 </div>
@@ -338,10 +361,34 @@ export const ShipmentWizard = ({
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-                  <button className="btn" onClick={onNewSupplier}>
+                  <button className="btn" onClick={handleCreateSupplier}>
                     <Icon name="plus" size={13} /> Create supplier
                   </button>
                 </div>
+                {needsSupplierReassignment && (
+                  <div className="card" style={{ padding: 12, marginBottom: 12, background: 'var(--bg-sunken)', borderColor: 'var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--purple-soft)', color: 'var(--purple-text)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                        <Icon name="tag" size={14} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>Supplier assignment review</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                          The selected supplier will be used for this shipment plan and ASN. {unassignedSupplierCount > 0 ? `${unassignedSupplierCount} SKU${unassignedSupplierCount === 1 ? '' : 's'} currently have no supplier. ` : ''}{differentSupplierCount > 0 ? `${differentSupplierCount} SKU${differentSupplierCount === 1 ? ' is' : 's are'} assigned to another supplier. ` : ''}
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={assignSupplierToSkus}
+                            onChange={(event) => setAssignSupplierToSkus(event.target.checked)}
+                            style={{ marginTop: 2 }}
+                          />
+                          Also update the SKU master supplier assignment for every selected SKU.
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
                   {suppliers.map((s) => {
                 const matchCount = list.filter((sk) => (s.skus || []).includes(sk.id) || (sk as any).supplierId === s.id).length;

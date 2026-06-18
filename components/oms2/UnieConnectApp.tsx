@@ -36,7 +36,7 @@ import { NewOrderModal } from './modals/NewOrderModal';
 import { NewTicketModal } from './modals/NewTicketModal';
 import { CsvImportModal, CsvImportEntity } from './modals/CsvImportModal';
 import { StateDetailModal } from './modals/StateDetailModal';
-import type { OmsOrder, OmsSku } from '../../lib/oms';
+import type { OmsOrder, OmsSku, OmsSupplier } from '../../lib/oms';
 import { fetchCurrentUser, type CurrentUser } from '../../lib/user';
 import { fetchUserFeatures, type Feature } from '../../lib/features';
 
@@ -55,7 +55,7 @@ export interface ScreenProps {
   onOpenOrder?: (o: OmsOrder) => void;
   onCreateShipmentWithSupplier?: (supplierId: string, skus: SelSku[]) => void;
   onNewProduct?: () => void;
-  onNewSupplier?: () => void;
+  onNewSupplier?: (onCreated?: (supplier?: OmsSupplier) => void) => void;
   onNewCustomer?: () => void;
   onNewOrder?: () => void;
   onNewTicket?: () => void;
@@ -80,6 +80,7 @@ export default function UnieConnectApp() {
   const [userLoadComplete, setUserLoadComplete] = useState(false);
   const [newProductOpen, setNewProductOpen] = useState(false);
   const [newSupplierOpen, setNewSupplierOpen] = useState(false);
+  const [newSupplierCreatedHandler, setNewSupplierCreatedHandler] = useState<((supplier?: OmsSupplier) => void) | null>(null);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
@@ -234,6 +235,11 @@ export default function UnieConnectApp() {
     setShowWizard(true);
   }, []);
 
+  const openNewSupplier = useCallback((onCreated?: (supplier?: OmsSupplier) => void) => {
+    setNewSupplierCreatedHandler(() => onCreated || null);
+    setNewSupplierOpen(true);
+  }, []);
+
   useEffect(() => {
     if (!router.isReady || !featureLoadComplete || !userLoadComplete) return;
     if (isScreenAvailable(section)) return;
@@ -285,7 +291,7 @@ export default function UnieConnectApp() {
     onOpenOrder: setOrderModal,
     onCreateShipmentWithSupplier: createShipmentForSupplier,
     onNewProduct: () => setNewProductOpen(true),
-    onNewSupplier: () => setNewSupplierOpen(true),
+    onNewSupplier: openNewSupplier,
     onNewCustomer: () => setNewCustomerOpen(true),
     onNewOrder: () => setNewOrderOpen(true),
     onNewTicket: () => setNewTicketOpen(true),
@@ -365,7 +371,7 @@ export default function UnieConnectApp() {
             <ShipmentWizard
               skus={selectedSkus}
               forcedSupplierId={forcedSupplierId}
-              onNewSupplier={() => setNewSupplierOpen(true)}
+              onNewSupplier={openNewSupplier}
               onClose={() => {
                 setShowWizard(false);
                 setForcedSupplierId(null);
@@ -394,9 +400,14 @@ export default function UnieConnectApp() {
           )}
           {newSupplierOpen && (
             <NewSupplierModal
-              onClose={() => setNewSupplierOpen(false)}
-              onSuccess={() => {
+              onClose={() => {
                 setNewSupplierOpen(false);
+                setNewSupplierCreatedHandler(null);
+              }}
+              onSuccess={(supplier) => {
+                setNewSupplierOpen(false);
+                newSupplierCreatedHandler?.(supplier);
+                setNewSupplierCreatedHandler(null);
                 bumpScreen();
               }}
             />
