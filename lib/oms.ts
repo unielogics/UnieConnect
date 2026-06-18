@@ -71,6 +71,10 @@ export type OmsSku = {
   sku: string;
   title?: string;
   supplierId?: string | null;
+  asin?: string | null;
+  enrichmentState?: string;
+  enrichmentMarker?: string;
+  keepaUnavailable?: boolean;
   available: number;
   inbound: number;
   velocity30d: number;
@@ -218,6 +222,9 @@ export type OmsSkuDetail = {
   metadata?: Record<string, unknown>;
   amazon?: Record<string, unknown> | null;
   keepa?: Record<string, unknown> | null;
+  enrichmentState?: string;
+  enrichmentMarker?: string;
+  keepaUnavailable?: boolean;
   intelligence?: Record<string, unknown> & {
     risk?: string;
     available?: number;

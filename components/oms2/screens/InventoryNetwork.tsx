@@ -45,6 +45,18 @@ const FillScore = ({ value }: { value: number }) => {
   );
 };
 
+const KeepaMarker = ({ sku }: { sku: Pick<OmsSku, 'keepaUnavailable' | 'enrichmentMarker' | 'enrichmentState'> }) => {
+  if (!sku.keepaUnavailable && sku.enrichmentMarker !== '*') return null;
+  return (
+    <span
+      title="Keepa enrichment unavailable; Cortex will use manual/marketplace data."
+      style={{ color: 'var(--amber)', fontWeight: 900, marginLeft: 4 }}
+    >
+      *
+    </span>
+  );
+};
+
 export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewProduct, onImportCsv }: ScreenProps) => {
   const [view, setView] = useState<'table' | 'heatmap' | 'treemap'>('table');
   const [search, setSearch] = useState('');
@@ -242,9 +254,15 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                           onChange={() => toggleSelect({ id: s.id, name: s.title || s.sku, ...(s as any) })}
                         />
                       </td>
-                      <td className="mono strong">{s.sku}</td>
+                      <td className="mono strong">
+                        {s.sku}
+                        <KeepaMarker sku={s} />
+                      </td>
                       <td>
-                        <span style={{ color: 'var(--text)' }}>{s.title || '—'}</span>
+                        <span style={{ color: 'var(--text)' }}>
+                          {s.title || '—'}
+                          <KeepaMarker sku={s} />
+                        </span>
                       </td>
                       <td className="num mono strong">{(s.available ?? 0).toLocaleString()}</td>
                       <td className="num mono muted">{s.inbound > 0 ? s.inbound.toLocaleString() : '—'}</td>
@@ -433,10 +451,16 @@ const SkuHeatmapView = ({
                   title={`${sku.sku}: ${Math.round(sku.velocity30d || 0)} units / 30d`}
                 >
                   <div className="sku-heat-top">
-                    <span className="mono">{sku.sku}</span>
+                    <span className="mono">
+                      {sku.sku}
+                      <KeepaMarker sku={sku} />
+                    </span>
                     {rec && <Icon name="sparkle" size={12} />}
                   </div>
-                  <div className="sku-heat-title">{sku.title || sku.sku}</div>
+                  <div className="sku-heat-title">
+                    {sku.title || sku.sku}
+                    <KeepaMarker sku={sku} />
+                  </div>
                   <div className="sku-heat-metrics">
                     <span>{Math.round(sku.velocity30d || 0)}u / 30d</span>
                     <span>{Math.round(sku.daysOfCover || 0)}d cover</span>

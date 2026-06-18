@@ -249,6 +249,52 @@ export type EstimateServiceFeesLineItem = {
   amount: number;
 };
 
+export type ShipmentPricingPreview = {
+  ok?: boolean;
+  schemaVersion?: string;
+  generatedAt?: string;
+  source?: string;
+  sourceLabels?: string[];
+  runId?: string;
+  rateShopScope?: 'anchor_only' | 'anchor_priority_network' | 'full_network' | string;
+  networkPolicy?: Record<string, unknown> | null;
+  executableWarehouseCodes?: string[];
+  modeledOnlyWarehouseCodes?: string[];
+  dueToday?: { amount?: number; currency?: string; reason?: string } | number;
+  feeTimingNotice?: string;
+  totals?: {
+    units?: number;
+    fulfillmentEstimate?: number;
+    receivingPrepLabEstimate?: number;
+    storageMonthlyEstimate?: number;
+    labelWeightedAverage?: number;
+    transportationEstimate?: number;
+    estimatedTotal?: number;
+    estimatedPerUnit?: number;
+  };
+  feePreview?: {
+    pickFeePerUnit?: number;
+    packFeePerOrder?: number;
+    fulfillmentFeePerUnit?: number;
+    receivingPerUnit?: number;
+    prepLabPerUnit?: number;
+    storagePerUnitMonth?: number;
+    palletFeePerUnit?: number;
+  };
+  labelCostByState?: Array<{ state: string; averageCost?: number; weightedCost?: number; confidence?: number; warehouseCode?: string }>;
+  warehouses?: Array<{
+    warehouseCode?: string;
+    scopeRole?: string;
+    source?: string;
+    totals?: Record<string, number>;
+    feePreview?: Record<string, number>;
+    blockers?: string[];
+    confidence?: number;
+  }>;
+  blockers?: string[];
+  confidence?: number;
+};
+
 export async function fetchEstimateServiceFees(params: {
   shipFromLocationId: string;
   items: Array<{
@@ -270,14 +316,50 @@ export async function fetchEstimateServiceFees(params: {
     perUnit: number;
     lineItems: EstimateServiceFeesLineItem[];
     warehouseCode?: string;
+    dueToday?: number;
+    feeTimingNotice?: string;
+    confidence?: number;
+    blockers?: string[];
+    pricingPreview?: ShipmentPricingPreview;
+    source?: string;
   }>(res);
+}
+
+export async function fetchShipmentPricingPreview(params: {
+  shipmentPlanId?: string;
+  shipFromLocationId?: string;
+  facilityId?: string;
+  supplierPickupRequired?: boolean;
+  supplierPickupEstimate?: number;
+  items?: Array<{
+    sku: string;
+    quantity?: number;
+    boxCount?: number;
+    labRequirements?: { services?: Array<{ type: string; bundleQuantity?: number }> };
+  }>;
+}) {
+  const res = await fetch(apiUrl('/api/v1/shipment-plans/pricing-preview'), {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(params),
+  });
+  return readJson<ShipmentPricingPreview>(res);
 }
 
 export async function fetchEstimatedCost(shipmentPlanId: string) {
   const res = await fetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(shipmentPlanId)}/estimated-cost`), {
     headers: { ...authHeaders(), Accept: 'application/json' },
   });
-  return readJson<{ total: number; perUnit: number; breakdown: Record<string, number> }>(res);
+  return readJson<{
+    total: number;
+    perUnit: number;
+    breakdown: Record<string, number>;
+    dueToday?: number;
+    feeTimingNotice?: string;
+    confidence?: number;
+    blockers?: string[];
+    pricingPreview?: ShipmentPricingPreview;
+  }>(res);
 }
 
 export async function fetchRateShopToWarehouse(shipmentPlanId: string) {
@@ -285,7 +367,7 @@ export async function fetchRateShopToWarehouse(shipmentPlanId: string) {
     apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(shipmentPlanId)}/rate-shop-to-warehouse`),
     { method: 'POST', headers: { ...authHeaders(), Accept: 'application/json' } }
   );
-  return readJson<{ parcel: Array<{ amount: number; currency: string; provider?: string }>; ltl: any[]; ftl: any[] }>(res);
+  return readJson<{ parcel: Array<{ amount: number; currency: string; provider?: string }>; ltl: any[]; ftl: any[]; pricingPreview?: ShipmentPricingPreview; source?: string }>(res);
 }
 
 export async function fetchShipmentActivity(params?: {

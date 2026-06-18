@@ -63,6 +63,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
   const doc = num(intel.daysOfCover);
   const rev = num(intel.revenue30d);
   const gp = num(intel.grossProfit30d);
+  const keepaUnavailable = data.keepaUnavailable || data.enrichmentMarker === '*';
 
   return (
     <div className="page fade-in">
@@ -73,7 +74,12 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         <span style={{ color: 'var(--text-tertiary)' }}>/</span>
         <span style={{ color: 'var(--text-tertiary)' }}>SKU detail</span>
         <span style={{ color: 'var(--text-tertiary)' }}>/</span>
-        <span className="mono" style={{ color: 'var(--text)', fontWeight: 600 }}>{data.sku}</span>
+        <span className="mono" style={{ color: 'var(--text)', fontWeight: 600 }}>
+          {data.sku}
+          {keepaUnavailable && (
+            <span title="Keepa enrichment unavailable; Cortex will use manual/marketplace data." style={{ color: 'var(--amber)', marginLeft: 4, fontWeight: 900 }}>*</span>
+          )}
+        </span>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -95,11 +101,22 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span className="mono" style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600 }}>{data.sku}</span>
+              <span className="mono" style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                {data.sku}
+                {keepaUnavailable && (
+                  <span title="Keepa enrichment unavailable; Cortex will use manual/marketplace data." style={{ color: 'var(--amber)', marginLeft: 4, fontWeight: 900 }}>*</span>
+                )}
+              </span>
               {data.asin && <Chip dot={false}>{data.asin}</Chip>}
+              {keepaUnavailable && <Chip tone="amber" dot={false}>Keepa *</Chip>}
               <Chip tone={rl.tone}>{rl.label}</Chip>
             </div>
-            <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>{data.title || data.sku}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
+              {data.title || data.sku}
+              {keepaUnavailable && (
+                <span title="Keepa enrichment unavailable; Cortex will use manual/marketplace data." style={{ color: 'var(--amber)', marginLeft: 6 }}>*</span>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
               {data.price != null && (
                 <>

@@ -14,6 +14,7 @@ import {
   fetchItemBarcodeBlob,
   type ShipmentPlan,
   type EstimateServiceFeesLineItem,
+  type ShipmentPricingPreview,
 } from '../../lib/shipment-plan';
 
 function statusLabel(s: string) {
@@ -28,16 +29,34 @@ function statusLabel(s: string) {
   return map[s] || s;
 }
 
+type PricingAwareEstimate = {
+  total: number;
+  perUnit: number;
+  breakdown?: Record<string, number>;
+  lineItems?: EstimateServiceFeesLineItem[];
+  dueToday?: number;
+  feeTimingNotice?: string;
+  confidence?: number;
+  blockers?: string[];
+  pricingPreview?: ShipmentPricingPreview;
+};
+
+function money(value: number | undefined | null) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function previewDueToday(preview?: ShipmentPricingPreview) {
+  if (!preview) return undefined;
+  if (typeof preview.dueToday === 'number') return preview.dueToday;
+  return Number(preview.dueToday?.amount || 0);
+}
+
 export default function ShipmentPlanDetailPage() {
   const router = useRouter();
   const { id } = router.query;
   const [plan, setPlan] = useState<ShipmentPlan | null>(null);
-  const [estimatedCost, setEstimatedCost] = useState<{ total: number; perUnit: number; breakdown?: Record<string, number> } | null>(null);
-  const [estimateServiceFees, setEstimateServiceFees] = useState<{
-    total: number;
-    perUnit: number;
-    lineItems: EstimateServiceFeesLineItem[];
-  } | 'loading' | null>(null);
+  const [estimatedCost, setEstimatedCost] = useState<PricingAwareEstimate | null>(null);
+  const [estimateServiceFees, setEstimateServiceFees] = useState<PricingAwareEstimate | 'loading' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,7 +70,16 @@ export default function ShipmentPlanDetailPage() {
   useEffect(() => {
     if (plan?.id) {
       void fetchEstimatedCost(plan.id)
-        .then((c) => setEstimatedCost({ total: c.total, perUnit: c.perUnit, breakdown: c.breakdown }))
+        .then((c) => setEstimatedCost({
+          total: c.total,
+          perUnit: c.perUnit,
+          breakdown: c.breakdown,
+          dueToday: c.dueToday ?? previewDueToday(c.pricingPreview),
+          feeTimingNotice: c.feeTimingNotice || c.pricingPreview?.feeTimingNotice,
+          confidence: c.confidence ?? c.pricingPreview?.confidence,
+          blockers: c.blockers || c.pricingPreview?.blockers || [],
+          pricingPreview: c.pricingPreview,
+        }))
         .catch(() => setEstimatedCost(null));
     }
   }, [plan?.id]);
@@ -74,7 +102,16 @@ export default function ShipmentPlanDetailPage() {
       marketplaceType: plan.prepServicesOnly ? plan.marketplaceType : undefined,
     };
     fetchEstimateServiceFees(payload)
-      .then((r) => setEstimateServiceFees({ total: r.total, perUnit: r.perUnit, lineItems: r.lineItems }))
+      .then((r) => setEstimateServiceFees({
+        total: r.total,
+        perUnit: r.perUnit,
+        lineItems: r.lineItems,
+        dueToday: r.dueToday ?? previewDueToday(r.pricingPreview),
+        feeTimingNotice: r.feeTimingNotice || r.pricingPreview?.feeTimingNotice,
+        confidence: r.confidence ?? r.pricingPreview?.confidence,
+        blockers: r.blockers || r.pricingPreview?.blockers || [],
+        pricingPreview: r.pricingPreview,
+      }))
       .catch(() => setEstimateServiceFees(null));
   }, [plan?.id, plan?.shipFromLocationId, plan?.prepServicesOnly, plan?.marketplaceType]);
 
@@ -478,7 +515,7 @@ export default function ShipmentPlanDetailPage() {
           )}
           {estimateServiceFees != null && estimateServiceFees !== 'loading' && (
             <>
-              {estimateServiceFees.lineItems.map((line, i) => (
+              {(estimateServiceFees.lineItems || []).map((line, i) => (
                 <div
                   key={i}
                   style={{
@@ -490,7 +527,7 @@ export default function ShipmentPlanDetailPage() {
                   }}
                 >
                   <span style={{ flex: 1, minWidth: 0 }}>{line.label}</span>
-                  <span>${line.amount.toFixed(2)}</span>
+                  <span>{money(line.amount)}</span>
                 </div>
               ))}
               <div
@@ -505,11 +542,26 @@ export default function ShipmentPlanDetailPage() {
                 }}
               >
                 <span>Total</span>
-                <span>${estimateServiceFees.total.toFixed(2)}</span>
+                <span>{money(estimateServiceFees.total)}</span>
               </div>
               <p className="muted" style={{ marginTop: 4, fontSize: 11 }}>
-                ${estimateServiceFees.perUnit.toFixed(2)}/unit
+                {money(estimateServiceFees.perUnit)}/unit
               </p>
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)', fontSize: 11.5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                  <span>Due today</span>
+                  <span>{money(estimateServiceFees.dueToday ?? previewDueToday(estimateServiceFees.pricingPreview))}</span>
+                </div>
+                <p className="muted" style={{ margin: '6px 0 0', lineHeight: 1.35 }}>
+                  {estimateServiceFees.feeTimingNotice || estimateServiceFees.pricingPreview?.feeTimingNotice || 'Warehouse fees are billed when services are performed.'}
+                </p>
+                {estimateServiceFees.confidence != null && (
+                  <p className="muted" style={{ margin: '6px 0 0' }}>Confidence {Math.round(estimateServiceFees.confidence * 100)}%</p>
+                )}
+                {estimateServiceFees.blockers?.slice(0, 3).map((blocker) => (
+                  <p key={blocker} style={{ margin: '5px 0 0', color: 'var(--warning, #b45309)' }}>• {blocker}</p>
+                ))}
+              </div>
             </>
           )}
           {estimateServiceFees === null && estimatedCost && (
@@ -528,7 +580,7 @@ export default function ShipmentPlanDetailPage() {
                     }}
                   >
                     <span style={{ flex: 1, minWidth: 0 }}>{label}</span>
-                    <span>${amount.toFixed(2)}</span>
+                    <span>{money(amount)}</span>
                   </div>
                 );
               })}
@@ -544,11 +596,26 @@ export default function ShipmentPlanDetailPage() {
                 }}
               >
                 <span>Total</span>
-                <span>${estimatedCost.total.toFixed(2)}</span>
+                <span>{money(estimatedCost.total)}</span>
               </div>
               <p className="muted" style={{ marginTop: 4, fontSize: 11 }}>
-                ${estimatedCost.perUnit.toFixed(2)}/unit
+                {money(estimatedCost.perUnit)}/unit
               </p>
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)', fontSize: 11.5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                  <span>Due today</span>
+                  <span>{money(estimatedCost.dueToday ?? previewDueToday(estimatedCost.pricingPreview))}</span>
+                </div>
+                <p className="muted" style={{ margin: '6px 0 0', lineHeight: 1.35 }}>
+                  {estimatedCost.feeTimingNotice || estimatedCost.pricingPreview?.feeTimingNotice || 'Warehouse fees are billed when services are performed.'}
+                </p>
+                {estimatedCost.confidence != null && (
+                  <p className="muted" style={{ margin: '6px 0 0' }}>Confidence {Math.round(estimatedCost.confidence * 100)}%</p>
+                )}
+                {estimatedCost.blockers?.slice(0, 3).map((blocker) => (
+                  <p key={blocker} style={{ margin: '5px 0 0', color: 'var(--warning, #b45309)' }}>• {blocker}</p>
+                ))}
+              </div>
             </>
           )}
         </div>
