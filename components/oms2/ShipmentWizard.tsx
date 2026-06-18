@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from './icons';
 import { Modal, Chip } from './ui';
 import type { SelSku } from './SelectionBar';
-import { fetchOmsSuppliers, createShipmentDraft, confirmShipmentDraft, OmsSupplier } from '../../lib/oms';
+import { fetchOmsSuppliers, createShipmentDraft, confirmShipmentDraft, fetchWarehouseOverview, OmsSupplier, OmsWarehouseOverview } from '../../lib/oms';
 
 type Cfg = Record<string, { unitsPerCarton: number; cartons: number; palletize: boolean }>;
 
@@ -158,6 +158,8 @@ export const ShipmentWizard = ({
   const list = skus.length ? skus : [];
   const [step, setStep] = useState(1);
   const [suppliers, setSuppliers] = useState<OmsSupplier[]>([]);
+  const [warehouses, setWarehouses] = useState<OmsWarehouseOverview[]>([]);
+  const [warehousesLoaded, setWarehousesLoaded] = useState(false);
   const [supplierId, setSupplierId] = useState<string | null>(forcedSupplierId || null);
   const [supplierReloadToken, setSupplierReloadToken] = useState(0);
   const [assignSupplierToSkus, setAssignSupplierToSkus] = useState(false);
@@ -182,6 +184,25 @@ export const ShipmentWizard = ({
   }, [supplierReloadToken]);
 
   useEffect(() => {
+    let alive = true;
+    fetchWarehouseOverview()
+      .then((result) => {
+        if (!alive) return;
+        setWarehouses(result.warehouses || []);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setWarehouses([]);
+      })
+      .finally(() => {
+        if (alive) setWarehousesLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (forcedSupplierId) setSupplierId(forcedSupplierId);
   }, [forcedSupplierId]);
 
@@ -195,13 +216,29 @@ export const ShipmentWizard = ({
     });
   };
 
+  const connectedWarehouseCodes = useMemo(
+    () => warehouses.map((warehouse) => warehouse.warehouseCode || warehouse.code).filter(Boolean),
+    [warehouses],
+  );
+  const hasConnectedWarehouses = connectedWarehouseCodes.length > 0;
+  const routingMode = hasConnectedWarehouses ? 'connected_warehouse' : 'national_network';
+  const primaryWarehouse = warehouses[0] || null;
+  const primaryFacilityId = primaryWarehouse?.facilityId || null;
+
   const routedDestinations = useMemo(() => {
     const acc: Record<string, string> = {};
-    list.forEach((s) => {
-      acc[s.id] = (s as any).primaryWh || (s as any).primaryWarehouse || 'AUTO';
+    list.forEach((s, index) => {
+      const skuWarehouse = String((s as any).primaryWh || (s as any).primaryWarehouse || '').trim();
+      if (hasConnectedWarehouses) {
+        acc[s.id] = connectedWarehouseCodes.includes(skuWarehouse)
+          ? skuWarehouse
+          : connectedWarehouseCodes[index % connectedWarehouseCodes.length];
+        return;
+      }
+      acc[s.id] = skuWarehouse || 'National network';
     });
     return acc;
-  }, [list]);
+  }, [connectedWarehouseCodes, hasConnectedWarehouses, list]);
 
   const destSummary = useMemo(() => {
     const groups: Record<string, number> = {};
@@ -255,6 +292,9 @@ export const ShipmentWizard = ({
       const body = {
         supplierId,
         assignSupplierToSkus,
+        facilityId: primaryFacilityId,
+        warehouseRoutingMode: routingMode,
+        connectedWarehouseCodes,
         requiresBol: !!needsLTL,
         requiresLabels: !!needsLabels,
         selectedItems: list.map((s) => ({
@@ -264,7 +304,7 @@ export const ShipmentWizard = ({
           cartons: config[s.id].cartons,
           palletize: config[s.id].palletize,
         })),
-        packagePlan: { pallets: totals.pallets, totalUnits: totals.units, totalCartons: totals.cartons },
+        packagePlan: { pallets: totals.pallets, totalUnits: totals.units, totalCartons: totals.cartons, routingMode, destinations: destSummary },
       };
       const { draft } = await createShipmentDraft(body);
       const result = await confirmShipmentDraft(draft.id, body);
@@ -282,13 +322,13 @@ export const ShipmentWizard = ({
   return (
     <Modal
       title="Create shipment plan"
-      subtitle={`${list.length} SKU${list.length > 1 ? 's' : ''} · ${totals.units.toLocaleString()} units · AI-routed across ${destSummary.length} warehouse${destSummary.length > 1 ? 's' : ''}`}
+      subtitle={`${list.length} SKU${list.length > 1 ? 's' : ''} · ${totals.units.toLocaleString()} units · ${hasConnectedWarehouses ? `${connectedWarehouseCodes.length} connected warehouse${connectedWarehouseCodes.length === 1 ? '' : 's'}` : 'national network routing'}`}
       onClose={onClose}
       fullscreen
       chrome={
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Chip tone="purple" dot={false}>
-            AI-routed
+          <Chip tone={hasConnectedWarehouses ? 'green' : 'purple'} dot={false}>
+            {hasConnectedWarehouses ? 'Connected warehouses' : 'Network routing'}
           </Chip>
         </div>
       }
@@ -442,26 +482,30 @@ export const ShipmentWizard = ({
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>How is this shipment moving?</div>
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                Tell us whether you need a Bill of Lading (BOL) for LTL freight pickup, and whether you need carton/pallet labels. The destination is auto-routed.
+                Tell us whether you need a Bill of Lading (BOL) for LTL freight pickup, and whether you need carton/pallet labels. Ship-to routing uses your connected warehouses when they exist.
               </div>
             </div>
-            <div className="card" style={{ marginBottom: 18, background: 'var(--purple-soft)', border: '1px solid var(--purple-soft)' }}>
+            <div className="card" style={{ marginBottom: 18, background: hasConnectedWarehouses ? 'var(--green-soft)' : 'var(--purple-soft)', border: `1px solid ${hasConnectedWarehouses ? 'var(--green-soft)' : 'var(--purple-soft)'}` }}>
               <div className="card-body" style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--purple)', color: 'white', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-                  <Icon name="sparkle" size={16} />
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: hasConnectedWarehouses ? 'var(--green)' : 'var(--purple)', color: 'white', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                  <Icon name="box" size={16} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>Destination auto-routed</span>
-                    <Chip tone="purple" dot={false}>AI</Chip>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{hasConnectedWarehouses ? 'Ship-to connected warehouse network' : 'Ship-to national network'}</span>
+                    <Chip tone={hasConnectedWarehouses ? 'green' : 'purple'} dot={false}>
+                      {hasConnectedWarehouses ? 'Configured' : 'No warehouse connected'}
+                    </Chip>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-                    Routed based on per-SKU demand region, current WMS capacity, and freight lane cost. You don't need to choose.
+                    {hasConnectedWarehouses
+                      ? 'This shipment routes only to warehouses connected to this account. The ASN uses the connected WMS facility for receiving.'
+                      : 'No warehouse connection is configured yet. UnieConnect can project the shipment against the national network, but physical receiving needs a connected WMS warehouse.'}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {destSummary.map((d) => (
+                    {warehousesLoaded && destSummary.map((d) => (
                       <span key={d.wh} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'var(--bg-elev)', border: '1px solid var(--border)', fontSize: 11.5, fontWeight: 600 }}>
-                        <span className="mono" style={{ color: 'var(--purple-text)' }}>{d.wh}</span>
+                        <span className="mono" style={{ color: hasConnectedWarehouses ? 'var(--green-text)' : 'var(--purple-text)' }}>{d.wh}</span>
                         <span style={{ color: 'var(--text-secondary)' }}>{d.units.toLocaleString()}u</span>
                       </span>
                     ))}
@@ -488,7 +532,7 @@ export const ShipmentWizard = ({
             <div style={{ marginTop: 18, padding: 14, background: 'var(--green-soft)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
               <Icon name="check" size={14} style={{ color: 'var(--green)' }} />
               <div style={{ fontSize: 12.5 }}>
-                <strong>ASN auto-generated.</strong> An Advance Ship Notice is created on submit regardless of your BOL/label choices, and pushed to the destination WMS.
+                <strong>ASN auto-generated.</strong> An Advance Ship Notice is created on submit regardless of your BOL/label choices. Connected warehouses receive WMS execution; network-routed plans stay projected until a warehouse is connected.
               </div>
             </div>
           </div>
@@ -570,11 +614,11 @@ export const ShipmentWizard = ({
                   </div>
                 </div>
               </ReviewCard>
-              <ReviewCard title="Destinations · AI-routed" tone="purple">
+              <ReviewCard title={hasConnectedWarehouses ? 'Destinations · connected warehouses' : 'Destinations · national network'} tone={hasConnectedWarehouses ? 'green' : 'purple'}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {destSummary.map((d) => (
-                    <span key={d.wh} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'var(--bg-elev)', border: '1px solid var(--purple-soft)', fontSize: 11.5, fontWeight: 600 }}>
-                      <span className="mono" style={{ color: 'var(--purple-text)' }}>{d.wh}</span>
+                    <span key={d.wh} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'var(--bg-elev)', border: `1px solid ${hasConnectedWarehouses ? 'var(--green-soft)' : 'var(--purple-soft)'}`, fontSize: 11.5, fontWeight: 600 }}>
+                      <span className="mono" style={{ color: hasConnectedWarehouses ? 'var(--green-text)' : 'var(--purple-text)' }}>{d.wh}</span>
                       <span style={{ color: 'var(--text-secondary)' }}>{d.units.toLocaleString()}u</span>
                     </span>
                   ))}
@@ -601,7 +645,7 @@ export const ShipmentWizard = ({
                 )}
               </ReviewCard>
               <ReviewCard title="ASN" tone="green">
-                <strong>Auto-generated</strong> on submit · pushed to destination WMS
+                <strong>Auto-generated</strong> on submit · {hasConnectedWarehouses ? 'pushed to connected destination WMS' : 'held as projected until WMS connection'}
               </ReviewCard>
             </div>
             <div className="card" style={{ marginBottom: 14 }}>
