@@ -299,17 +299,12 @@ export const ShipmentWizard = ({
       cube += c.cartons * Math.max(0.3, anyNum(sku, 'palletCubeFt', 0.02) * c.unitsPerCarton);
     }
     const pallets = Math.ceil(cube / 50) || 1;
-    const freightCost = needsLTL ? cube * 3.2 + 240 : cartons * 8.4;
-    const labelCost = cartons * 1.2 + 35;
     return {
       units,
       cartons,
       weight: weight.toFixed(0),
       cube: cube.toFixed(1),
       pallets,
-      freightCost: freightCost.toFixed(0),
-      labelCost: labelCost.toFixed(0),
-      totalCost: (freightCost + labelCost).toFixed(0),
     };
   }, [config, needsLTL, list]);
 
@@ -786,14 +781,14 @@ export const ShipmentWizard = ({
               <ReviewCard title="BOL & freight" tone={needsLTL ? 'green' : undefined}>
                 {needsLTL ? (
                   <>
-                    BOL generated · LTL pickup booked · est. <strong>${totals.freightCost}</strong>
+                    BOL generated · LTL pickup requested
                   </>
                 ) : (
                   <>Supplier-arranged (no BOL)</>
                 )}
               </ReviewCard>
               <ReviewCard title="Pallet labels" tone="green">
-                Required 4x6 ASN pallet labels · auto-download after submit · est. <strong>${totals.labelCost}</strong>
+                Required 4x6 ASN pallet labels · no UnieConnect label cost · auto-download after submit
               </ReviewCard>
               <ReviewCard title="ASN" tone="green">
                 <strong>Auto-generated</strong> on submit · {hasConnectedWarehouses ? 'pushed to connected destination WMS' : 'held as projected until WMS connection'}
@@ -836,12 +831,11 @@ export const ShipmentWizard = ({
                 </tbody>
               </table>
             </div>
-            <div style={{ padding: 16, background: 'var(--green-soft)', borderRadius: 10, border: '1px solid var(--green-soft)', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
+            <div style={{ padding: 16, background: 'var(--green-soft)', borderRadius: 10, border: '1px solid var(--green-soft)', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
               <SummaryStat2 label="Units" value={totals.units.toLocaleString()} />
               <SummaryStat2 label="Cartons" value={totals.cartons} />
               <SummaryStat2 label="Pallets" value={totals.pallets} />
               <SummaryStat2 label="Cube" value={`${totals.cube} ft³`} />
-              <SummaryStat2 label="Est. all-in cost" value={`$${(+totals.totalCost).toLocaleString()}`} tone="green" />
             </div>
           </div>
         )}
