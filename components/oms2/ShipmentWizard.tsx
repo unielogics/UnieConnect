@@ -2,9 +2,17 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from './icons';
 import { Modal, Chip } from './ui';
 import type { SelSku } from './SelectionBar';
-import { fetchOmsSuppliers, createShipmentDraft, confirmShipmentDraft, fetchWarehouseOverview, OmsSupplier, OmsWarehouseOverview } from '../../lib/oms';
+import { fetchOmsSuppliers, createShipmentDraft, confirmShipmentDraft, fetchShipmentPalletLabels, retryShipmentVendorEmail, fetchWarehouseOverview, OmsSupplier, OmsWarehouseOverview } from '../../lib/oms';
 
 type Cfg = Record<string, { unitsPerCarton: number; cartons: number; palletize: boolean }>;
+type VendorEmailStatus = 'sent' | 'queued' | 'failed' | 'not_configured';
+type ShipmentCompletion = {
+  draftId: string;
+  filename: string;
+  downloadStatus: 'downloaded' | 'failed';
+  downloadError?: string;
+  vendorEmail?: { status?: VendorEmailStatus; recipient?: string | null; reason?: string };
+};
 
 const anyNum = (s: any, k: string, d: number) => {
   const v = s?.[k];
@@ -182,9 +190,11 @@ export const ShipmentWizard = ({
   const [supplierReloadToken, setSupplierReloadToken] = useState(0);
   const [assignSupplierToSkus, setAssignSupplierToSkus] = useState(false);
   const [needsLTL, setNeedsLTL] = useState<boolean | null>(null);
-  const [needsLabels, setNeedsLabels] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
+  const [completion, setCompletion] = useState<ShipmentCompletion | null>(null);
+  const [retryingEmail, setRetryingEmail] = useState(false);
+  const [downloadingLabels, setDownloadingLabels] = useState(false);
   const [config, setConfig] = useState<Cfg>(() =>
     list.reduce((acc, s) => ({ ...acc, [s.id]: { unitsPerCarton: 24, cartons: 20, palletize: true } }), {})
   );
@@ -290,7 +300,7 @@ export const ShipmentWizard = ({
     }
     const pallets = Math.ceil(cube / 50) || 1;
     const freightCost = needsLTL ? cube * 3.2 + 240 : cartons * 8.4;
-    const labelCost = needsLabels ? cartons * 1.2 + 35 : 0;
+    const labelCost = cartons * 1.2 + 35;
     return {
       units,
       cartons,
@@ -301,7 +311,7 @@ export const ShipmentWizard = ({
       labelCost: labelCost.toFixed(0),
       totalCost: (freightCost + labelCost).toFixed(0),
     };
-  }, [config, needsLTL, needsLabels, list]);
+  }, [config, needsLTL, list]);
 
   const supplier = suppliers.find((s) => s.id === supplierId);
   const supplierMatchCount = supplier ? list.filter((sk) => (supplier.skus || []).includes(sk.id) || (sk as any).supplierId === supplier.id).length : 0;
@@ -309,7 +319,42 @@ export const ShipmentWizard = ({
   const unassignedSupplierCount = list.filter((sk) => !(sk as any).supplierId).length;
   const differentSupplierCount = supplierId ? list.filter((sk) => (sk as any).supplierId && (sk as any).supplierId !== supplierId).length : 0;
   const needsSupplierReassignment = Boolean(supplierId && (unassignedSupplierCount > 0 || differentSupplierCount > 0));
-  const canAdvance = step === 1 ? !!supplierId : step === 2 ? needsLTL !== null && needsLabels !== null : true;
+  const canAdvance = step === 1 ? !!supplierId : step === 2 ? needsLTL !== null : true;
+
+  const downloadPalletLabels = async (draftId: string, filename?: string | null) => {
+    setDownloadingLabels(true);
+    try {
+      const blob = await fetchShipmentPalletLabels(draftId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || `ASN-${draftId.slice(0, 8)}-pallet-labels.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setCompletion((current) => current ? { ...current, downloadStatus: 'downloaded', downloadError: undefined } : current);
+      return true;
+    } catch (e: any) {
+      setCompletion((current) => current ? { ...current, downloadStatus: 'failed', downloadError: e.message || 'Download failed' } : current);
+      return false;
+    } finally {
+      setDownloadingLabels(false);
+    }
+  };
+
+  const retryVendorEmail = async () => {
+    if (!completion?.draftId) return;
+    setRetryingEmail(true);
+    try {
+      const vendorEmail = await retryShipmentVendorEmail(completion.draftId);
+      setCompletion((current) => current ? { ...current, vendorEmail } : current);
+    } catch (e: any) {
+      setCompletion((current) => current ? { ...current, vendorEmail: { status: 'failed', reason: e.message || 'Email retry failed' } } : current);
+    } finally {
+      setRetryingEmail(false);
+    }
+  };
 
   const submit = async () => {
     setSubmitting(true);
@@ -322,7 +367,7 @@ export const ShipmentWizard = ({
         warehouseRoutingMode: routingMode,
         connectedWarehouseCodes,
         requiresBol: !!needsLTL,
-        requiresLabels: !!needsLabels,
+        requiresLabels: true,
         selectedItems: list.map((s) => ({
           itemId: s.id,
           sku: (s as any).sku || s.name,
@@ -337,7 +382,18 @@ export const ShipmentWizard = ({
       if (result?.status === 'needs_input' || result?.status === 'needs_setup') {
         throw new Error(String(result.message || 'Shipment needs more setup before it can be confirmed.'));
       }
-      onComplete();
+      const docs = (result?.documents || {}) as any;
+      const filename = docs?.palletLabels?.filename || `ASN-${draft.id.slice(0, 8)}-pallet-labels.pdf`;
+      setCompletion({
+        draftId: draft.id,
+        filename,
+        downloadStatus: 'downloaded',
+        vendorEmail: docs?.vendorEmail || undefined,
+      });
+      const downloaded = await downloadPalletLabels(draft.id, filename);
+      if (!downloaded) {
+        setCompletion((current) => current ? { ...current, downloadStatus: 'failed' } : current);
+      }
     } catch (e: any) {
       setSubmitErr(e.message || 'Submission failed');
     } finally {
@@ -361,20 +417,31 @@ export const ShipmentWizard = ({
       footer={
         <>
           <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-            Step {step} of 4 · An ASN is automatically created on submit
+            {completion ? 'Shipment created · required pallet labels are ready' : `Step ${step} of 4 · An ASN is automatically created on submit`}
             {submitErr ? <span style={{ color: 'var(--red-text)', marginLeft: 10 }}>{submitErr}</span> : null}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {step > 1 && <button className="btn" onClick={() => setStep(step - 1)}>Back</button>}
-            <button className="btn ghost" onClick={onClose}>Cancel</button>
-            {step < 4 ? (
+            {completion ? (
+              <>
+                <button className="btn" onClick={() => downloadPalletLabels(completion.draftId, completion.filename)} disabled={downloadingLabels}>
+                  <Icon name="download" size={12} /> {downloadingLabels ? 'Downloading...' : 'Download labels'}
+                </button>
+                <button className="btn primary" onClick={onComplete}>Open shipments</button>
+              </>
+            ) : (
+              <>
+                {step > 1 && <button className="btn" onClick={() => setStep(step - 1)}>Back</button>}
+                <button className="btn ghost" onClick={onClose}>Cancel</button>
+                {step < 4 ? (
               <button className="btn primary" disabled={!canAdvance} onClick={() => setStep(step + 1)}>
                 Continue <Icon name="arrowRight" size={12} />
               </button>
-            ) : (
+                ) : (
               <button className="btn primary lg" onClick={submit} disabled={submitting}>
                 <Icon name="check" size={13} /> {submitting ? 'Submitting…' : 'Submit shipment plan'}
               </button>
+                )}
+              </>
             )}
           </div>
         </>
@@ -383,7 +450,56 @@ export const ShipmentWizard = ({
       <div style={{ maxWidth: 980, margin: '0 auto' }}>
         <StepBar step={step} />
 
-        {step === 1 && (
+        {completion && (
+          <div className="card" style={{ padding: 20, background: 'var(--bg-elev)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+              <div style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--green-soft)', color: 'var(--green-text)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <Icon name="check" size={18} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 5 }}>Shipment plan created</div>
+                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>
+                  The ASN was created and the required 4x6 pallet label PDF is ready. The vendor must print these labels and place one on each pallet before pickup.
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(220px, 1fr))', gap: 10 }}>
+                  <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 4 }}>Pallet label PDF</div>
+                    <div style={{ fontSize: 12, color: completion.downloadStatus === 'downloaded' ? 'var(--green-text)' : 'var(--red-text)', fontWeight: 700 }}>
+                      {completion.downloadStatus === 'downloaded' ? 'Downloaded automatically' : 'Download failed'}
+                    </div>
+                    {completion.downloadError && <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 4 }}>{completion.downloadError}</div>}
+                    <button className="btn sm" style={{ marginTop: 10 }} onClick={() => downloadPalletLabels(completion.draftId, completion.filename)} disabled={downloadingLabels}>
+                      <Icon name="download" size={11} /> {downloadingLabels ? 'Downloading...' : 'Download again'}
+                    </button>
+                  </div>
+                  <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-sunken)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 4 }}>Vendor email</div>
+                    <div style={{ fontSize: 12, color: completion.vendorEmail?.status === 'sent' || completion.vendorEmail?.status === 'queued' ? 'var(--green-text)' : 'var(--amber-text)', fontWeight: 700 }}>
+                      {completion.vendorEmail?.status === 'sent'
+                        ? 'Sent to vendor'
+                        : completion.vendorEmail?.status === 'queued'
+                          ? 'Queued for vendor'
+                          : completion.vendorEmail?.status === 'not_configured'
+                            ? 'Email not configured'
+                            : 'Manual email required'}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 4 }}>
+                      {completion.vendorEmail?.recipient
+                        ? `Recipient: ${completion.vendorEmail.recipient}`
+                        : 'Download the PDF and email it to the vendor for reassurance.'}
+                    </div>
+                    {completion.vendorEmail?.reason && <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)', marginTop: 4 }}>{completion.vendorEmail.reason}</div>}
+                    <button className="btn sm" style={{ marginTop: 10 }} onClick={retryVendorEmail} disabled={retryingEmail}>
+                      <Icon name="refresh" size={11} /> {retryingEmail ? 'Retrying...' : 'Retry email'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!completion && step === 1 && (
           <div>
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Supplier required before shipment creation</div>
@@ -503,12 +619,12 @@ export const ShipmentWizard = ({
           </div>
         )}
 
-        {step === 2 && (
+        {!completion && step === 2 && (
           <div>
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>How is this shipment moving?</div>
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                Tell us whether you need a Bill of Lading (BOL) for LTL freight pickup, and whether you need carton/pallet labels. Ship-to routing uses your connected warehouses when they exist.
+                Tell us whether you need a Bill of Lading (BOL) for LTL freight pickup. Pallet labels are mandatory and generated automatically for the vendor.
               </div>
             </div>
             <div className="card" style={{ marginBottom: 18, background: hasConnectedWarehouses ? 'var(--green-soft)' : 'var(--purple-soft)', border: `1px solid ${hasConnectedWarehouses ? 'var(--green-soft)' : 'var(--purple-soft)'}` }}>
@@ -553,14 +669,17 @@ export const ShipmentWizard = ({
               yesNote="BOL generated · pickup booked"
               noNote="Supplier handles outbound freight"
             />
-            <YesNoCard
-              question="Do you need shipping/pallet labels?"
-              detail="If yes, we'll generate carton barcodes and master pallet labels. If no, the supplier prints their own."
-              value={needsLabels}
-              setValue={setNeedsLabels}
-              yesNote="Labels generated post-confirmation"
-              noNote="Supplier labels per spec"
-            />
+            <div className="card" style={{ marginBottom: 14, padding: 14, background: 'var(--green-soft)', borderColor: 'var(--green-soft)' }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <Icon name="check" size={14} style={{ color: 'var(--green)', marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800 }}>Pallet labels are required</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    UnieConnect will generate a 4x6 PDF with ASN and pallet barcodes. The vendor must print the labels and place one on each pallet before pickup.
+                  </div>
+                </div>
+              </div>
+            </div>
             <div style={{ marginTop: 18, padding: 14, background: 'var(--green-soft)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
               <Icon name="check" size={14} style={{ color: 'var(--green)' }} />
               <div style={{ fontSize: 12.5 }}>
@@ -570,7 +689,7 @@ export const ShipmentWizard = ({
           </div>
         )}
 
-        {step === 3 && (
+        {!completion && step === 3 && (
           <div>
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Configure cartons &amp; pallets</div>
@@ -623,12 +742,12 @@ export const ShipmentWizard = ({
           </div>
         )}
 
-        {step === 4 && (
+        {!completion && step === 4 && (
           <div>
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Review &amp; submit</div>
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                Submitting notifies the supplier, generates the ASN, and (if requested) the BOL and labels.
+                Submitting creates the ASN, generates required pallet labels, and emails the vendor when email is configured.
               </div>
             </div>
             <div className="row-2-eq" style={{ marginBottom: 14 }}>
@@ -673,14 +792,8 @@ export const ShipmentWizard = ({
                   <>Supplier-arranged (no BOL)</>
                 )}
               </ReviewCard>
-              <ReviewCard title="Labels" tone={needsLabels ? 'green' : undefined}>
-                {needsLabels ? (
-                  <>
-                    Carton + pallet labels generated · est. <strong>${totals.labelCost}</strong>
-                  </>
-                ) : (
-                  <>Supplier-printed</>
-                )}
+              <ReviewCard title="Pallet labels" tone="green">
+                Required 4x6 ASN pallet labels · auto-download after submit · est. <strong>${totals.labelCost}</strong>
               </ReviewCard>
               <ReviewCard title="ASN" tone="green">
                 <strong>Auto-generated</strong> on submit · {hasConnectedWarehouses ? 'pushed to connected destination WMS' : 'held as projected until WMS connection'}

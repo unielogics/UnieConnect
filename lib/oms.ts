@@ -933,6 +933,23 @@ export const confirmShipmentDraft = (draftId: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
+export const fetchShipmentPalletLabels = async (draftId: string): Promise<Blob> => {
+  const res = await authFetch(apiUrl(`/api/v1/oms/shipment-wizard/drafts/${encodeURIComponent(draftId)}/pallet-labels.pdf`), {
+    headers: { Accept: 'application/pdf' },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || `Failed to fetch pallet labels (${res.status})`);
+  }
+  return res.blob();
+};
+
+export const retryShipmentVendorEmail = (draftId: string) =>
+  omsFetch<{ status: 'sent' | 'queued' | 'failed' | 'not_configured'; recipient?: string | null; reason?: string }>(
+    `/shipment-wizard/drafts/${encodeURIComponent(draftId)}/vendor-email/retry`,
+    { method: 'POST' },
+  );
+
 /* ============================ Create / ticket fetchers ============================ */
 
 export type CreateCatalogItemBody = {
