@@ -76,7 +76,7 @@ const allImages = (item: CatalogItem): string[] => {
 export function CatalogItemView({ item, supplierName }: CatalogItemViewProps) {
   const images = allImages(item);
   const mainImage = images[0];
-  const keepaUnavailable = item.keepaUnavailable || item.enrichmentMarker === '*';
+  const keepaUnavailable = item.keepaUnavailable || item.enrichmentMarker === '*' || ['keepa_unavailable', 'missing_asin'].includes(String(item.enrichmentState || '').toLowerCase());
   const keepaMarker = keepaUnavailable ? (
     <span
       title="Keepa enrichment unavailable; Cortex will use manual/marketplace data."

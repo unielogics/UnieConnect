@@ -63,7 +63,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
   const doc = num(intel.daysOfCover);
   const rev = num(intel.revenue30d);
   const gp = num(intel.grossProfit30d);
-  const keepaUnavailable = data.keepaUnavailable || data.enrichmentMarker === '*';
+  const keepaUnavailable = data.keepaUnavailable || data.enrichmentMarker === '*' || ['keepa_unavailable', 'missing_asin'].includes(String(data.enrichmentState || '').toLowerCase());
 
   return (
     <div className="page fade-in">
@@ -177,6 +177,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
       </div>
 
       <SkuIntelligenceStrip
+        sku={data}
         productIntel={productIntel}
         recommendations={recommendations}
         onNavigate={onNavigate}
@@ -747,26 +748,39 @@ const ImagesEditor = ({
 );
 
 const SkuIntelligenceStrip = ({
+  sku,
   productIntel,
   recommendations,
   onNavigate,
   onOpenRecommendation,
 }: {
+  sku: OmsSkuDetail;
   productIntel: ProductResearchResult | null;
   recommendations: OmsRecommendation[];
   onNavigate: ScreenProps['onNavigate'];
   onOpenRecommendation: () => void;
 }) => {
   const result = productIntel?.result;
-  const missing = result?.missingData || [];
+  const missing = new Set(result?.missingData || []);
+  const hasDims = Boolean(sku.dimensions?.length && sku.dimensions?.width && sku.dimensions?.height);
+  const hasWeight = num(sku.weight) > 0;
+  const hasPrice = sku.price != null && num(sku.price) > 0;
+  const hasCost = num((sku.metadata as any)?.cost ?? (sku.attributes as any)?.cost) > 0;
+  if (hasDims && hasWeight) missing.delete('dimensions_weight');
+  if (hasPrice) missing.delete('selling_price');
+  if (hasCost) missing.delete('cost');
+  const effectiveMissing = Array.from(missing);
   const hasRec = recommendations.length > 0;
   const requirements = [
-    { label: 'Dimensions', met: !missing.includes('dimensions_weight') },
-    { label: 'Weight', met: !missing.includes('dimensions_weight') },
-    { label: 'Cost', met: !missing.includes('cost') },
-    { label: 'Selling price', met: !missing.includes('selling_price') },
-    { label: 'Demand source', met: !missing.includes('marketplace_or_csv_demand') },
+    { label: 'Dimensions', met: hasDims || !effectiveMissing.includes('dimensions_weight') },
+    { label: 'Weight', met: hasWeight || !effectiveMissing.includes('dimensions_weight') },
+    { label: 'Cost', met: hasCost || !effectiveMissing.includes('cost') },
+    { label: 'Selling price', met: hasPrice || !effectiveMissing.includes('selling_price') },
+    { label: 'Demand source', met: !effectiveMissing.includes('marketplace_or_csv_demand') },
   ];
+  const summary = effectiveMissing.length
+    ? `Complete ${effectiveMissing.map((m) => m.replace(/_/g, ' ')).join(', ')} before high-confidence optimization.`
+    : (result?.recommendedAction || 'SKU baseline is ready for Cortex optimization.');
   return (
     <div className="sku-intel-minibar">
       <div className="sku-intel-minibar-grid">
@@ -785,7 +799,7 @@ const SkuIntelligenceStrip = ({
             ))}
           </div>
           <div className="sku-intel-summary">
-            {result?.recommendedAction || 'Cortex needs baseline product, cost, price, and demand data before high-confidence optimization.'}
+            {summary}
           </div>
         </div>
         <div className="kv">
@@ -800,7 +814,7 @@ const SkuIntelligenceStrip = ({
           <button className="btn sm primary" onClick={onOpenRecommendation}>
             <Icon name="sparkle" size={13} /> Review Cortex
           </button>
-        ) : missing.length ? (
+        ) : effectiveMissing.length ? (
           <button className="btn sm" onClick={() => onNavigate('product-research')} data-hint="Use Product Research only to fill missing enrichment data">
             <Icon name="search" size={13} /> Enrich data
           </button>

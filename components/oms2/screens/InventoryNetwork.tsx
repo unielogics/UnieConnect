@@ -46,7 +46,8 @@ const FillScore = ({ value }: { value: number }) => {
 };
 
 const KeepaMarker = ({ sku }: { sku: Pick<OmsSku, 'keepaUnavailable' | 'enrichmentMarker' | 'enrichmentState'> }) => {
-  if (!sku.keepaUnavailable && sku.enrichmentMarker !== '*') return null;
+  const state = String(sku.enrichmentState || '').toLowerCase();
+  if (!sku.keepaUnavailable && sku.enrichmentMarker !== '*' && !['keepa_unavailable', 'missing_asin'].includes(state)) return null;
   return (
     <span
       title="Keepa enrichment unavailable; Cortex will use manual/marketplace data."

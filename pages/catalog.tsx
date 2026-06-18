@@ -38,8 +38,9 @@ export type CatalogProduct = {
   };
 };
 
-function KeepaMarker({ item }: { item?: { keepaUnavailable?: boolean; enrichmentMarker?: string } | null }) {
-  if (!item?.keepaUnavailable && item?.enrichmentMarker !== '*') return null;
+function KeepaMarker({ item }: { item?: { keepaUnavailable?: boolean; enrichmentMarker?: string; enrichmentState?: string } | null }) {
+  const state = String(item?.enrichmentState || '').toLowerCase();
+  if (!item?.keepaUnavailable && item?.enrichmentMarker !== '*' && !['keepa_unavailable', 'missing_asin'].includes(state)) return null;
   return (
     <span
       title="Keepa enrichment unavailable; Cortex will use manual/marketplace data."
