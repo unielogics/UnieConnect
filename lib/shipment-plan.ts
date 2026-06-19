@@ -255,6 +255,8 @@ export type ShipmentPricingPreview = {
   generatedAt?: string;
   source?: string;
   sourceLabels?: string[];
+  currency?: string;
+  workflowType?: 'FBA' | 'FBW' | 'FBM' | 'DTC' | string;
   runId?: string;
   rateShopScope?: 'anchor_only' | 'anchor_priority_network' | 'full_network' | string;
   networkPolicy?: Record<string, unknown> | null;
@@ -262,6 +264,41 @@ export type ShipmentPricingPreview = {
   modeledOnlyWarehouseCodes?: string[];
   dueToday?: { amount?: number; currency?: string; reason?: string } | number;
   feeTimingNotice?: string;
+  summary?: {
+    units?: number;
+    estimatedTotal?: number;
+    estimatedPerUnit?: number;
+    receiving?: number;
+    prepLab?: number;
+    fulfillment?: number;
+    materials?: number;
+    storage?: number;
+    label?: number;
+    [key: string]: unknown;
+  };
+  perSkuEconomics?: Array<{
+    itemId?: string;
+    sku?: string;
+    title?: string;
+    workflowType?: string;
+    quantity?: number;
+    confidence?: number;
+    cacheState?: string;
+    generatedAt?: string;
+    blockers?: string[];
+    costs?: Record<string, any>;
+    quantityRecommendation?: {
+      configuredUnits?: number;
+      suggestedUnits?: number;
+      suggestedCartons?: number;
+      unitsPerCarton?: number;
+      direction?: string;
+      reason?: string;
+      confidence?: number;
+    };
+    [key: string]: any;
+  }>;
+  missingEconomicsCalculated?: any[];
   totals?: {
     units?: number;
     fulfillmentEstimate?: number;
@@ -330,11 +367,28 @@ export async function fetchShipmentPricingPreview(params: {
   shipFromLocationId?: string;
   facilityId?: string;
   supplierPickupRequired?: boolean;
+  supplierPickupSelected?: boolean;
   supplierPickupEstimate?: number;
+  serviceWorkflow?: 'prep' | 'dtc_fbm' | string;
+  workflowType?: 'FBA' | 'FBW' | 'FBM' | 'DTC' | string;
+  marketplaceType?: 'FBA' | 'FBW' | 'FBM' | 'DTC' | string;
+  orderCount?: number;
+  destinationCountry?: string;
   items?: Array<{
+    itemId?: string;
     sku: string;
+    title?: string;
     quantity?: number;
+    unitsPerCarton?: number;
+    cartons?: number;
     boxCount?: number;
+    unitWeightLb?: number;
+    weight?: number;
+    cost?: number;
+    sellingPrice?: number;
+    asin?: string;
+    keepaState?: string | null;
+    dimensions?: { width?: number; height?: number; length?: number };
     labRequirements?: { services?: Array<{ type: string; bundleQuantity?: number }> };
   }>;
 }) {

@@ -631,6 +631,11 @@
 .uc-shell .requirement-pill { height: 22px; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 750; border: 1px solid var(--border); background: var(--bg-subtle); color: var(--text-secondary); white-space: nowrap; }
 .uc-shell .requirement-pill.met { border-color: rgba(3,118,82,0.2); background: var(--green-soft); color: var(--green-text); }
 .uc-shell .requirement-pill.missing { border-color: rgba(180,35,24,0.24); background: var(--red-soft); color: var(--red-text); }
+.uc-shell .sku-economics-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.uc-shell .sku-economics-metric { min-height: 78px; padding: 13px; border-radius: 10px; background: var(--bg-sunken); border: 1px solid var(--border-subtle); display: flex; flex-direction: column; justify-content: center; }
+.uc-shell .sku-economics-metric.purple { background: var(--purple-soft); border-color: var(--purple-soft); }
+.uc-shell .sku-economics-metric .kv-value { font-size: 20px; font-weight: 850; color: var(--text); margin-top: 4px; }
+.uc-shell .sku-economics-metric.purple .kv-value { color: var(--purple-text); }
 .uc-shell .inline-alert { height: 20px; display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 0 7px; background: var(--amber-soft); color: var(--amber-text); font-size: 10.5px; font-weight: 800; }
 .uc-shell .inline-banner { min-height: 34px; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--accent-border); border-radius: var(--radius); background: var(--accent-soft); color: var(--accent-text); font-size: 12px; font-weight: 700; }
 .uc-shell .inline-banner.warn { border-color: rgba(180,83,9,0.28); background: var(--amber-soft); color: var(--amber-text); }
@@ -647,11 +652,13 @@
 .uc-shell .icon-alert-dot { position: absolute; top: -4px; right: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px var(--bg-elev); }
 @media (max-width: 1200px) {
   .uc-shell .sku-detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .uc-shell .sku-economics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
   .uc-shell .sku-detail-grid { grid-template-columns: 1fr; }
   .uc-shell .sku-intel-minibar-grid { grid-template-columns: 1fr !important; }
   .uc-shell .sku-intel-summary { white-space: normal; }
+  .uc-shell .sku-economics-grid { grid-template-columns: 1fr; }
 }
 
 /* ============================= SKU Views / Heatmaps ============================= */

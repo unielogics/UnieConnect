@@ -14,6 +14,9 @@ import {
   fetchOmsSuppliers,
   uploadCatalogImage,
   updateOmsSkuEnrichment,
+  fetchSkuFulfillmentEconomics,
+  refreshSkuFulfillmentEconomics,
+  type SkuFulfillmentEconomics,
 } from '../../../lib/oms';
 import { num, docTone, riskLabel, channelColor } from '../../../lib/oms-adapters';
 import { amazonCategoryNames, amazonSubcategoriesFor } from '../../../lib/amazon-category-tree';
@@ -98,6 +101,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
   const [data, setData] = useState<OmsSkuDetail | null>(null);
   const [productIntel, setProductIntel] = useState<ProductResearchResult | null>(null);
   const [pricingPreview, setPricingPreview] = useState<ShipmentPricingPreview | null>(null);
+  const [skuEconomics, setSkuEconomics] = useState<SkuFulfillmentEconomics | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
@@ -121,6 +125,9 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         fetchProductResearchResult(detail.sku).then(setProductIntel).catch(() => setProductIntel(null));
         setPricingLoading(true);
         setPricingError(null);
+        fetchSkuFulfillmentEconomics(detail.id, 'FBA')
+          .then((response) => setSkuEconomics(response.economics || null))
+          .catch(() => setSkuEconomics(null));
         fetchShipmentPricingPreview({ items: [{ sku: detail.sku, quantity: 1, boxCount: 1 }] })
           .then(setPricingPreview)
           .catch((error) => {
@@ -294,6 +301,9 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
       <ItemDetailsPanel data={data} onSaved={setData} />
 
       <SkuCortexEconomicsCard
+        skuId={data.id}
+        economics={skuEconomics}
+        onEconomics={setSkuEconomics}
         preview={pricingPreview}
         loading={pricingLoading}
         error={pricingError}
@@ -370,14 +380,97 @@ const KpiTile = ({ label, value, unit, sub, tone }: { label: string; value: Reac
 );
 
 const SkuCortexEconomicsCard = ({
+  skuId,
+  economics,
+  onEconomics,
   preview,
   loading,
   error,
 }: {
+  skuId: string;
+  economics?: SkuFulfillmentEconomics | null;
+  onEconomics: (next: SkuFulfillmentEconomics | null) => void;
   preview: ShipmentPricingPreview | null;
   loading: boolean;
   error?: string | null;
 }) => {
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      const response = await refreshSkuFulfillmentEconomics(skuId, {
+        workflowType: economics?.workflowType || 'FBA',
+        serviceWorkflow: economics?.workflowType === 'FBM' || economics?.workflowType === 'DTC' ? 'dtc_fbm' : 'prep',
+        marketplaceType: economics?.workflowType || 'FBA',
+        quantity: economics?.quantity || 1,
+      });
+      onEconomics(response.economics || null);
+    } catch {
+      onEconomics(economics || null);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  if (economics) {
+    const costs = economics.costs || {};
+    const blockers = economics.blockers || [];
+    const workflow = String(economics.workflowType || 'Cortex');
+    const confidence = Math.round(Number(economics.confidence || 0) * 100);
+    const isPrep = workflow === 'FBA' || workflow === 'FBW';
+    const metricRows = isPrep
+      ? [
+          ['Current / unit', costs.currentPerUnit ?? costs.totalPerUnit, economics.anchorWarehouseCode || 'stored'],
+          ['Optimized / unit', costs.optimizedPerUnit, 'Cortex modeled'],
+          ['Receiving / unit', costs.receivingPerUnit, costs.receivingTotal != null ? `${money(costs.receivingTotal)} total` : 'warehouse pricing'],
+          ['Prep / LAB / unit', costs.prepLabPerUnit, costs.prepLabTotal != null ? `${money(costs.prepLabTotal)} total` : 'warehouse pricing'],
+          ['Unit label', costs.unitLabelPerUnit, costs.unitLabelTotal != null ? `${money(costs.unitLabelTotal)} total` : 'marketplace prep'],
+          ['Carton label', costs.cartonLabelPerCarton, costs.cartonLabelTotal != null ? `${money(costs.cartonLabelTotal)} total` : 'box labels'],
+        ]
+      : [
+          ['Current / unit', costs.currentPerUnit ?? costs.totalPerUnit, economics.anchorWarehouseCode || 'stored'],
+          ['Optimized / unit', costs.optimizedPerUnit, 'Cortex modeled'],
+          ['Pick / unit', costs.pickPerUnit, costs.pickTotal != null ? `${money(costs.pickTotal)} total` : 'warehouse pricing'],
+          ['Pack / unit', costs.packPerUnit, costs.packTotal != null ? `${money(costs.packTotal)} total` : 'warehouse pricing'],
+          ['Materials / order', costs.materialsPerOrder, costs.materialBoxSize ? `${costs.materialBoxSize} box` : 'warehouse materials'],
+          ['Label / unit', costs.domesticLabelPerUnit, costs.labelTotal != null ? `${money(costs.labelTotal)} total` : '48-state estimate'],
+        ];
+    return (
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-title"><Icon name="sparkle" size={15} /> Cortex fulfillment economics</div>
+            <div className="card-subtitle">
+              Stored per-SKU {workflow} economics from Cortex. Shipment plans reuse this record unless it is missing or stale.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <Chip tone={String(economics.rateShopScope || '').includes('full') ? 'purple' : 'green'} dot={false}>
+              {String(economics.rateShopScope || 'pricing').replace(/_/g, ' ')}
+            </Chip>
+            <Chip tone={confidence >= 70 ? 'green' : 'amber'} dot={false}>{confidence}% confidence</Chip>
+            <Chip tone={economics.cacheState === 'stale' ? 'amber' : 'green'} dot={false}>{economics.cacheState || 'cached'}</Chip>
+            <button className="btn sm" onClick={refresh} disabled={refreshing}>
+              <Icon name="refresh" size={12} /> {refreshing ? 'Refreshing' : 'Refresh'}
+            </button>
+          </div>
+        </div>
+        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10 }}>
+          {metricRows.map(([label, value, sub]) => (
+            <div key={String(label)} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-sunken)' }}>
+              <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)', fontWeight: 800 }}>{label}</div>
+              <div style={{ fontSize: 18, fontWeight: 850, marginTop: 5 }}>{money(value)}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 3 }}>{sub}</div>
+            </div>
+          ))}
+        </div>
+        <div className="card-body" style={{ paddingTop: 0, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Chip tone="blue" dot={false}>Updated {economics.generatedAt ? new Date(economics.generatedAt).toLocaleString() : 'unknown'}</Chip>
+          {(economics.sourceLabels || []).slice(0, 3).map((label) => <Chip key={label} tone="purple" dot={false}>{label}</Chip>)}
+          {blockers.slice(0, 4).map((blocker) => <Chip key={blocker} tone="amber" dot={false}>{String(blocker).replace(/_/g, ' ')}</Chip>)}
+        </div>
+      </div>
+    );
+  }
   const summary = skuPricingSummary(preview);
   if (loading) {
     return (

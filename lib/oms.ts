@@ -242,6 +242,7 @@ export type OmsSkuDetail = {
   enrichmentState?: string;
   enrichmentMarker?: string;
   keepaUnavailable?: boolean;
+  fulfillmentEconomics?: SkuFulfillmentEconomics[];
   intelligence?: Record<string, unknown> & {
     risk?: string;
     available?: number;
@@ -257,6 +258,27 @@ export type OmsSkuDetail = {
   channels?: Array<{ channel: string; units30d: number; revenue30d: number; shareOfDemand: number; refundRate: number }>;
   billing?: { currentMonthly: number; optimizedMonthly: number; drivers?: Array<{ wh: string; storage: number; handling: number; accessorial?: number }> };
   relatedSkus?: Array<{ id: string; sku: string; title?: string; daysOfCover: number }>;
+};
+
+export type SkuFulfillmentEconomics = {
+  id?: string;
+  itemId?: string;
+  sku?: string;
+  workflowType: 'FBA' | 'FBW' | 'FBM' | 'DTC' | string;
+  anchorWarehouseCode?: string | null;
+  rateShopScope?: string | null;
+  sourceQuality?: string | null;
+  confidence?: number;
+  currency?: string;
+  quantity?: number;
+  costs?: Record<string, any>;
+  blockers?: string[];
+  sourceLabels?: string[];
+  quantityRecommendation?: Record<string, any>;
+  pricingPayload?: Record<string, any>;
+  generatedAt?: string | null;
+  expiresAt?: string | null;
+  cacheState?: string;
 };
 
 export type OmsOrder = {
@@ -1043,6 +1065,33 @@ export const uploadSupportAttachment = async (file: File) =>
       purpose: 'support-attachment',
     }),
   });
+
+export const fetchSkuFulfillmentEconomics = (
+  skuId: string,
+  workflowType: 'FBA' | 'FBW' | 'FBM' | 'DTC' | string = 'DTC',
+) =>
+  apiFetch<{ skuId: string; sku: string; workflowType: string; economics: SkuFulfillmentEconomics | null; status: string }>(
+    `/skus/${encodeURIComponent(skuId)}/fulfillment-economics?workflowType=${encodeURIComponent(workflowType)}`,
+  );
+
+export const refreshSkuFulfillmentEconomics = (
+  skuId: string,
+  body: {
+    workflowType?: 'FBA' | 'FBW' | 'FBM' | 'DTC' | string;
+    serviceWorkflow?: 'prep' | 'dtc_fbm' | string;
+    marketplaceType?: 'FBA' | 'FBW' | 'FBM' | 'DTC' | string;
+    quantity?: number;
+    unitsPerCarton?: number;
+    cartons?: number;
+  } = {},
+) =>
+  apiFetch<{ skuId: string; sku: string; workflowType: string; economics: SkuFulfillmentEconomics | null; status: string; cortex?: unknown }>(
+    `/skus/${encodeURIComponent(skuId)}/fulfillment-economics/refresh`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+    },
+  );
 
 export type CreateCustomerBody = {
   name: string;
