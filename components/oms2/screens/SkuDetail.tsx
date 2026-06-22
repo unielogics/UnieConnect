@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, StatusChip, ProgressBar, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, StatusChip, ProgressBar, fmt, Loading, ErrorState, EmptyState, type Tone } from '../ui';
 import {
   fetchOmsSkuDetail,
   fetchOmsSkus,
@@ -97,6 +97,61 @@ const skuPricingSummary = (preview?: ShipmentPricingPreview | null) => {
   };
 };
 
+const economicsNetworkComparison = (economics?: SkuFulfillmentEconomics | null) => {
+  const comparison = economics?.pricingPayload?.networkComparison;
+  if (comparison?.singleWarehouse || comparison?.optimizedTwoNode) return comparison;
+  const costs = economics?.costs || {};
+  const current = Number(costs.currentPerUnit ?? costs.totalPerUnit ?? 0);
+  const optimized = Number(costs.optimizedPerUnit ?? current);
+  return {
+    basis: 'sku_level_48_state_rate_shop',
+    heatmapStrategy: 'two_node_density_model',
+    singleWarehouse: {
+      strategy: 'single_warehouse_close_to_supplier',
+      warehouseCodes: [economics?.anchorWarehouseCode || 'anchor warehouse'],
+      executable: true,
+      labelPerUnit: Number(costs.domesticLabelPerUnit ?? 0),
+      totalPerUnit: current,
+      source: 'stored_sku_economics',
+    },
+    optimizedTwoNode: {
+      strategy: 'optimized_two_node_heatmap',
+      warehouseCodes: [economics?.anchorWarehouseCode || 'anchor warehouse', 'Cortex heatmap node'],
+      selectedWarehouseCount: 2,
+      executable: String(economics?.rateShopScope || '').includes('network'),
+      modeledOnly: !String(economics?.rateShopScope || '').includes('network'),
+      labelPerUnit: Number(costs.optimizedNetworkLabelPerUnit ?? costs.domesticLabelPerUnit ?? 0),
+      transferPerUnit: Number(costs.optimizedNetworkTransferPerUnit ?? 0),
+      totalPerUnit: optimized,
+      savingsPerUnit: Math.max(0, current - optimized),
+      source: 'stored_sku_economics',
+    },
+  };
+};
+
+const skuEconomicsRefreshPayload = (detail: OmsSkuDetail) => ({
+  workflowType: 'DTC',
+  serviceWorkflow: 'dtc_fbm',
+  marketplaceType: 'DTC',
+  quantity: Math.max(1, num(detail.intelligence?.velocity30d) || 1),
+  item: {
+    itemId: detail.id,
+    sku: detail.sku,
+    title: detail.title,
+    quantity: Math.max(1, num(detail.intelligence?.velocity30d) || 1),
+    unitWeightLb: num(detail.weight) || undefined,
+    weight: num(detail.weight) || undefined,
+    dimensions: detail.dimensions || undefined,
+    cost: num(detail.cost || (detail.metadata as any)?.cost),
+    sellingPrice: num(detail.price),
+    asin: detail.asin || undefined,
+    upc: detail.upc || undefined,
+    ean: detail.ean || undefined,
+    keepaState: detail.enrichmentState || undefined,
+    salesVelocity30d: num(detail.intelligence?.velocity30d),
+  },
+});
+
 export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected }: ScreenProps & { onBack?: () => void }) => {
   const [data, setData] = useState<OmsSkuDetail | null>(null);
   const [productIntel, setProductIntel] = useState<ProductResearchResult | null>(null);
@@ -125,10 +180,35 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         fetchProductResearchResult(detail.sku).then(setProductIntel).catch(() => setProductIntel(null));
         setPricingLoading(true);
         setPricingError(null);
-        fetchSkuFulfillmentEconomics(detail.id, 'FBA')
-          .then((response) => setSkuEconomics(response.economics || null))
+        fetchSkuFulfillmentEconomics(detail.id, 'DTC')
+          .then(async (response) => {
+            if (response.economics) {
+              setSkuEconomics(response.economics);
+              return;
+            }
+            const refreshed = await refreshSkuFulfillmentEconomics(detail.id, skuEconomicsRefreshPayload(detail));
+            setSkuEconomics(refreshed.economics || null);
+          })
           .catch(() => setSkuEconomics(null));
-        fetchShipmentPricingPreview({ items: [{ sku: detail.sku, quantity: 1, boxCount: 1 }] })
+        fetchShipmentPricingPreview({
+          workflowType: 'DTC',
+          serviceWorkflow: 'dtc_fbm',
+          marketplaceType: 'DTC',
+          items: [{
+            itemId: detail.id,
+            sku: detail.sku,
+            title: detail.title,
+            quantity: Math.max(1, num(detail.intelligence?.velocity30d) || 1),
+            boxCount: 1,
+            unitWeightLb: num(detail.weight) || undefined,
+            weight: num(detail.weight) || undefined,
+            dimensions: detail.dimensions || undefined,
+            cost: num(detail.cost || (detail.metadata as any)?.cost),
+            sellingPrice: num(detail.price),
+            asin: detail.asin || undefined,
+            keepaState: detail.enrichmentState || undefined,
+          }],
+        })
           .then(setPricingPreview)
           .catch((error) => {
             setPricingPreview(null);
@@ -302,6 +382,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
 
       <SkuCortexEconomicsCard
         skuId={data.id}
+        sku={data}
         economics={skuEconomics}
         onEconomics={setSkuEconomics}
         preview={pricingPreview}
@@ -381,6 +462,7 @@ const KpiTile = ({ label, value, unit, sub, tone }: { label: string; value: Reac
 
 const SkuCortexEconomicsCard = ({
   skuId,
+  sku,
   economics,
   onEconomics,
   preview,
@@ -388,6 +470,7 @@ const SkuCortexEconomicsCard = ({
   error,
 }: {
   skuId: string;
+  sku: OmsSkuDetail;
   economics?: SkuFulfillmentEconomics | null;
   onEconomics: (next: SkuFulfillmentEconomics | null) => void;
   preview: ShipmentPricingPreview | null;
@@ -398,12 +481,15 @@ const SkuCortexEconomicsCard = ({
   const refresh = async () => {
     setRefreshing(true);
     try {
-      const response = await refreshSkuFulfillmentEconomics(skuId, {
-        workflowType: economics?.workflowType || 'FBA',
-        serviceWorkflow: economics?.workflowType === 'FBM' || economics?.workflowType === 'DTC' ? 'dtc_fbm' : 'prep',
-        marketplaceType: economics?.workflowType || 'FBA',
-        quantity: economics?.quantity || 1,
-      });
+      const workflowType = String(economics?.workflowType || 'DTC').toUpperCase();
+      const payload = {
+        ...skuEconomicsRefreshPayload(sku),
+        workflowType,
+        serviceWorkflow: workflowType === 'FBA' || workflowType === 'FBW' ? 'prep' : 'dtc_fbm',
+        marketplaceType: workflowType,
+        quantity: economics?.quantity || Math.max(1, skuEconomicsRefreshPayload(sku).quantity || 1),
+      };
+      const response = await refreshSkuFulfillmentEconomics(skuId, payload);
       onEconomics(response.economics || null);
     } catch {
       onEconomics(economics || null);
@@ -417,6 +503,14 @@ const SkuCortexEconomicsCard = ({
     const workflow = String(economics.workflowType || 'Cortex');
     const confidence = Math.round(Number(economics.confidence || 0) * 100);
     const isPrep = workflow === 'FBA' || workflow === 'FBW';
+    const comparison = economicsNetworkComparison(economics);
+    const single = comparison?.singleWarehouse || {};
+    const optimized = comparison?.optimizedTwoNode || {};
+    const singleWarehouses = Array.isArray(single.warehouseCodes) ? single.warehouseCodes.filter(Boolean) : [];
+    const optimizedWarehouses = Array.isArray(optimized.warehouseCodes) ? optimized.warehouseCodes.filter(Boolean) : [];
+    const singleTotal = Number(single.totalPerUnit ?? costs.currentPerUnit ?? costs.totalPerUnit ?? 0);
+    const optimizedTotal = Number(optimized.totalPerUnit ?? costs.optimizedPerUnit ?? singleTotal);
+    const savingsPerUnit = Number(optimized.savingsPerUnit ?? Math.max(0, singleTotal - optimizedTotal));
     const metricRows = isPrep
       ? [
           ['Current / unit', costs.currentPerUnit ?? costs.totalPerUnit, economics.anchorWarehouseCode || 'stored'],
@@ -434,6 +528,40 @@ const SkuCortexEconomicsCard = ({
           ['Materials / order', costs.materialsPerOrder, costs.materialBoxSize ? `${costs.materialBoxSize} box` : 'warehouse materials'],
           ['Label / unit', costs.domesticLabelPerUnit, costs.labelTotal != null ? `${money(costs.labelTotal)} total` : '48-state estimate'],
         ];
+    const comparisonRows: Array<{
+      key: 'single' | 'optimized';
+      title: string;
+      tone: Tone;
+      badge: string;
+      warehouses: string;
+      label: number;
+      transfer: number;
+      total: number;
+      source: string;
+    }> = [
+      {
+        key: 'single',
+        title: 'Single warehouse near supplier',
+        tone: 'green',
+        badge: 'Executable',
+        warehouses: singleWarehouses.length ? singleWarehouses.join(' + ') : economics.anchorWarehouseCode || 'Anchor warehouse',
+        label: Number(single.labelPerUnit ?? costs.domesticLabelPerUnit ?? 0),
+        transfer: Number(single.transferPerUnit ?? 0),
+        total: singleTotal,
+        source: String(single.source || 'anchor warehouse rate shop').replace(/_/g, ' '),
+      },
+      {
+        key: 'optimized',
+        title: 'Optimized 2-node heatmap',
+        tone: optimized.modeledOnly ? 'amber' : 'purple',
+        badge: optimized.modeledOnly ? 'Modeled only' : 'Executable',
+        warehouses: optimizedWarehouses.length ? optimizedWarehouses.join(' + ') : 'Cortex heatmap pair',
+        label: Number(optimized.labelPerUnit ?? costs.optimizedNetworkLabelPerUnit ?? 0),
+        transfer: Number(optimized.transferPerUnit ?? costs.optimizedNetworkTransferPerUnit ?? 0),
+        total: optimizedTotal,
+        source: String(optimized.source || 'cortex heatmap rate shop').replace(/_/g, ' '),
+      },
+    ];
     return (
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">
@@ -453,6 +581,59 @@ const SkuCortexEconomicsCard = ({
               <Icon name="refresh" size={12} /> {refreshing ? 'Refreshing' : 'Refresh'}
             </button>
           </div>
+        </div>
+        <div className="card-body" style={{ paddingBottom: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+            {comparisonRows.map((row) => (
+              <div
+                key={row.key}
+                style={{
+                  padding: 14,
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  background: row.key === 'optimized' ? 'var(--purple-soft)' : 'var(--green-soft)',
+                  minWidth: 0,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)', fontWeight: 850 }}>
+                      48-state label model
+                    </div>
+                    <div style={{ fontWeight: 900, marginTop: 4 }}>{row.title}</div>
+                  </div>
+                  <Chip tone={row.tone} dot={false}>{row.badge}</Chip>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {row.warehouses}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Label/unit</div>
+                    <div style={{ fontWeight: 900 }}>{money(row.label)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Transfer</div>
+                    <div style={{ fontWeight: 900 }}>{money(row.transfer)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Total/unit</div>
+                    <div style={{ fontWeight: 900 }}>{money(row.total)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Savings</div>
+                    <div style={{ fontWeight: 900 }}>{row.key === 'optimized' ? money(savingsPerUnit) : '-'}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 10 }}>{row.source}</div>
+              </div>
+            ))}
+          </div>
+          {comparison?.note && (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 10 }}>
+              {comparison.note}
+            </div>
+          )}
         </div>
         <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10 }}>
           {metricRows.map(([label, value, sub]) => (

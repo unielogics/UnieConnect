@@ -275,7 +275,15 @@ export type SkuFulfillmentEconomics = {
   blockers?: string[];
   sourceLabels?: string[];
   quantityRecommendation?: Record<string, any>;
-  pricingPayload?: Record<string, any>;
+  pricingPayload?: Record<string, any> & {
+    networkComparison?: {
+      basis?: string;
+      heatmapStrategy?: string;
+      note?: string;
+      singleWarehouse?: Record<string, any>;
+      optimizedTwoNode?: Record<string, any>;
+    };
+  };
   generatedAt?: string | null;
   expiresAt?: string | null;
   cacheState?: string;
@@ -1083,6 +1091,7 @@ export const refreshSkuFulfillmentEconomics = (
     quantity?: number;
     unitsPerCarton?: number;
     cartons?: number;
+    item?: Record<string, unknown>;
   } = {},
 ) =>
   apiFetch<{ skuId: string; sku: string; workflowType: string; economics: SkuFulfillmentEconomics | null; status: string; cortex?: unknown }>(
