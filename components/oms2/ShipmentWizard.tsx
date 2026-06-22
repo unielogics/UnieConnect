@@ -38,6 +38,60 @@ const previewWarehouseTotal = (warehouse: any) =>
 const previewWarehousePerUnit = (warehouse: any, fallback?: unknown) =>
   Number(warehouse?.feePreview?.perUnit ?? warehouse?.totalEstimatedCostPerUnit ?? warehouse?.estimatedCostPerUnit ?? fallback ?? 0);
 
+const asNumber = (value: unknown, fallback = 0) => {
+  const n = typeof value === 'string' ? parseFloat(value) : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const normalizedDimensions = (source: any) => {
+  const dims = source?.dimensions || {};
+  return {
+    length: asNumber(dims.length ?? dims.l ?? source?.length ?? source?.lengthIn, 0),
+    width: asNumber(dims.width ?? dims.w ?? source?.width ?? source?.widthIn, 0),
+    height: asNumber(dims.height ?? dims.h ?? source?.height ?? source?.heightIn, 0),
+  };
+};
+
+const skuPricingKey = (value?: unknown) => String(value || '').trim().toLowerCase();
+
+const pricingEconomicsForSku = (preview: ShipmentPricingPreview | null, sku: SelSku) => {
+  const economics = preview?.perSkuEconomics || [];
+  const itemId = skuPricingKey(sku.id);
+  const skuCode = skuPricingKey((sku as any).sku || sku.name);
+  return economics.find((row) => skuPricingKey(row.itemId) === itemId)
+    || economics.find((row) => skuPricingKey(row.sku) === skuCode)
+    || null;
+};
+
+const economicsCosts = (row?: any) => row?.costs || {};
+
+const economicsTotal = (row?: any) => {
+  const costs = economicsCosts(row);
+  return asNumber(costs.total ?? costs.estimatedTotal ?? costs.totalCost, 0);
+};
+
+const economicsPerUnit = (row?: any) => {
+  const costs = economicsCosts(row);
+  const qty = Math.max(1, asNumber(row?.quantity, 1));
+  return asNumber(costs.totalPerUnit ?? costs.currentPerUnit ?? (economicsTotal(row) / qty), 0);
+};
+
+const economicsFulfillment = (row?: any) => {
+  const costs = economicsCosts(row);
+  return asNumber(costs.prepLabTotal, 0)
+    + asNumber(costs.unitLabelTotal, 0)
+    + asNumber(costs.cartonLabelTotal, 0)
+    + asNumber(costs.pickTotal, 0)
+    + asNumber(costs.packTotal, 0)
+    + asNumber(costs.orderHandlingTotal, 0)
+    + asNumber(costs.materialsTotal, 0);
+};
+
+const economicsLabels = (row?: any) => {
+  const costs = economicsCosts(row);
+  return asNumber(costs.labelTotal, 0) + asNumber(costs.unitLabelTotal, 0) + asNumber(costs.cartonLabelTotal, 0);
+};
+
 const pricingScopeLabel = (scope?: string) => {
   switch (String(scope || '').toLowerCase()) {
     case 'anchor_only':
@@ -252,6 +306,8 @@ const CortexPricingPanel = ({
   const total = Number(totals.estimatedTotal ?? previewWarehouseTotal(current));
   const dueToday = previewDueToday(preview);
   const confidence = preview.confidence == null ? null : Math.round(Number(preview.confidence) * 100);
+  const perSkuEconomics = Array.isArray(preview.perSkuEconomics) ? preview.perSkuEconomics : [];
+  const degraded = Boolean((preview as any).fallbackAvailable || (preview as any).cortex?.ok === false || String(preview.source || '').includes('fallback'));
 
   return (
     <div className="card" style={{ marginBottom: 14 }}>
@@ -268,6 +324,11 @@ const CortexPricingPanel = ({
         </div>
       </div>
       <div className="card-body" style={{ display: 'grid', gap: 12 }}>
+        {degraded && (
+          <div style={{ padding: 12, borderRadius: 10, background: 'var(--amber-soft)', border: '1px solid var(--amber-border)', color: 'var(--amber-text)', fontSize: 12.5, fontWeight: 700 }}>
+            Cortex live pricing did not authorize this request, so UnieConnect is showing stored or modeled per-SKU economics and saving them for reuse. Fix the Cortex credential to replace these modeled values with live Cortex pricing.
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10 }}>
           <ReviewCard title="Current / unit">
             <strong>{money(currentPerUnit)}</strong>
@@ -329,6 +390,57 @@ const CortexPricingPanel = ({
             ) : null}
           </div>
         </div>
+        {perSkuEconomics.length > 0 && (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '10px 12px', background: 'var(--bg-sunken)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 850, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: '0.04em' }}>Per-SKU pricing breakdown</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Each row is priced independently from its quantity, workflow, dimensions, weight, and warehouse policy.</div>
+              </div>
+              <Chip tone={degraded ? 'amber' : 'green'} dot={false}>{degraded ? 'Modeled fallback' : 'Cortex priced'}</Chip>
+            </div>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th className="num">Qty</th>
+                  <th className="num">Receive</th>
+                  <th className="num">Prep / fulfill</th>
+                  <th className="num">Labels</th>
+                  <th className="num">Storage</th>
+                  <th className="num">Total / unit</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perSkuEconomics.map((row, index) => {
+                  const costs = economicsCosts(row);
+                  const rowConfidence = row.confidence == null ? null : Math.round(Number(row.confidence) * 100);
+                  return (
+                    <tr key={`${row.itemId || row.sku || index}`}>
+                      <td>
+                        <div className="mono strong">{row.sku || row.itemId || 'SKU'}</div>
+                        {row.title && <div className="muted" style={{ fontSize: 11 }}>{row.title}</div>}
+                      </td>
+                      <td className="num mono">{asNumber(row.quantity, 0).toLocaleString()}</td>
+                      <td className="num mono">{money(costs.receivingTotal)}</td>
+                      <td className="num mono">{money(economicsFulfillment(row))}</td>
+                      <td className="num mono">{money(economicsLabels(row))}</td>
+                      <td className="num mono">{money(costs.storageTotalMonth)}</td>
+                      <td className="num mono strong">{money(economicsPerUnit(row))}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                          <Chip tone={String(row.cacheState || '').includes('cached') ? 'green' : 'amber'} dot={false}>{String(row.cacheState || row.sourceQuality || 'modeled').replace(/_/g, ' ')}</Chip>
+                          {rowConfidence != null && <Chip tone={rowConfidence >= 70 ? 'green' : 'amber'} dot={false}>{rowConfidence}%</Chip>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -421,6 +533,10 @@ export const ShipmentWizard = ({
   const routingMode = hasConnectedWarehouses ? 'connected_warehouse' : 'national_network';
   const primaryWarehouse = warehouses[0] || null;
   const primaryFacilityId = primaryWarehouse?.facilityId || null;
+  const shipmentWorkflowType = useMemo(
+    () => list.some((sku) => Boolean((sku as any).fbaIntent || (sku as any).amazon?.fulfillmentChannel === 'FBA')) ? 'FBA' : 'DTC',
+    [list],
+  );
 
   const routedDestinations = useMemo(() => {
     const acc: Record<string, string> = {};
@@ -479,16 +595,31 @@ export const ShipmentWizard = ({
 
   const pricingItems = useMemo(() => list.map((s) => {
     const c = config[s.id] || { unitsPerCarton: 24, cartons: 1, palletize: true };
+    const dims = normalizedDimensions(s);
+    const weight = asNumber((s as any).unitWeightLb ?? (s as any).weight ?? (s as any).palletWeightLbs, 0);
     return {
+      itemId: s.id,
       sku: String((s as any).sku || s.name || s.id),
+      title: String(s.name || (s as any).title || (s as any).sku || s.id),
       quantity: Math.max(1, c.cartons * c.unitsPerCarton),
       boxCount: Math.max(1, c.cartons),
+      cartons: Math.max(1, c.cartons),
+      unitsPerCarton: Math.max(1, c.unitsPerCarton),
+      unitWeightLb: weight,
+      weight,
+      dimensions: dims,
+      cost: asNumber((s as any).cost ?? (s as any).unitCost ?? (s as any).metadata?.cost, 0),
+      sellingPrice: asNumber((s as any).sellingPrice ?? (s as any).price ?? (s as any).metadata?.price, 0),
+      asin: String((s as any).asin || ''),
+      upc: String((s as any).upc || ''),
+      ean: String((s as any).ean || ''),
+      keepaState: (s as any).keepaState ?? (s as any).metadata?.keepaState ?? null,
     };
   }), [config, list]);
 
   const pricingKey = useMemo(
-    () => JSON.stringify({ pricingItems, facilityId: primaryFacilityId, needsLTL, routingMode }),
-    [pricingItems, primaryFacilityId, needsLTL, routingMode],
+    () => JSON.stringify({ pricingItems, facilityId: primaryFacilityId, needsLTL, routingMode, shipmentWorkflowType }),
+    [pricingItems, primaryFacilityId, needsLTL, routingMode, shipmentWorkflowType],
   );
 
   useEffect(() => {
@@ -499,6 +630,9 @@ export const ShipmentWizard = ({
     fetchShipmentPricingPreview({
       facilityId: primaryFacilityId || undefined,
       supplierPickupRequired: Boolean(needsLTL),
+      serviceWorkflow: shipmentWorkflowType === 'FBA' ? 'prep' : 'dtc_fbm',
+      workflowType: shipmentWorkflowType,
+      marketplaceType: shipmentWorkflowType,
       items: pricingItems,
     })
       .then((preview) => {
@@ -1023,6 +1157,9 @@ export const ShipmentWizard = ({
                     <th className="num">U/Ctn</th>
                     <th className="num">Cartons</th>
                     <th className="num">Units</th>
+                    <th className="num">Cost / unit</th>
+                    <th className="num">Est. total</th>
+                    <th>Pricing</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1030,6 +1167,8 @@ export const ShipmentWizard = ({
                     const c = config[sku.id];
                     const routedCode = routedDestinations[sku.id];
                     const routedWarehouse = warehouseByCode(warehouses, routedCode);
+                    const skuPricing = pricingEconomicsForSku(pricingPreview, sku);
+                    const skuConfidence = skuPricing?.confidence == null ? null : Math.round(Number(skuPricing.confidence) * 100);
                     return (
                       <tr key={sku.id}>
                         <td className="mono strong">{(sku as any).sku || sku.id}</td>
@@ -1041,6 +1180,24 @@ export const ShipmentWizard = ({
                         <td className="num mono">{c.unitsPerCarton}</td>
                         <td className="num mono">{c.cartons}</td>
                         <td className="num mono strong">{(c.cartons * c.unitsPerCarton).toLocaleString()}</td>
+                        <td className="num mono strong">
+                          {skuPricing ? money(economicsPerUnit(skuPricing)) : pricingLoading ? '…' : 'Not calculated'}
+                        </td>
+                        <td className="num mono">
+                          {skuPricing ? money(economicsTotal(skuPricing)) : pricingLoading ? '…' : 'Not calculated'}
+                        </td>
+                        <td>
+                          {skuPricing ? (
+                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                              <Chip tone={String(skuPricing.cacheState || '').includes('cached') ? 'green' : 'amber'} dot={false}>
+                                {String(skuPricing.cacheState || skuPricing.sourceQuality || 'modeled').replace(/_/g, ' ')}
+                              </Chip>
+                              {skuConfidence != null && <Chip tone={skuConfidence >= 70 ? 'green' : 'amber'} dot={false}>{skuConfidence}%</Chip>}
+                            </div>
+                          ) : (
+                            <span className="muted" style={{ fontSize: 11 }}>Waiting on pricing</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
