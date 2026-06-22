@@ -1,9 +1,4 @@
-import { apiUrl, TOKEN_KEY } from './api';
-
-function authHeaders(): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { apiUrl, authFetch } from './api';
 
 async function readJson<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => ({}));
@@ -69,8 +64,8 @@ export type ShipmentPlan = {
 export type FacilityOption = { id: string; name: string; code?: string };
 
 export async function fetchFacilities(): Promise<FacilityOption[]> {
-  const res = await fetch(apiUrl('/api/v1/facilities'), {
-    headers: { ...authHeaders(), Accept: 'application/json' },
+  const res = await authFetch(apiUrl('/api/v1/facilities'), {
+    headers: { Accept: 'application/json' },
   });
   const data = await readJson<FacilityOption[]>(res);
   return Array.isArray(data) ? data : [];
@@ -95,13 +90,13 @@ export async function fetchShipmentPlans(params?: {
   if (params?.search) url.searchParams.set('search', params.search);
   if (params?.sortBy) url.searchParams.set('sortBy', params.sortBy);
   if (params?.sortOrder) url.searchParams.set('sortOrder', params.sortOrder);
-  const res = await fetch(url.toString(), { headers: { ...authHeaders(), Accept: 'application/json' } });
+  const res = await authFetch(url.toString(), { headers: { Accept: 'application/json' } });
   return readJson<{ plans: ShipmentPlan[]; total: number }>(res);
 }
 
 export async function fetchShipmentPlan(id: string) {
-  const res = await fetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(id)}`), {
-    headers: { ...authHeaders(), Accept: 'application/json' },
+  const res = await authFetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(id)}`), {
+    headers: { Accept: 'application/json' },
   });
   return readJson<ShipmentPlan>(res);
 }
@@ -119,10 +114,9 @@ export async function createShipmentPlan(body: {
   estimatedArrivalDate?: string;
   shipmentTitle?: string;
 }) {
-  const res = await fetch(apiUrl('/api/v1/shipment-plans'), {
+  const res = await authFetch(apiUrl('/api/v1/shipment-plans'), {
     method: 'POST',
     headers: {
-      ...authHeaders(),
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
@@ -142,10 +136,9 @@ export async function updateShipmentPlan(
     shipmentTitle: string;
   }>
 ) {
-  const res = await fetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(id)}`), {
+  const res = await authFetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(id)}`), {
     method: 'PUT',
     headers: {
-      ...authHeaders(),
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
@@ -155,17 +148,17 @@ export async function updateShipmentPlan(
 }
 
 export async function submitShipmentPlan(id: string) {
-  const res = await fetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(id)}/submit`), {
+  const res = await authFetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(id)}/submit`), {
     method: 'POST',
-    headers: { ...authHeaders(), Accept: 'application/json' },
+    headers: { Accept: 'application/json' },
   });
   return readJson<ShipmentPlan>(res);
 }
 
 export async function cancelShipmentPlan(id: string) {
-  const res = await fetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(id)}/cancel`), {
+  const res = await authFetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(id)}/cancel`), {
     method: 'POST',
-    headers: { ...authHeaders(), Accept: 'application/json' },
+    headers: { Accept: 'application/json' },
   });
   return readJson<ShipmentPlan>(res);
 }
@@ -179,8 +172,8 @@ export function fetchItemBarcodePdfUrl(asnId: string, wmsItemId: string): string
 }
 
 export async function fetchAsnLabelBlob(asnId: string): Promise<Blob> {
-  const res = await fetch(apiUrl(`/api/v1/asn/${encodeURIComponent(asnId)}/label`), {
-    headers: { ...authHeaders(), Accept: 'application/pdf' },
+  const res = await authFetch(apiUrl(`/api/v1/asn/${encodeURIComponent(asnId)}/label`), {
+    headers: { Accept: 'application/pdf' },
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -190,9 +183,9 @@ export async function fetchAsnLabelBlob(asnId: string): Promise<Blob> {
 }
 
 export async function fetchItemBarcodeBlob(asnId: string, wmsItemId: string): Promise<Blob> {
-  const res = await fetch(
+  const res = await authFetch(
     apiUrl(`/api/v1/asn/${encodeURIComponent(asnId)}/items/${encodeURIComponent(wmsItemId)}/barcode-pdf`),
-    { headers: { ...authHeaders(), Accept: 'application/pdf' } }
+    { headers: { Accept: 'application/pdf' } }
   );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -202,9 +195,9 @@ export async function fetchItemBarcodeBlob(asnId: string, wmsItemId: string): Pr
 }
 
 export async function createASN(shipmentPlanId: string) {
-  const res = await fetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(shipmentPlanId)}/create-asn`), {
+  const res = await authFetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(shipmentPlanId)}/create-asn`), {
     method: 'POST',
-    headers: { ...authHeaders(), Accept: 'application/json' },
+    headers: { Accept: 'application/json' },
   });
   return readJson<{ asn: any; plan: ShipmentPlan }>(res);
 }
@@ -212,7 +205,7 @@ export async function createASN(shipmentPlanId: string) {
 export async function fetchClosestFacilityPreview(shipFromLocationId: string) {
   const url = new URL(apiUrl('/api/v1/shipment-plans/closest-facility-preview'));
   url.searchParams.set('shipFromLocationId', shipFromLocationId);
-  const res = await fetch(url.toString(), { headers: { ...authHeaders(), Accept: 'application/json' } });
+  const res = await authFetch(url.toString(), { headers: { Accept: 'application/json' } });
   return readJson<{
     facilityId: string | null;
     facility: {
@@ -234,8 +227,8 @@ export async function fetchClosestFacilityPreview(shipFromLocationId: string) {
 }
 
 export async function fetchClosestFacility(shipmentPlanId: string) {
-  const res = await fetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(shipmentPlanId)}/closest-facility`), {
-    headers: { ...authHeaders(), Accept: 'application/json' },
+  const res = await authFetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(shipmentPlanId)}/closest-facility`), {
+    headers: { Accept: 'application/json' },
   });
   return readJson<any>(res);
 }
@@ -343,9 +336,9 @@ export async function fetchEstimateServiceFees(params: {
   prepServicesOnly: boolean;
   marketplaceType?: 'FBA' | 'FBW';
 }) {
-  const res = await fetch(apiUrl('/api/v1/shipment-plans/estimate-service-fees'), {
+  const res = await authFetch(apiUrl('/api/v1/shipment-plans/estimate-service-fees'), {
     method: 'POST',
-    headers: { ...authHeaders(), 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(params),
   });
   return readJson<{
@@ -392,17 +385,17 @@ export async function fetchShipmentPricingPreview(params: {
     labRequirements?: { services?: Array<{ type: string; bundleQuantity?: number }> };
   }>;
 }) {
-  const res = await fetch(apiUrl('/api/v1/shipment-plans/pricing-preview'), {
+  const res = await authFetch(apiUrl('/api/v1/shipment-plans/pricing-preview'), {
     method: 'POST',
-    headers: { ...authHeaders(), 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(params),
   });
   return readJson<ShipmentPricingPreview>(res);
 }
 
 export async function fetchEstimatedCost(shipmentPlanId: string) {
-  const res = await fetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(shipmentPlanId)}/estimated-cost`), {
-    headers: { ...authHeaders(), Accept: 'application/json' },
+  const res = await authFetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(shipmentPlanId)}/estimated-cost`), {
+    headers: { Accept: 'application/json' },
   });
   return readJson<{
     total: number;
@@ -417,9 +410,9 @@ export async function fetchEstimatedCost(shipmentPlanId: string) {
 }
 
 export async function fetchRateShopToWarehouse(shipmentPlanId: string) {
-  const res = await fetch(
+  const res = await authFetch(
     apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(shipmentPlanId)}/rate-shop-to-warehouse`),
-    { method: 'POST', headers: { ...authHeaders(), Accept: 'application/json' } }
+    { method: 'POST', headers: { Accept: 'application/json' } }
   );
   return readJson<{ parcel: Array<{ amount: number; currency: string; provider?: string }>; ltl: any[]; ftl: any[]; pricingPreview?: ShipmentPricingPreview; source?: string }>(res);
 }
@@ -439,7 +432,7 @@ export async function fetchShipmentActivity(params?: {
   if (params?.action) url.searchParams.set('action', params.action);
   if (params?.from) url.searchParams.set('from', params.from);
   if (params?.to) url.searchParams.set('to', params.to);
-  const res = await fetch(url.toString(), { headers: { ...authHeaders(), Accept: 'application/json' } });
+  const res = await authFetch(url.toString(), { headers: { Accept: 'application/json' } });
   return readJson<{ events: any[]; total: number }>(res);
 }
 
@@ -447,6 +440,6 @@ export async function fetchItemShipmentActivity(itemId: string, params?: { limit
   const url = new URL(apiUrl(`/api/v1/items/${encodeURIComponent(itemId)}/shipment-activity`));
   if (params?.limit) url.searchParams.set('limit', String(params.limit));
   if (params?.offset) url.searchParams.set('offset', String(params.offset));
-  const res = await fetch(url.toString(), { headers: { ...authHeaders(), Accept: 'application/json' } });
+  const res = await authFetch(url.toString(), { headers: { Accept: 'application/json' } });
   return readJson<{ events: any[]; total: number }>(res);
 }
