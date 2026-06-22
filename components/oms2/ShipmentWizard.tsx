@@ -65,6 +65,20 @@ const pricingEconomicsForSku = (preview: ShipmentPricingPreview | null, sku: Sel
 
 const economicsCosts = (row?: any) => row?.costs || {};
 
+const optionalNumber = (value: unknown) => {
+  const n = typeof value === 'string' ? parseFloat(value) : Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const economicsQuantity = (row?: any) => Math.max(1, asNumber(row?.quantity, 1));
+
+const economicsPerUnitValue = (row: any, perUnitKey: string, totalKey: string) => {
+  const costs = economicsCosts(row);
+  const perUnit = optionalNumber(costs[perUnitKey]);
+  if (perUnit != null) return perUnit;
+  return asNumber(costs[totalKey], 0) / economicsQuantity(row);
+};
+
 const economicsTotal = (row?: any) => {
   const costs = economicsCosts(row);
   return asNumber(costs.total ?? costs.estimatedTotal ?? costs.totalCost, 0);
@@ -87,9 +101,61 @@ const economicsFulfillment = (row?: any) => {
     + asNumber(costs.materialsTotal, 0);
 };
 
+const economicsReceivingPerUnit = (row?: any) => economicsPerUnitValue(row, 'receivingPerUnit', 'receivingTotal');
+
+const economicsPrepFulfillPerUnit = (row?: any) => {
+  const costs = economicsCosts(row);
+  const qty = economicsQuantity(row);
+  return economicsPerUnitValue(row, 'prepLabPerUnit', 'prepLabTotal')
+    + economicsPerUnitValue(row, 'pickPerUnit', 'pickTotal')
+    + economicsPerUnitValue(row, 'packPerUnit', 'packTotal')
+    + economicsPerUnitValue(row, 'orderHandlingPerUnit', 'orderHandlingTotal')
+    + economicsPerUnitValue(row, 'materialsPerUnit', 'materialsTotal')
+    + economicsPerUnitValue(row, 'reboxPerUnit', 'reboxTotal')
+    + asNumber(costs.unitLabelTotal, 0) / qty
+    + asNumber(costs.cartonLabelTotal, 0) / qty;
+};
+
+const economicsStoragePerUnit = (row?: any) => economicsPerUnitValue(row, 'storagePerUnitMonth', 'storageTotalMonth');
+
+const economicsShippingLabelPerUnit = (row?: any) => economicsPerUnitValue(row, 'domesticLabelPerUnit', 'labelTotal');
+
 const economicsLabels = (row?: any) => {
   const costs = economicsCosts(row);
   return asNumber(costs.labelTotal, 0) + asNumber(costs.unitLabelTotal, 0) + asNumber(costs.cartonLabelTotal, 0);
+};
+
+const perSkuPricingAggregate = (rows: any[]) => {
+  const totals = rows.reduce((acc, row) => {
+    const qty = economicsQuantity(row);
+    const currentPerUnit = economicsPerUnit(row);
+    const optimizedPerUnit = optionalNumber(economicsCosts(row).optimizedPerUnit) ?? currentPerUnit;
+    const receiving = economicsReceivingPerUnit(row) * qty;
+    const prepFulfill = economicsPrepFulfillPerUnit(row) * qty;
+    const shippingLabel = economicsShippingLabelPerUnit(row) * qty;
+    const storage = economicsStoragePerUnit(row) * qty;
+    acc.units += qty;
+    acc.current += currentPerUnit * qty;
+    acc.optimized += optimizedPerUnit * qty;
+    acc.receiving += receiving;
+    acc.prepFulfill += prepFulfill;
+    acc.shippingLabel += shippingLabel;
+    acc.storage += storage;
+    acc.total += currentPerUnit * qty;
+    return acc;
+  }, { units: 0, current: 0, optimized: 0, receiving: 0, prepFulfill: 0, shippingLabel: 0, storage: 0, total: 0 });
+  return {
+    units: totals.units,
+    currentPerUnit: totals.units > 0 ? totals.current / totals.units : 0,
+    optimizedPerUnit: totals.units > 0 ? totals.optimized / totals.units : 0,
+    fulfillmentPerUnit: totals.units > 0 ? (totals.receiving + totals.prepFulfill) / totals.units : 0,
+    labelAvg: totals.units > 0 ? totals.shippingLabel / totals.units : 0,
+    storage: totals.storage,
+    receivingPrepLab: totals.receiving + totals.prepFulfill,
+    fulfillment: totals.prepFulfill,
+    label: totals.shippingLabel,
+    total: totals.total,
+  };
 };
 
 const pricingScopeLabel = (scope?: string) => {
@@ -290,6 +356,9 @@ const CortexPricingPanel = ({
   if (!preview) return null;
 
   const warehouses = Array.isArray(preview.warehouses) ? preview.warehouses : [];
+  const perSkuEconomics = Array.isArray(preview.perSkuEconomics) ? preview.perSkuEconomics : [];
+  const skuAggregate = perSkuPricingAggregate(perSkuEconomics);
+  const hasSkuAggregate = skuAggregate.units > 0;
   const current = warehouses.find((warehouse: any) => warehouse.isAnchor || warehouse.scopeRole === 'anchor') || warehouses[0] || {};
   const optimized = warehouses.length
     ? warehouses.reduce((best: any, warehouse: any) => {
@@ -300,13 +369,17 @@ const CortexPricingPanel = ({
     : {};
   const totals = preview.totals || {};
   const fee = preview.feePreview || {};
-  const currentPerUnit = previewWarehousePerUnit(current, totals.estimatedPerUnit);
-  const optimizedPerUnit = previewWarehousePerUnit(optimized, totals.estimatedPerUnit);
-  const labelAvg = Number(totals.labelWeightedAverage ?? (current as any)?.weightedLabelCostPerUnit ?? 0);
-  const total = Number(totals.estimatedTotal ?? previewWarehouseTotal(current));
+  const currentPerUnit = hasSkuAggregate ? skuAggregate.currentPerUnit : previewWarehousePerUnit(current, totals.estimatedPerUnit);
+  const optimizedPerUnit = hasSkuAggregate ? skuAggregate.optimizedPerUnit : previewWarehousePerUnit(optimized, totals.estimatedPerUnit);
+  const fulfillmentPerUnit = hasSkuAggregate ? skuAggregate.fulfillmentPerUnit : asNumber(fee.fulfillmentFeePerUnit ?? currentPerUnit, 0);
+  const labelAvg = hasSkuAggregate ? skuAggregate.labelAvg : Number(totals.labelWeightedAverage ?? (current as any)?.weightedLabelCostPerUnit ?? 0);
+  const storageTotal = hasSkuAggregate ? skuAggregate.storage : asNumber(totals.storageMonthlyEstimate, 0);
+  const receivingPrepLabTotal = hasSkuAggregate ? skuAggregate.receivingPrepLab : asNumber(totals.receivingPrepLabEstimate, 0);
+  const fulfillmentTotal = hasSkuAggregate ? skuAggregate.fulfillment : asNumber(totals.fulfillmentEstimate, 0);
+  const labelTotal = hasSkuAggregate ? skuAggregate.label : labelAvg * units;
+  const total = hasSkuAggregate ? skuAggregate.total : Number(totals.estimatedTotal ?? previewWarehouseTotal(current));
   const dueToday = previewDueToday(preview);
   const confidence = preview.confidence == null ? null : Math.round(Number(preview.confidence) * 100);
-  const perSkuEconomics = Array.isArray(preview.perSkuEconomics) ? preview.perSkuEconomics : [];
   const degraded = Boolean((preview as any).fallbackAvailable || (preview as any).cortex?.ok === false || String(preview.source || '').includes('fallback'));
 
   return (
@@ -339,7 +412,7 @@ const CortexPricingPanel = ({
             <div className="muted" style={{ fontSize: 11 }}>{(optimized as any)?.warehouseCode || 'modeled'}</div>
           </ReviewCard>
           <ReviewCard title="Fulfillment / unit">
-            <strong>{money(fee.fulfillmentFeePerUnit ?? currentPerUnit)}</strong>
+            <strong>{money(fulfillmentPerUnit)}</strong>
             <div className="muted" style={{ fontSize: 11 }}>pick, pack, receive</div>
           </ReviewCard>
           <ReviewCard title="48-state label avg">
@@ -347,8 +420,8 @@ const CortexPricingPanel = ({
             <div className="muted" style={{ fontSize: 11 }}>parcel exposure</div>
           </ReviewCard>
           <ReviewCard title="Storage / month">
-            <strong>{money(totals.storageMonthlyEstimate)}</strong>
-            <div className="muted" style={{ fontSize: 11 }}>{units.toLocaleString()} units</div>
+            <strong>{money(storageTotal)}</strong>
+            <div className="muted" style={{ fontSize: 11 }}>{(hasSkuAggregate ? skuAggregate.units : units).toLocaleString()} units</div>
           </ReviewCard>
           <ReviewCard title="Due today" tone={dueToday > 0 ? 'purple' : 'green'}>
             <strong>{money(dueToday)}</strong>
@@ -359,9 +432,9 @@ const CortexPricingPanel = ({
           <div style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-sunken)' }}>
             <div style={{ fontSize: 11, fontWeight: 850, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8 }}>Cost breakdown</div>
             {[
-              ['Receiving / prep / LAB', totals.receivingPrepLabEstimate],
-              ['Fulfillment estimate', totals.fulfillmentEstimate],
-              ['Label weighted average', labelAvg],
+              ['Receiving / prep / LAB', receivingPrepLabTotal],
+              ['Fulfillment estimate', fulfillmentTotal],
+              ['48-state label estimate', labelTotal],
               ['Transportation estimate', totals.transportationEstimate],
               ['Estimated total', total],
             ].map(([label, value]) => (
@@ -404,10 +477,10 @@ const CortexPricingPanel = ({
                 <tr>
                   <th>SKU</th>
                   <th className="num">Qty</th>
-                  <th className="num">Receive</th>
-                  <th className="num">Prep / fulfill</th>
-                  <th className="num">Labels</th>
-                  <th className="num">Storage</th>
+                  <th className="num">Receive / unit</th>
+                  <th className="num">Prep / fulfill / unit</th>
+                  <th className="num">48-state label / unit</th>
+                  <th className="num">Storage / unit</th>
                   <th className="num">Total / unit</th>
                   <th>Source</th>
                 </tr>
@@ -422,11 +495,11 @@ const CortexPricingPanel = ({
                         <div className="mono strong">{row.sku || row.itemId || 'SKU'}</div>
                         {row.title && <div className="muted" style={{ fontSize: 11 }}>{row.title}</div>}
                       </td>
-                      <td className="num mono">{asNumber(row.quantity, 0).toLocaleString()}</td>
-                      <td className="num mono">{money(costs.receivingTotal)}</td>
-                      <td className="num mono">{money(economicsFulfillment(row))}</td>
-                      <td className="num mono">{money(economicsLabels(row))}</td>
-                      <td className="num mono">{money(costs.storageTotalMonth)}</td>
+                      <td className="num mono">{economicsQuantity(row).toLocaleString()}</td>
+                      <td className="num mono">{money(economicsReceivingPerUnit(row))}</td>
+                      <td className="num mono">{money(economicsPrepFulfillPerUnit(row))}</td>
+                      <td className="num mono">{money(economicsShippingLabelPerUnit(row))}</td>
+                      <td className="num mono">{money(economicsStoragePerUnit(row))}</td>
                       <td className="num mono strong">{money(economicsPerUnit(row))}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
