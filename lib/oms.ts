@@ -280,6 +280,7 @@ export type SkuFulfillmentEconomics = {
       basis?: string;
       heatmapStrategy?: string;
       note?: string;
+      demandHeatmap?: Record<string, any>;
       singleWarehouse?: Record<string, any>;
       optimizedTwoNode?: Record<string, any>;
     };

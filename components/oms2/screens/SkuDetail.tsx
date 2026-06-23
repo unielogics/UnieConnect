@@ -506,6 +506,8 @@ const SkuCortexEconomicsCard = ({
     const comparison = economicsNetworkComparison(economics);
     const single = comparison?.singleWarehouse || {};
     const optimized = comparison?.optimizedTwoNode || {};
+    const demandHeatmap = comparison?.demandHeatmap || {};
+    const optimizedHubCount = Number(optimized.selectedWarehouseCount || 0);
     const singleWarehouses = Array.isArray(single.warehouseCodes) ? single.warehouseCodes.filter(Boolean) : [];
     const optimizedWarehouses = Array.isArray(optimized.warehouseCodes) ? optimized.warehouseCodes.filter(Boolean) : [];
     const singleTotal = Number(single.totalPerUnit ?? costs.currentPerUnit ?? costs.totalPerUnit ?? 0);
@@ -552,9 +554,9 @@ const SkuCortexEconomicsCard = ({
       },
       {
         key: 'optimized',
-        title: 'Optimized 2-node heatmap',
+        title: optimizedHubCount > 1 ? 'Optimized 2-node heatmap' : 'Network expansion check',
         tone: optimized.modeledOnly ? 'amber' : 'purple',
-        badge: optimized.modeledOnly ? 'Modeled only' : 'Executable',
+        badge: optimized.modeledOnly && optimized.enoughDemandForNetwork === false ? 'Needs density' : optimized.modeledOnly ? 'Modeled only' : 'Executable',
         warehouses: optimizedWarehouses.length ? optimizedWarehouses.join(' + ') : 'Cortex heatmap pair',
         label: Number(optimized.labelPerUnit ?? costs.optimizedNetworkLabelPerUnit ?? 0),
         transfer: Number(optimized.transferPerUnit ?? costs.optimizedNetworkTransferPerUnit ?? 0),
@@ -634,6 +636,17 @@ const SkuCortexEconomicsCard = ({
               {comparison.note}
             </div>
           )}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+            <Chip tone={Number(demandHeatmap.orderCount || 0) > 0 ? 'blue' : 'amber'} dot={false}>
+              SKU heatmap: {Number(demandHeatmap.orderCount || 0).toLocaleString()} orders
+            </Chip>
+            <Chip tone={Number(demandHeatmap.stateCount || 0) >= 2 ? 'green' : 'default'} dot={false}>
+              {Number(demandHeatmap.stateCount || 0).toLocaleString()} states
+            </Chip>
+            <Chip tone={single.rateShoppingTriggered ? 'green' : 'amber'} dot={false}>
+              {single.rateShoppingTriggered ? 'Rate shop ready from size + weight' : 'Modeled product profile'}
+            </Chip>
+          </div>
         </div>
         <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10 }}>
           {metricRows.map(([label, value, sub]) => (
