@@ -76,6 +76,20 @@ const moneyOrMissing = (value: unknown) => {
   return n == null ? 'Not calculated' : money(n);
 };
 
+const networkBlockedCopy = (reason?: unknown) => {
+  const key = String(reason || '').trim();
+  const labels: Record<string, string> = {
+    network_expansion_not_allowed_by_warehouse: 'Network expansion not allowed by warehouse',
+    no_approved_second_node_configured: 'No approved second node configured',
+    no_positive_savings_after_transfer: 'No positive savings after transfer',
+    no_eligible_network_node_available: 'No eligible network node available',
+    no_distinct_second_node_selected: 'No distinct second node selected',
+    optimization_pricing_unavailable: 'Optimization pricing unavailable',
+    ltl_transfer_rate_unavailable: 'LTL transfer rate unavailable',
+  };
+  return labels[key] || key.replace(/_/g, ' ') || 'Network expansion blocked';
+};
+
 const economicsQuantity = (row?: any) => Math.max(1, asNumber(row?.quantity, 1));
 
 const economicsPerUnitValue = (row: any, perUnitKey: string, totalKey: string) => {
@@ -103,6 +117,22 @@ const economicsPerUnit = (row?: any) => {
   const costs = economicsCosts(row);
   const qty = Math.max(1, asNumber(row?.quantity, 1));
   return asNumber(costs.totalPerUnit ?? costs.currentPerUnit ?? (economicsTotal(row) / qty), 0);
+};
+
+const economicsOptimizedNetwork = (row?: any) => row?.pricingPayload?.networkComparison?.optimizedTwoNode || {};
+
+const economicsOptimizedBlockedReason = (row?: any) => {
+  const optimized = economicsOptimizedNetwork(row);
+  if (optimized.status === 'blocked' || optimized.blockedReason || optimized.distinctSecondNode === false || Number(optimized.selectedWarehouseCount || 0) < 2) {
+    return optimized.blockedReason || 'no_distinct_second_node_selected';
+  }
+  return null;
+};
+
+const economicsOptimizedPerUnit = (row?: any) => {
+  if (economicsOptimizedBlockedReason(row)) return null;
+  const optimized = economicsOptimizedNetwork(row);
+  return optionalNumber(optimized.totalPerUnit ?? economicsCosts(row).optimizedPerUnit);
 };
 
 const economicsFulfillment = (row?: any) => {
@@ -148,7 +178,8 @@ const perSkuPricingAggregate = (rows: any[]) => {
   const totals = rows.reduce((acc, row) => {
     const qty = economicsQuantity(row);
     const currentPerUnit = economicsPerUnit(row);
-    const optimizedPerUnit = optionalNumber(economicsCosts(row).optimizedPerUnit) ?? currentPerUnit;
+    const optimizedPerUnit = economicsOptimizedPerUnit(row);
+    const optimizedBlocker = economicsOptimizedBlockedReason(row);
     const receiving = economicsReceivingPerUnit(row) * qty;
     const prepFulfill = economicsPrepFulfillPerUnit(row) * qty;
     const labelPerUnit = economicsShippingLabelPerUnit(row);
@@ -158,7 +189,12 @@ const perSkuPricingAggregate = (rows: any[]) => {
     const storage = economicsStoragePerUnit(row) * qty;
     acc.units += qty;
     acc.current += currentPerUnit * qty;
-    acc.optimized += optimizedPerUnit * qty;
+    if (optimizedPerUnit != null) {
+      acc.optimized += optimizedPerUnit * qty;
+      acc.optimizedUnits += qty;
+    } else if (optimizedBlocker) {
+      acc.optimizedBlockedReasons.add(optimizedBlocker);
+    }
     acc.receiving += receiving;
     acc.prepFulfill += prepFulfill;
     acc.shippingLabel += shippingLabel;
@@ -168,11 +204,12 @@ const perSkuPricingAggregate = (rows: any[]) => {
     acc.storage += storage;
     acc.total += currentPerUnit * qty;
     return acc;
-  }, { units: 0, current: 0, optimized: 0, receiving: 0, prepFulfill: 0, shippingLabel: 0, transfer: 0, labelUnits: 0, transferUnits: 0, storage: 0, total: 0 });
+  }, { units: 0, current: 0, optimized: 0, optimizedUnits: 0, receiving: 0, prepFulfill: 0, shippingLabel: 0, transfer: 0, labelUnits: 0, transferUnits: 0, storage: 0, total: 0, optimizedBlockedReasons: new Set<string>() });
   return {
     units: totals.units,
     currentPerUnit: totals.units > 0 ? totals.current / totals.units : 0,
-    optimizedPerUnit: totals.units > 0 ? totals.optimized / totals.units : 0,
+    optimizedPerUnit: totals.optimizedUnits > 0 ? totals.optimized / totals.optimizedUnits : null,
+    optimizedBlockedReasons: Array.from(totals.optimizedBlockedReasons),
     fulfillmentPerUnit: totals.units > 0 ? (totals.receiving + totals.prepFulfill) / totals.units : 0,
     labelAvg: totals.labelUnits > 0 ? totals.shippingLabel / totals.labelUnits : null,
     transferPerUnit: totals.transferUnits > 0 ? totals.transfer / totals.transferUnits : null,
@@ -398,6 +435,8 @@ const CortexPricingPanel = ({
   const fee = preview.feePreview || {};
   const currentPerUnit = hasSkuAggregate ? skuAggregate.currentPerUnit : previewWarehousePerUnit(current, totals.estimatedPerUnit);
   const optimizedPerUnit = hasSkuAggregate ? skuAggregate.optimizedPerUnit : previewWarehousePerUnit(optimized, totals.estimatedPerUnit);
+  const optimizedBlockedReasons = hasSkuAggregate ? skuAggregate.optimizedBlockedReasons : [];
+  const optimizedBlockedCopy = optimizedBlockedReasons.length ? optimizedBlockedReasons.map(networkBlockedCopy).join('; ') : null;
   const fulfillmentPerUnit = hasSkuAggregate ? skuAggregate.fulfillmentPerUnit : asNumber(fee.fulfillmentFeePerUnit ?? currentPerUnit, 0);
   const labelAvg = hasSkuAggregate ? skuAggregate.labelAvg : Number(totals.labelWeightedAverage ?? (current as any)?.weightedLabelCostPerUnit ?? 0);
   const transferPerUnit = hasSkuAggregate ? skuAggregate.transferPerUnit : optionalNumber((totals as any).transferLtlPerUnit ?? (totals as any).transportationPerUnit);
@@ -436,9 +475,9 @@ const CortexPricingPanel = ({
             <strong>{money(currentPerUnit)}</strong>
             <div className="muted" style={{ fontSize: 11 }}>{(current as any)?.warehouseCode || 'modeled'}</div>
           </ReviewCard>
-          <ReviewCard title="Optimized / unit" tone={optimizedPerUnit && optimizedPerUnit < currentPerUnit ? 'green' : 'purple'}>
-            <strong>{money(optimizedPerUnit || currentPerUnit)}</strong>
-            <div className="muted" style={{ fontSize: 11 }}>{(optimized as any)?.warehouseCode || 'modeled'}</div>
+          <ReviewCard title="Optimized / unit" tone={optimizedPerUnit != null && optimizedPerUnit < currentPerUnit ? 'green' : 'purple'}>
+            <strong>{moneyOrMissing(optimizedPerUnit)}</strong>
+            <div className="muted" style={{ fontSize: 11 }}>{optimizedBlockedCopy || (optimized as any)?.warehouseCode || 'modeled'}</div>
           </ReviewCard>
           <ReviewCard title="Fulfillment / unit">
             <strong>{money(fulfillmentPerUnit)}</strong>
@@ -467,13 +506,13 @@ const CortexPricingPanel = ({
             {[
               ['Receiving / prep / LAB', receivingPrepLabTotal],
               ['Fulfillment estimate', fulfillmentTotal],
-              ['48-state label estimate', labelTotal],
-              ['LTL transfer estimate', transferTotal],
+              ['48-state label estimate', labelAvg == null ? null : labelTotal],
+              ['LTL transfer estimate', transferPerUnit == null ? null : transferTotal],
               ['Estimated total', total],
             ].map(([label, value]) => (
               <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, marginBottom: 6 }}>
                 <span>{label}</span>
-                <strong>{money(value)}</strong>
+                <strong>{moneyOrMissing(value)}</strong>
               </div>
             ))}
           </div>
@@ -486,6 +525,13 @@ const CortexPricingPanel = ({
               <div style={{ display: 'grid', gap: 5, marginTop: 10 }}>
                 {(preview.blockers || []).slice(0, 4).map((blocker) => (
                   <div key={blocker} style={{ color: 'var(--amber-text)', fontSize: 12, fontWeight: 700 }}>• {String(blocker).replace(/_/g, ' ')}</div>
+                ))}
+              </div>
+            )}
+            {optimizedBlockedReasons.length > 0 && (
+              <div style={{ display: 'grid', gap: 5, marginTop: 10 }}>
+                {optimizedBlockedReasons.slice(0, 4).map((reason) => (
+                  <div key={String(reason)} style={{ color: 'var(--amber-text)', fontSize: 12, fontWeight: 700 }}>• {networkBlockedCopy(reason)}</div>
                 ))}
               </div>
             )}
@@ -523,6 +569,7 @@ const CortexPricingPanel = ({
                 {perSkuEconomics.map((row, index) => {
                   const labelPerUnit = economicsShippingLabelPerUnit(row);
                   const transferPerUnit = economicsTransferPerUnit(row);
+                  const optimizedBlocker = economicsOptimizedBlockedReason(row);
                   const rowConfidence = row.confidence == null ? null : Math.round(Number(row.confidence) * 100);
                   return (
                     <tr key={`${row.itemId || row.sku || index}`}>
@@ -540,6 +587,7 @@ const CortexPricingPanel = ({
                       <td>
                         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                           <Chip tone={String(row.cacheState || '').includes('cached') ? 'green' : 'amber'} dot={false}>{String(row.cacheState || row.sourceQuality || 'modeled').replace(/_/g, ' ')}</Chip>
+                          {optimizedBlocker && <Chip tone="amber" dot={false}>{networkBlockedCopy(optimizedBlocker)}</Chip>}
                           {rowConfidence != null && <Chip tone={rowConfidence >= 70 ? 'green' : 'amber'} dot={false}>{rowConfidence}%</Chip>}
                         </div>
                       </td>
@@ -1277,6 +1325,7 @@ export const ShipmentWizard = ({
                     const routedCode = routedDestinations[sku.id];
                     const routedWarehouse = warehouseByCode(warehouses, routedCode);
                     const skuPricing = pricingEconomicsForSku(pricingPreview, sku);
+                    const skuPricingBlocker = economicsOptimizedBlockedReason(skuPricing);
                     const skuConfidence = skuPricing?.confidence == null ? null : Math.round(Number(skuPricing.confidence) * 100);
                     return (
                       <tr key={sku.id}>
@@ -1301,6 +1350,7 @@ export const ShipmentWizard = ({
                               <Chip tone={String(skuPricing.cacheState || '').includes('cached') ? 'green' : 'amber'} dot={false}>
                                 {String(skuPricing.cacheState || skuPricing.sourceQuality || 'modeled').replace(/_/g, ' ')}
                               </Chip>
+                              {skuPricingBlocker && <Chip tone="amber" dot={false}>{networkBlockedCopy(skuPricingBlocker)}</Chip>}
                               {skuConfidence != null && <Chip tone={skuConfidence >= 70 ? 'green' : 'amber'} dot={false}>{skuConfidence}%</Chip>}
                             </div>
                           ) : (

@@ -267,6 +267,7 @@ export type SkuFulfillmentEconomics = {
   workflowType: 'FBA' | 'FBW' | 'FBM' | 'DTC' | string;
   anchorWarehouseCode?: string | null;
   rateShopScope?: string | null;
+  networkPolicy?: Record<string, any>;
   sourceQuality?: string | null;
   confidence?: number;
   currency?: string;

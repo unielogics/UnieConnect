@@ -82,6 +82,28 @@ const moneyOrMissing = (value: unknown) => {
   return n == null ? 'Not calculated' : money(n);
 };
 
+const networkBlockedCopy = (reason?: unknown) => {
+  const key = String(reason || '').trim();
+  const labels: Record<string, string> = {
+    network_expansion_not_allowed_by_warehouse: 'Network expansion is not allowed by the warehouse.',
+    no_approved_second_node_configured: 'No approved second node is configured by the warehouse.',
+    no_positive_savings_after_transfer: 'No positive savings after LTL transfer.',
+    no_eligible_network_node_available: 'No eligible network node is available.',
+    no_distinct_second_node_selected: 'Cortex did not find a distinct second node.',
+    optimization_pricing_unavailable: 'Optimization pricing is not available yet.',
+    ltl_transfer_rate_unavailable: 'LTL transfer rate is not available yet.',
+  };
+  return labels[key] || key.replace(/_/g, ' ') || 'Network expansion is blocked.';
+};
+
+const normalizedWarehouseCodes = (value: unknown) => {
+  const rows = Array.isArray(value) ? value : [];
+  return rows.map((entry) => String(entry || '').trim()).filter(Boolean);
+};
+
+const distinctWarehouseCodeCount = (value: unknown) =>
+  new Set(normalizedWarehouseCodes(value).map((entry) => entry.toLowerCase())).size;
+
 const warehousePerUnit = (warehouse: any, fallback?: unknown) =>
   Number(warehouse?.feePreview?.perUnit ?? warehouse?.totalEstimatedCostPerUnit ?? warehouse?.estimatedCostPerUnit ?? fallback ?? 0);
 
@@ -96,11 +118,24 @@ const skuPricingSummary = (preview?: ShipmentPricingPreview | null) => {
         return !best || (next > 0 && next < currentBest) ? warehouse : best;
       }, warehouses[0])
     : {};
+  const perSkuRows = Array.isArray(preview.perSkuEconomics) ? preview.perSkuEconomics : [];
+  const perSkuBlockedReasons = perSkuRows
+    .map((row: any) => row?.pricingPayload?.networkComparison?.optimizedTwoNode)
+    .filter((node: any) => node?.status === 'blocked' || node?.blockedReason || node?.distinctSecondNode === false)
+    .map((node: any) => node?.blockedReason || 'no_distinct_second_node_selected');
+  const currentPerUnit = warehousePerUnit(current, preview.totals?.estimatedPerUnit);
+  const rawOptimizedPerUnit = warehousePerUnit(optimized, preview.totals?.estimatedPerUnit);
+  const currentWarehouseCode = String((current as any)?.warehouseCode || (current as any)?.code || '').trim();
+  const optimizedWarehouseCode = String((optimized as any)?.warehouseCode || (optimized as any)?.code || '').trim();
+  const optimizedBlockedReason = perSkuBlockedReasons[0]
+    || (optimizedWarehouseCode && currentWarehouseCode && optimizedWarehouseCode === currentWarehouseCode ? 'no_distinct_second_node_selected' : null)
+    || (rawOptimizedPerUnit > 0 && currentPerUnit > 0 && rawOptimizedPerUnit >= currentPerUnit ? 'no_positive_savings_after_transfer' : null);
   return {
     current,
     optimized,
-    currentPerUnit: warehousePerUnit(current, preview.totals?.estimatedPerUnit),
-    optimizedPerUnit: warehousePerUnit(optimized, preview.totals?.estimatedPerUnit),
+    currentPerUnit,
+    optimizedPerUnit: optimizedBlockedReason ? null : rawOptimizedPerUnit,
+    optimizedBlockedReason,
     labelAvg: Number(preview.totals?.labelWeightedAverage ?? (current as any)?.weightedLabelCostPerUnit ?? 0),
     storage: Number(preview.totals?.storageMonthlyEstimate ?? 0),
     fulfillment: Number(preview.feePreview?.fulfillmentFeePerUnit ?? warehousePerUnit(current, preview.totals?.estimatedPerUnit)),
@@ -127,14 +162,17 @@ const economicsNetworkComparison = (economics?: SkuFulfillmentEconomics | null) 
     },
     optimizedTwoNode: {
       strategy: 'optimized_two_node_heatmap',
-      warehouseCodes: [economics?.anchorWarehouseCode || 'anchor warehouse', 'Cortex heatmap node'],
-      selectedWarehouseCount: 2,
-      executable: String(economics?.rateShopScope || '').includes('network'),
-      modeledOnly: !String(economics?.rateShopScope || '').includes('network'),
-      labelPerUnit: optionalNumber(costs.optimizedNetworkLabelPerUnit ?? costs.domesticLabelPerUnit),
-      transferPerUnit: optionalNumber(costs.optimizedNetworkTransferPerUnit ?? costs.transferLtlPerUnit),
-      totalPerUnit: optimized,
-      savingsPerUnit: Math.max(0, current - optimized),
+      status: 'blocked',
+      blockedReason: 'no_eligible_network_node_available',
+      warehouseCodes: [economics?.anchorWarehouseCode || 'anchor warehouse'],
+      selectedWarehouseCount: 1,
+      distinctSecondNode: false,
+      executable: false,
+      modeledOnly: true,
+      labelPerUnit: null,
+      transferPerUnit: null,
+      totalPerUnit: null,
+      savingsPerUnit: null,
       source: 'stored_sku_economics',
     },
   };
@@ -512,6 +550,9 @@ const SkuCortexEconomicsCard = ({
     const costs = economics.costs || {};
     const blockers = economics.blockers || [];
     const workflow = String(economics.workflowType || 'Cortex');
+    const networkRightsCopy = economics.networkPolicy?.policySource === 'wms_client'
+      ? 'Network rights are managed by your warehouse.'
+      : 'Cortex may optimize across the available network.';
     const confidence = Math.round(Number(economics.confidence || 0) * 100);
     const isPrep = workflow === 'FBA' || workflow === 'FBW';
     const comparison = economicsNetworkComparison(economics);
@@ -519,15 +560,22 @@ const SkuCortexEconomicsCard = ({
     const optimized = comparison?.optimizedTwoNode || {};
     const demandHeatmap = comparison?.demandHeatmap || {};
     const optimizedHubCount = Number(optimized.selectedWarehouseCount || 0);
-    const singleWarehouses = Array.isArray(single.warehouseCodes) ? single.warehouseCodes.filter(Boolean) : [];
-    const optimizedWarehouses = Array.isArray(optimized.warehouseCodes) ? optimized.warehouseCodes.filter(Boolean) : [];
+    const singleWarehouses = normalizedWarehouseCodes(single.warehouseCodes);
+    const optimizedWarehouses = normalizedWarehouseCodes(optimized.warehouseCodes);
+    const optimizedDistinctNodeCount = distinctWarehouseCodeCount(optimized.warehouseCodes);
+    const duplicateOptimizedNodes = optimizedWarehouses.length > 1 && optimizedDistinctNodeCount < 2;
+    const optimizedBlockedReason = optimized.blockedReason || (duplicateOptimizedNodes ? 'no_distinct_second_node_selected' : undefined);
+    const optimizedBlocked = optimized.status === 'blocked' || optimizedBlockedReason || optimized.distinctSecondNode === false || optimizedHubCount < 2 || optimizedDistinctNodeCount < 2;
     const singleTotal = Number(single.totalPerUnit ?? costs.currentPerUnit ?? costs.totalPerUnit ?? 0);
-    const optimizedTotal = Number(optimized.totalPerUnit ?? costs.optimizedPerUnit ?? singleTotal);
-    const savingsPerUnit = Number(optimized.savingsPerUnit ?? Math.max(0, singleTotal - optimizedTotal));
+    const optimizedTotal = optimizedBlocked ? null : optionalNumber(optimized.totalPerUnit ?? costs.optimizedPerUnit);
+    const savingsPerUnit = optimizedBlocked || optimizedTotal == null ? null : Number(optimized.savingsPerUnit ?? Math.max(0, singleTotal - optimizedTotal));
+    const optimizedDisplayWarehouses = optimizedBlocked
+      ? 'No distinct second node'
+      : optimizedWarehouses.join(' + ') || 'Cortex heatmap pair';
     const metricRows = isPrep
       ? [
           ['Current / unit', costs.currentPerUnit ?? costs.totalPerUnit, economics.anchorWarehouseCode || 'stored'],
-          ['Optimized / unit', costs.optimizedPerUnit, 'Cortex modeled'],
+          ['Optimized / unit', optimizedBlocked ? null : costs.optimizedPerUnit, optimizedBlocked ? networkBlockedCopy(optimizedBlockedReason) : 'Cortex modeled'],
           ['Receiving / unit', costs.receivingPerUnit, costs.receivingTotal != null ? `${money(costs.receivingTotal)} total` : 'warehouse pricing'],
           ['Prep / LAB / unit', costs.prepLabPerUnit, costs.prepLabTotal != null ? `${money(costs.prepLabTotal)} total` : 'warehouse pricing'],
           ['Unit label', costs.unitLabelPerUnit, costs.unitLabelTotal != null ? `${money(costs.unitLabelTotal)} total` : 'marketplace prep'],
@@ -535,7 +583,7 @@ const SkuCortexEconomicsCard = ({
         ]
       : [
           ['Current / unit', costs.currentPerUnit ?? costs.totalPerUnit, economics.anchorWarehouseCode || 'stored'],
-          ['Optimized / unit', costs.optimizedPerUnit, 'Cortex modeled'],
+          ['Optimized / unit', optimizedBlocked ? null : costs.optimizedPerUnit, optimizedBlocked ? networkBlockedCopy(optimizedBlockedReason) : 'Cortex modeled'],
           ['Pick / unit', costs.pickPerUnit, costs.pickTotal != null ? `${money(costs.pickTotal)} total` : 'warehouse pricing'],
           ['Pack / unit', costs.packPerUnit, costs.packTotal != null ? `${money(costs.packTotal)} total` : 'warehouse pricing'],
           ['Materials / order', costs.materialsPerOrder, costs.materialBoxSize ? `${costs.materialBoxSize} box` : 'warehouse materials'],
@@ -549,7 +597,8 @@ const SkuCortexEconomicsCard = ({
       warehouses: string;
       label: number | null;
       transfer: number | null;
-      total: number;
+      total: number | null;
+      blockedReason?: string;
       source: string;
     }> = [
       {
@@ -566,13 +615,14 @@ const SkuCortexEconomicsCard = ({
       {
         key: 'optimized',
         title: optimizedHubCount > 1 ? 'Optimized 2-node heatmap' : 'Network expansion check',
-        tone: optimized.modeledOnly ? 'amber' : 'purple',
-        badge: optimized.modeledOnly && optimized.enoughDemandForNetwork === false ? 'Needs density' : optimized.modeledOnly ? 'Modeled only' : 'Executable',
-        warehouses: optimizedWarehouses.length ? optimizedWarehouses.join(' + ') : 'Cortex heatmap pair',
-        label: optionalNumber(optimized.labelPerUnit ?? costs.optimizedNetworkLabelPerUnit),
-        transfer: optionalNumber(optimized.transferPerUnit ?? costs.optimizedNetworkTransferPerUnit ?? costs.transferLtlPerUnit),
+        tone: optimizedBlocked ? 'amber' : optimized.modeledOnly ? 'amber' : 'purple',
+        badge: optimizedBlocked ? 'Blocked' : optimized.modeledOnly ? 'Modeled only' : 'Executable',
+        warehouses: optimizedDisplayWarehouses,
+        label: optimizedBlocked ? null : optionalNumber(optimized.labelPerUnit ?? costs.optimizedNetworkLabelPerUnit),
+        transfer: optimizedBlocked ? null : optionalNumber(optimized.transferPerUnit ?? costs.optimizedNetworkTransferPerUnit ?? costs.transferLtlPerUnit),
         total: optimizedTotal,
-        source: String(optimized.source || 'cortex heatmap rate shop').replace(/_/g, ' '),
+        blockedReason: optimizedBlockedReason,
+        source: optimizedBlocked ? networkBlockedCopy(optimizedBlockedReason) : String(optimized.source || 'cortex heatmap rate shop').replace(/_/g, ' '),
       },
     ];
     return (
@@ -581,7 +631,7 @@ const SkuCortexEconomicsCard = ({
           <div>
             <div className="card-title"><Icon name="sparkle" size={15} /> Cortex fulfillment economics</div>
             <div className="card-subtitle">
-              Stored per-SKU {workflow} economics from Cortex. Shipment plans reuse this record unless it is missing or stale.
+              Stored per-SKU {workflow} economics from Cortex. {networkRightsCopy} Shipment plans reuse this record unless it is missing or stale.
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -631,11 +681,11 @@ const SkuCortexEconomicsCard = ({
                   </div>
                   <div>
                     <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Total/unit</div>
-                    <div style={{ fontWeight: 900 }}>{money(row.total)}</div>
+                    <div style={{ fontWeight: 900 }}>{moneyOrMissing(row.total)}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Savings</div>
-                    <div style={{ fontWeight: 900 }}>{row.key === 'optimized' ? money(savingsPerUnit) : '-'}</div>
+                    <div style={{ fontWeight: 900 }}>{row.key === 'optimized' && savingsPerUnit != null ? money(savingsPerUnit) : '-'}</div>
                   </div>
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 10 }}>{row.source}</div>
@@ -704,7 +754,7 @@ const SkuCortexEconomicsCard = ({
       </div>
     );
   }
-  const savings = summary.currentPerUnit > 0 && summary.optimizedPerUnit > 0
+  const savings = summary.currentPerUnit > 0 && summary.optimizedPerUnit != null && summary.optimizedPerUnit > 0
     ? Math.max(0, summary.currentPerUnit - summary.optimizedPerUnit)
     : 0;
   return (
@@ -724,7 +774,7 @@ const SkuCortexEconomicsCard = ({
       <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
         {[
           ['Current / unit', money(summary.currentPerUnit), (summary.current as any)?.warehouseCode || 'modeled'],
-          ['Optimized / unit', money(summary.optimizedPerUnit || summary.currentPerUnit), (summary.optimized as any)?.warehouseCode || 'modeled'],
+          ['Optimized / unit', moneyOrMissing(summary.optimizedPerUnit), summary.optimizedBlockedReason ? networkBlockedCopy(summary.optimizedBlockedReason) : (summary.optimized as any)?.warehouseCode || 'modeled'],
           ['Potential savings', money(savings), savings > 0 ? 'per unit' : 'no better node yet'],
           ['48-state label avg', money(summary.labelAvg), 'parcel exposure'],
           ['Storage / month', money(summary.storage), 'estimated'],
