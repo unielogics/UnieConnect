@@ -66,8 +66,14 @@ const pricingEconomicsForSku = (preview: ShipmentPricingPreview | null, sku: Sel
 const economicsCosts = (row?: any) => row?.costs || {};
 
 const optionalNumber = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return null;
   const n = typeof value === 'string' ? parseFloat(value) : Number(value);
   return Number.isFinite(n) ? n : null;
+};
+
+const moneyOrMissing = (value: unknown) => {
+  const n = optionalNumber(value);
+  return n == null ? 'Not calculated' : money(n);
 };
 
 const economicsQuantity = (row?: any) => Math.max(1, asNumber(row?.quantity, 1));
@@ -77,6 +83,15 @@ const economicsPerUnitValue = (row: any, perUnitKey: string, totalKey: string) =
   const perUnit = optionalNumber(costs[perUnitKey]);
   if (perUnit != null) return perUnit;
   return asNumber(costs[totalKey], 0) / economicsQuantity(row);
+};
+
+const economicsOptionalPerUnitValue = (row: any, perUnitKey: string, totalKey?: string) => {
+  const costs = economicsCosts(row);
+  const perUnit = optionalNumber(costs[perUnitKey]);
+  if (perUnit != null) return perUnit;
+  if (!totalKey) return null;
+  const total = optionalNumber(costs[totalKey]);
+  return total == null ? null : total / economicsQuantity(row);
 };
 
 const economicsTotal = (row?: any) => {
@@ -118,7 +133,11 @@ const economicsPrepFulfillPerUnit = (row?: any) => {
 
 const economicsStoragePerUnit = (row?: any) => economicsPerUnitValue(row, 'storagePerUnitMonth', 'storageTotalMonth');
 
-const economicsShippingLabelPerUnit = (row?: any) => economicsPerUnitValue(row, 'domesticLabelPerUnit', 'labelTotal');
+const economicsShippingLabelPerUnit = (row?: any) => economicsOptionalPerUnitValue(row, 'domesticLabelPerUnit', 'labelTotal');
+
+const economicsTransferPerUnit = (row?: any) =>
+  economicsOptionalPerUnitValue(row, 'transferLtlPerUnit')
+  ?? economicsOptionalPerUnitValue(row, 'optimizedNetworkTransferPerUnit');
 
 const economicsLabels = (row?: any) => {
   const costs = economicsCosts(row);
@@ -132,7 +151,10 @@ const perSkuPricingAggregate = (rows: any[]) => {
     const optimizedPerUnit = optionalNumber(economicsCosts(row).optimizedPerUnit) ?? currentPerUnit;
     const receiving = economicsReceivingPerUnit(row) * qty;
     const prepFulfill = economicsPrepFulfillPerUnit(row) * qty;
-    const shippingLabel = economicsShippingLabelPerUnit(row) * qty;
+    const labelPerUnit = economicsShippingLabelPerUnit(row);
+    const transferPerUnit = economicsTransferPerUnit(row);
+    const shippingLabel = labelPerUnit == null ? 0 : labelPerUnit * qty;
+    const transfer = transferPerUnit == null ? 0 : transferPerUnit * qty;
     const storage = economicsStoragePerUnit(row) * qty;
     acc.units += qty;
     acc.current += currentPerUnit * qty;
@@ -140,20 +162,25 @@ const perSkuPricingAggregate = (rows: any[]) => {
     acc.receiving += receiving;
     acc.prepFulfill += prepFulfill;
     acc.shippingLabel += shippingLabel;
+    acc.transfer += transfer;
+    if (labelPerUnit != null) acc.labelUnits += qty;
+    if (transferPerUnit != null) acc.transferUnits += qty;
     acc.storage += storage;
     acc.total += currentPerUnit * qty;
     return acc;
-  }, { units: 0, current: 0, optimized: 0, receiving: 0, prepFulfill: 0, shippingLabel: 0, storage: 0, total: 0 });
+  }, { units: 0, current: 0, optimized: 0, receiving: 0, prepFulfill: 0, shippingLabel: 0, transfer: 0, labelUnits: 0, transferUnits: 0, storage: 0, total: 0 });
   return {
     units: totals.units,
     currentPerUnit: totals.units > 0 ? totals.current / totals.units : 0,
     optimizedPerUnit: totals.units > 0 ? totals.optimized / totals.units : 0,
     fulfillmentPerUnit: totals.units > 0 ? (totals.receiving + totals.prepFulfill) / totals.units : 0,
-    labelAvg: totals.units > 0 ? totals.shippingLabel / totals.units : 0,
+    labelAvg: totals.labelUnits > 0 ? totals.shippingLabel / totals.labelUnits : null,
+    transferPerUnit: totals.transferUnits > 0 ? totals.transfer / totals.transferUnits : null,
     storage: totals.storage,
     receivingPrepLab: totals.receiving + totals.prepFulfill,
     fulfillment: totals.prepFulfill,
     label: totals.shippingLabel,
+    transfer: totals.transfer,
     total: totals.total,
   };
 };
@@ -373,10 +400,12 @@ const CortexPricingPanel = ({
   const optimizedPerUnit = hasSkuAggregate ? skuAggregate.optimizedPerUnit : previewWarehousePerUnit(optimized, totals.estimatedPerUnit);
   const fulfillmentPerUnit = hasSkuAggregate ? skuAggregate.fulfillmentPerUnit : asNumber(fee.fulfillmentFeePerUnit ?? currentPerUnit, 0);
   const labelAvg = hasSkuAggregate ? skuAggregate.labelAvg : Number(totals.labelWeightedAverage ?? (current as any)?.weightedLabelCostPerUnit ?? 0);
+  const transferPerUnit = hasSkuAggregate ? skuAggregate.transferPerUnit : optionalNumber((totals as any).transferLtlPerUnit ?? (totals as any).transportationPerUnit);
   const storageTotal = hasSkuAggregate ? skuAggregate.storage : asNumber(totals.storageMonthlyEstimate, 0);
   const receivingPrepLabTotal = hasSkuAggregate ? skuAggregate.receivingPrepLab : asNumber(totals.receivingPrepLabEstimate, 0);
   const fulfillmentTotal = hasSkuAggregate ? skuAggregate.fulfillment : asNumber(totals.fulfillmentEstimate, 0);
-  const labelTotal = hasSkuAggregate ? skuAggregate.label : labelAvg * units;
+  const labelTotal = hasSkuAggregate ? skuAggregate.label : (labelAvg == null ? 0 : labelAvg * units);
+  const transferTotal = hasSkuAggregate ? skuAggregate.transfer : asNumber(totals.transportationEstimate, 0);
   const total = hasSkuAggregate ? skuAggregate.total : Number(totals.estimatedTotal ?? previewWarehouseTotal(current));
   const dueToday = previewDueToday(preview);
   const confidence = preview.confidence == null ? null : Math.round(Number(preview.confidence) * 100);
@@ -402,7 +431,7 @@ const CortexPricingPanel = ({
             Cortex live pricing did not authorize this request, so UnieConnect is showing stored or modeled per-SKU economics and saving them for reuse. Fix the Cortex credential to replace these modeled values with live Cortex pricing.
           </div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(142px, 1fr))', gap: 10 }}>
           <ReviewCard title="Current / unit">
             <strong>{money(currentPerUnit)}</strong>
             <div className="muted" style={{ fontSize: 11 }}>{(current as any)?.warehouseCode || 'modeled'}</div>
@@ -416,8 +445,12 @@ const CortexPricingPanel = ({
             <div className="muted" style={{ fontSize: 11 }}>pick, pack, receive</div>
           </ReviewCard>
           <ReviewCard title="48-state label avg">
-            <strong>{money(labelAvg)}</strong>
+            <strong>{moneyOrMissing(labelAvg)}</strong>
             <div className="muted" style={{ fontSize: 11 }}>parcel exposure</div>
+          </ReviewCard>
+          <ReviewCard title="LTL transfer / unit">
+            <strong>{moneyOrMissing(transferPerUnit)}</strong>
+            <div className="muted" style={{ fontSize: 11 }}>warehouse-to-warehouse</div>
           </ReviewCard>
           <ReviewCard title="Storage / month">
             <strong>{money(storageTotal)}</strong>
@@ -435,7 +468,7 @@ const CortexPricingPanel = ({
               ['Receiving / prep / LAB', receivingPrepLabTotal],
               ['Fulfillment estimate', fulfillmentTotal],
               ['48-state label estimate', labelTotal],
-              ['Transportation estimate', totals.transportationEstimate],
+              ['LTL transfer estimate', transferTotal],
               ['Estimated total', total],
             ].map(([label, value]) => (
               <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, marginBottom: 6 }}>
@@ -480,6 +513,7 @@ const CortexPricingPanel = ({
                   <th className="num">Receive / unit</th>
                   <th className="num">Prep / fulfill / unit</th>
                   <th className="num">48-state label / unit</th>
+                  <th className="num">LTL transfer / unit</th>
                   <th className="num">Storage / unit</th>
                   <th className="num">Total / unit</th>
                   <th>Source</th>
@@ -487,7 +521,8 @@ const CortexPricingPanel = ({
               </thead>
               <tbody>
                 {perSkuEconomics.map((row, index) => {
-                  const costs = economicsCosts(row);
+                  const labelPerUnit = economicsShippingLabelPerUnit(row);
+                  const transferPerUnit = economicsTransferPerUnit(row);
                   const rowConfidence = row.confidence == null ? null : Math.round(Number(row.confidence) * 100);
                   return (
                     <tr key={`${row.itemId || row.sku || index}`}>
@@ -498,7 +533,8 @@ const CortexPricingPanel = ({
                       <td className="num mono">{economicsQuantity(row).toLocaleString()}</td>
                       <td className="num mono">{money(economicsReceivingPerUnit(row))}</td>
                       <td className="num mono">{money(economicsPrepFulfillPerUnit(row))}</td>
-                      <td className="num mono">{money(economicsShippingLabelPerUnit(row))}</td>
+                      <td className="num mono">{moneyOrMissing(labelPerUnit)}</td>
+                      <td className="num mono">{moneyOrMissing(transferPerUnit)}</td>
                       <td className="num mono">{money(economicsStoragePerUnit(row))}</td>
                       <td className="num mono strong">{money(economicsPerUnit(row))}</td>
                       <td>

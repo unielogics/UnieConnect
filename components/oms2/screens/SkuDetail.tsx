@@ -71,6 +71,17 @@ const money = (value: unknown) => {
   return `$${Number.isFinite(n) ? n.toFixed(2) : '0.00'}`;
 };
 
+const optionalNumber = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'string' ? parseFloat(value) : Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const moneyOrMissing = (value: unknown) => {
+  const n = optionalNumber(value);
+  return n == null ? 'Not calculated' : money(n);
+};
+
 const warehousePerUnit = (warehouse: any, fallback?: unknown) =>
   Number(warehouse?.feePreview?.perUnit ?? warehouse?.totalEstimatedCostPerUnit ?? warehouse?.estimatedCostPerUnit ?? fallback ?? 0);
 
@@ -110,7 +121,7 @@ const economicsNetworkComparison = (economics?: SkuFulfillmentEconomics | null) 
       strategy: 'single_warehouse_close_to_supplier',
       warehouseCodes: [economics?.anchorWarehouseCode || 'anchor warehouse'],
       executable: true,
-      labelPerUnit: Number(costs.domesticLabelPerUnit ?? 0),
+      labelPerUnit: optionalNumber(costs.domesticLabelPerUnit),
       totalPerUnit: current,
       source: 'stored_sku_economics',
     },
@@ -120,8 +131,8 @@ const economicsNetworkComparison = (economics?: SkuFulfillmentEconomics | null) 
       selectedWarehouseCount: 2,
       executable: String(economics?.rateShopScope || '').includes('network'),
       modeledOnly: !String(economics?.rateShopScope || '').includes('network'),
-      labelPerUnit: Number(costs.optimizedNetworkLabelPerUnit ?? costs.domesticLabelPerUnit ?? 0),
-      transferPerUnit: Number(costs.optimizedNetworkTransferPerUnit ?? 0),
+      labelPerUnit: optionalNumber(costs.optimizedNetworkLabelPerUnit ?? costs.domesticLabelPerUnit),
+      transferPerUnit: optionalNumber(costs.optimizedNetworkTransferPerUnit ?? costs.transferLtlPerUnit),
       totalPerUnit: optimized,
       savingsPerUnit: Math.max(0, current - optimized),
       source: 'stored_sku_economics',
@@ -536,8 +547,8 @@ const SkuCortexEconomicsCard = ({
       tone: Tone;
       badge: string;
       warehouses: string;
-      label: number;
-      transfer: number;
+      label: number | null;
+      transfer: number | null;
       total: number;
       source: string;
     }> = [
@@ -547,8 +558,8 @@ const SkuCortexEconomicsCard = ({
         tone: 'green',
         badge: 'Executable',
         warehouses: singleWarehouses.length ? singleWarehouses.join(' + ') : economics.anchorWarehouseCode || 'Anchor warehouse',
-        label: Number(single.labelPerUnit ?? costs.domesticLabelPerUnit ?? 0),
-        transfer: Number(single.transferPerUnit ?? 0),
+        label: optionalNumber(single.labelPerUnit ?? costs.domesticLabelPerUnit),
+        transfer: optionalNumber(single.transferPerUnit),
         total: singleTotal,
         source: String(single.source || 'anchor warehouse rate shop').replace(/_/g, ' '),
       },
@@ -558,8 +569,8 @@ const SkuCortexEconomicsCard = ({
         tone: optimized.modeledOnly ? 'amber' : 'purple',
         badge: optimized.modeledOnly && optimized.enoughDemandForNetwork === false ? 'Needs density' : optimized.modeledOnly ? 'Modeled only' : 'Executable',
         warehouses: optimizedWarehouses.length ? optimizedWarehouses.join(' + ') : 'Cortex heatmap pair',
-        label: Number(optimized.labelPerUnit ?? costs.optimizedNetworkLabelPerUnit ?? 0),
-        transfer: Number(optimized.transferPerUnit ?? costs.optimizedNetworkTransferPerUnit ?? 0),
+        label: optionalNumber(optimized.labelPerUnit ?? costs.optimizedNetworkLabelPerUnit),
+        transfer: optionalNumber(optimized.transferPerUnit ?? costs.optimizedNetworkTransferPerUnit ?? costs.transferLtlPerUnit),
         total: optimizedTotal,
         source: String(optimized.source || 'cortex heatmap rate shop').replace(/_/g, ' '),
       },
@@ -612,11 +623,11 @@ const SkuCortexEconomicsCard = ({
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
                   <div>
                     <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Label/unit</div>
-                    <div style={{ fontWeight: 900 }}>{money(row.label)}</div>
+                    <div style={{ fontWeight: 900 }}>{moneyOrMissing(row.label)}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Transfer</div>
-                    <div style={{ fontWeight: 900 }}>{money(row.transfer)}</div>
+                    <div style={{ fontWeight: 900 }}>{moneyOrMissing(row.transfer)}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Total/unit</div>
@@ -652,7 +663,7 @@ const SkuCortexEconomicsCard = ({
           {metricRows.map(([label, value, sub]) => (
             <div key={String(label)} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-sunken)' }}>
               <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)', fontWeight: 800 }}>{label}</div>
-              <div style={{ fontSize: 18, fontWeight: 850, marginTop: 5 }}>{money(value)}</div>
+              <div style={{ fontSize: 18, fontWeight: 850, marginTop: 5 }}>{moneyOrMissing(value)}</div>
               <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 3 }}>{sub}</div>
             </div>
           ))}
