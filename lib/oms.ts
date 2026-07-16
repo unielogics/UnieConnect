@@ -70,6 +70,8 @@ export type OmsSku = {
   id: string;
   sku: string;
   title?: string;
+  image?: string | null;
+  images?: string[];
   supplierId?: string | null;
   asin?: string | null;
   enrichmentState?: string;
@@ -339,10 +341,31 @@ export type OmsAsn = {
   updatedAt?: string;
 };
 
+export type OmsCustomerAddress = {
+  line1?: string;
+  addressLine1?: string;
+  address?: string;
+  line2?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  stateOrProvinceCode?: string;
+  region?: string;
+  postalCode?: string;
+  postal?: string;
+  zipCode?: string;
+  zip?: string;
+  country?: string;
+};
+
 export type OmsCustomer = {
   id: string;
   name: string;
   email?: string;
+  phone?: string;
+  // Saved addresses (JSONB from the customers table). Used to auto-populate the order's
+  // shipping section. Shape is loose — different importers use different key names.
+  addresses?: OmsCustomerAddress[];
   state?: string;
   city?: string;
   primaryChannel?: string;
@@ -1144,6 +1167,9 @@ export type CreateOrderBody = {
   shippingAddress?: Record<string, unknown>;
   billingAddress?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  // Requested carrier service level (next_day|two_day|express|ground|standard). The server
+  // derives the ship-by date from this and forwards both to the WMS.
+  serviceLevel?: string;
 };
 
 export const createManualOrder = async (body: CreateOrderBody) => {
