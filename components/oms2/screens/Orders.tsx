@@ -164,10 +164,11 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
             <table className="data">
               <thead>
                 <tr>
+                  <th style={{ width: 52 }} />
                   <th>Order</th>
                   <th>Channel</th>
                   <th>Customer · State</th>
-                  <th>SKU</th>
+                  <th>Item</th>
                   <th className="num">Qty</th>
                   <th className="num">Total</th>
                   <th>WH</th>
@@ -185,6 +186,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                   <tr
                     key={o.id}
                     className={`clickable ${rec ? 'row-cortex-signal' : ''}`}
+                    style={{ height: 56 }}
                     onClick={() => onOpenOrder && onOpenOrder(o)}
                     onContextMenu={(e) =>
                       ctx.open(e, [
@@ -209,6 +211,22 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                     }
                   >
                     <td>
+                      <div
+                        style={{
+                          width: 40, height: 40, borderRadius: 8, flexShrink: 0,
+                          border: '1px solid var(--border-subtle)', background: 'var(--bg-elev)', overflow: 'hidden',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)',
+                        }}
+                      >
+                        {o.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={o.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <Icon name="box" size={18} />
+                        )}
+                      </div>
+                    </td>
+                    <td>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span className="mono strong" style={{ color: 'var(--text)' }}>{o.displayId || o.publicId || publicEntityId('OR', o.id)}</span>
                         <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{o.chOrderId || ''}</span>
@@ -225,9 +243,14 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                       </div>
                     </td>
                     <td>
-                      <div className="mono" style={{ fontSize: 11, color: 'var(--text)' }}>{o.sku || '—'}</div>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {o.skuName || ''}
+                      <div style={{ fontSize: 12.5, color: 'var(--text)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {o.skuName || o.sku || '—'}
+                        {(o.itemCount || 0) > 1 && (
+                          <span style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 600 }}> +{(o.itemCount || 1) - 1} more</span>
+                        )}
+                      </div>
+                      <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {o.skuName ? (o.sku || '') : ''}
                       </div>
                     </td>
                     <td className="num mono">{num(o.qty)}</td>

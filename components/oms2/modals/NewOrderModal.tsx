@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '../ui';
 import { Icon } from '../icons';
 
@@ -73,6 +73,109 @@ function addressToShip(addr: OmsCustomerAddress | undefined): ShipState | null {
 }
 
 const EMPTY_SHIP: ShipState = { line1: '', line2: '', city: '', state: '', postal: '', country: 'US' };
+
+// Small rounded thumbnail with a box-icon fallback (shared by the picker + line rows).
+const Thumb = ({ image, size = 40 }: { image?: string | null; size?: number }) => (
+  <div
+    style={{
+      width: size, height: size, flexShrink: 0, borderRadius: 8,
+      border: '1px solid var(--border-subtle)', background: 'var(--bg-elev)', overflow: 'hidden',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)',
+    }}
+  >
+    {image ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    ) : (
+      <Icon name="box" size={Math.round(size * 0.5)} />
+    )}
+  </div>
+);
+
+/**
+ * Searchable SKU picker with product thumbnails. A native <select> can't render images, so this is
+ * a button (shows the chosen item) that opens a filterable dropdown of items, each with its image,
+ * SKU code, title and availability.
+ */
+const SkuPicker = ({ skus, value, onPick }: { skus: OmsSku[]; value: string; onPick: (id: string) => void }) => {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const selected = skus.find((s) => s.id === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const filtered = skus
+    .filter((s) => !q || `${s.sku} ${s.title || ''}`.toLowerCase().includes(q.toLowerCase()))
+    .slice(0, 50);
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{ ...field, height: 34, display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', cursor: 'pointer' }}
+      >
+        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selected ? 'var(--text)' : 'var(--text-tertiary)' }}>
+          {selected ? `${selected.sku} — ${selected.title || ''}` : 'Select SKU…'}
+        </span>
+        <Icon name="chevronDown" size={12} />
+      </button>
+      {open && (
+        <div
+          style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 20,
+            background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)', overflow: 'hidden',
+          }}
+        >
+          <div style={{ padding: 8, borderBottom: '1px solid var(--border-subtle)' }}>
+            <input
+              autoFocus
+              style={{ ...field, height: 30 }}
+              placeholder="Search SKU or title…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+            {filtered.length === 0 && (
+              <div style={{ padding: 12, fontSize: 12, color: 'var(--text-tertiary)' }}>No matching SKUs.</div>
+            )}
+            {filtered.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => { onPick(s.id); setOpen(false); setQ(''); }}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                  background: s.id === value ? 'var(--bg-elev)' : 'transparent', border: 'none',
+                  borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <Thumb image={s.image} size={34} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {s.title || s.sku}
+                  </div>
+                  <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{s.sku}</div>
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>{s.available ?? 0} avail</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) => {
   const [customers, setCustomers] = useState<OmsCustomer[]>([]);
@@ -334,20 +437,9 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
                       borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'var(--bg-elev)',
                     }}
                   >
-                    {thumb(l.image, 44)}
+                    <Thumb image={l.image} size={44} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <select
-                        style={{ ...field, height: 30 }}
-                        value={l.skuId}
-                        onChange={(e) => pickSku(l.key, e.target.value)}
-                      >
-                        <option value="">Select SKU…</option>
-                        {skus.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.sku} — {s.title}
-                          </option>
-                        ))}
-                      </select>
+                      <SkuPicker skus={skus} value={l.skuId} onPick={(id) => pickSku(l.key, id)} />
                       {l.skuId && (
                         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, display: 'flex', gap: 8, alignItems: 'center' }}>
                           <span className="chip" style={{ fontSize: 10 }}>{l.sku}</span>

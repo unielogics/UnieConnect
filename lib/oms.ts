@@ -306,6 +306,7 @@ export type OmsOrder = {
   display_name?: string;
   state?: string;
   items?: number;
+  itemCount?: number;
   qty?: number;
   total?: number;
   status?: string;
@@ -313,6 +314,7 @@ export type OmsOrder = {
   wh?: string;
   sku?: string;
   skuName?: string;
+  image?: string | null;
   date?: string;
   promised?: string;
   carrier?: string;
