@@ -793,13 +793,13 @@ export type SkuReplenishmentProfile = {
 };
 
 export const fetchSkuReplenishmentProfile = (skuId: string) =>
-  omsFetch<SkuReplenishmentProfile>(`/skus/${encodeURIComponent(skuId)}/replenishment-profile`);
+  apiFetch<SkuReplenishmentProfile>(`/skus/${encodeURIComponent(skuId)}/replenishment-profile`);
 
 export const updateSkuReplenishmentProfile = (
   skuId: string,
   body: { enabled?: boolean; supplierLeadTimeDays?: number | null; demandWindowDays?: number | null },
 ) =>
-  omsFetch<SkuReplenishmentProfile>(`/skus/${encodeURIComponent(skuId)}/replenishment-profile`, {
+  apiFetch<SkuReplenishmentProfile>(`/skus/${encodeURIComponent(skuId)}/replenishment-profile`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
