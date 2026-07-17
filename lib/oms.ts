@@ -769,20 +769,26 @@ export const fetchOmsSkus = (filter?: MarketplaceFilterParams) => {
 export const fetchOmsSkuDetail = (skuId: string) =>
   omsFetch<OmsSkuDetail>(`/skus/${encodeURIComponent(skuId)}`);
 
-// Per-product replenishment profile (P3): the forward-pick replenishment settings the WMS
-// engine consumes, set once per product and applied to that SKU in every connected warehouse.
+// Per-product replenishment profile (P3). The CLIENT sets ONLY demand intent: enable +
+// supplier lead time + demand window. Everything physical (pick-face sizing, handling unit)
+// is COMPUTED by the WMS brain from the seller's sales velocity + warehouse bin capacity, and
+// returned here read-only under `derived` so the client can see what the system is doing.
 export type SkuReplenishmentProfile = {
   skuId?: string;
   sku?: string;
   enabled: boolean;
-  preferredHandlingUnit: string;
-  minPickFaceEaches: number;
-  maxPickFaceEaches: number;
-  velocityThresholdPerDay: number;
-  approvalRequired: boolean;
-  leadTimeDays: number | null;
-  demandTrailingWindowDays: number | null;
-  safetyBufferDays: number | null;
+  supplierLeadTimeDays: number | null;
+  demandWindowDays: number | null;
+  externalUnitsPerDay: number | null; // seller's ecommerce demand (read-only)
+  derived: {
+    velocityPerDay: number | null;
+    minPickFaceEaches: number | null;
+    maxPickFaceEaches: number | null;
+    safetyBufferDays: number | null;
+    handlingUnit: string | null;
+    computedBy: string | null;
+    computedAt: string | null;
+  };
   results?: Array<{ warehouseCode: string; updated: boolean; note?: string }>;
 };
 
@@ -791,7 +797,7 @@ export const fetchSkuReplenishmentProfile = (skuId: string) =>
 
 export const updateSkuReplenishmentProfile = (
   skuId: string,
-  body: Partial<Omit<SkuReplenishmentProfile, 'skuId' | 'sku' | 'results'>>,
+  body: { enabled?: boolean; supplierLeadTimeDays?: number | null; demandWindowDays?: number | null },
 ) =>
   omsFetch<SkuReplenishmentProfile>(`/skus/${encodeURIComponent(skuId)}/replenishment-profile`, {
     method: 'POST',

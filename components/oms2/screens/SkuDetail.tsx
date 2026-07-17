@@ -503,14 +503,15 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
   );
 };
 
-// Per-product replenishment profile (P3). One value per product, applied to this SKU in every
-// connected warehouse. Fields left blank fall back to the warehouse/engine defaults.
-const HANDLING_UNITS = ['each', 'sleeve', 'carton', 'box', 'case', 'pallet'];
+
+// Per-product replenishment (P3). The client sets ONLY demand intent — enable, supplier lead
+// time, demand window — applied to this SKU in every connected warehouse. Everything physical
+// (velocity, pick-face size, handling unit) is computed by the warehouse and shown read-only.
 const ReplenishmentProfileTab = ({ skuId, sku, warehouseCount }: { skuId: string; sku: string; warehouseCount: number }) => {
   const [p, setP] = useState<SkuReplenishmentProfile | null>(null);
-  const [form, setForm] = useState<Record<string, string>>({});
   const [enabled, setEnabled] = useState(false);
-  const [handlingUnit, setHandlingUnit] = useState('carton');
+  const [leadTime, setLeadTime] = useState('');
+  const [windowDays, setWindowDays] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -519,15 +520,8 @@ const ReplenishmentProfileTab = ({ skuId, sku, warehouseCount }: { skuId: string
   const apply = (prof: SkuReplenishmentProfile) => {
     setP(prof);
     setEnabled(!!prof.enabled);
-    setHandlingUnit(prof.preferredHandlingUnit || 'carton');
-    setForm({
-      leadTimeDays: prof.leadTimeDays != null ? String(prof.leadTimeDays) : '',
-      demandTrailingWindowDays: prof.demandTrailingWindowDays != null ? String(prof.demandTrailingWindowDays) : '',
-      safetyBufferDays: prof.safetyBufferDays != null ? String(prof.safetyBufferDays) : '',
-      minPickFaceEaches: String(prof.minPickFaceEaches ?? 0),
-      maxPickFaceEaches: String(prof.maxPickFaceEaches ?? 0),
-      velocityThresholdPerDay: String(prof.velocityThresholdPerDay ?? 0),
-    });
+    setLeadTime(prof.supplierLeadTimeDays != null ? String(prof.supplierLeadTimeDays) : '');
+    setWindowDays(prof.demandWindowDays != null ? String(prof.demandWindowDays) : '');
   };
 
   const load = () => {
@@ -539,100 +533,85 @@ const ReplenishmentProfileTab = ({ skuId, sku, warehouseCount }: { skuId: string
   };
   useEffect(load, [skuId]);
 
-  const setField = (k: string, v: string) => { setForm((f) => ({ ...f, [k]: v })); setSavedNote(null); };
   const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v));
-
   const save = () => {
     setSaving(true); setErr(null); setSavedNote(null);
-    updateSkuReplenishmentProfile(skuId, {
-      enabled,
-      preferredHandlingUnit: handlingUnit,
-      leadTimeDays: numOrNull(form.leadTimeDays),
-      demandTrailingWindowDays: numOrNull(form.demandTrailingWindowDays),
-      safetyBufferDays: numOrNull(form.safetyBufferDays),
-      minPickFaceEaches: Number(form.minPickFaceEaches) || 0,
-      maxPickFaceEaches: Number(form.maxPickFaceEaches) || 0,
-      velocityThresholdPerDay: Number(form.velocityThresholdPerDay) || 0,
-    })
+    updateSkuReplenishmentProfile(skuId, { enabled, supplierLeadTimeDays: numOrNull(leadTime), demandWindowDays: numOrNull(windowDays) })
       .then((res) => {
         apply(res);
         const applied = (res.results || []).filter((r) => r.updated).length;
         const total = (res.results || []).length;
         setSavedNote(`Saved to ${applied}/${total} warehouse(s) where this SKU exists.`);
       })
-      .catch((e) => setErr(e.message || 'Failed to save replenishment profile'))
+      .catch((e) => setErr(e.message || 'Failed to save'))
       .finally(() => setSaving(false));
   };
 
-  if (loading) return <div className="card"><div className="card-body"><Loading rows={5} /></div></div>;
+  if (loading) return <div className="card"><div className="card-body"><Loading rows={4} /></div></div>;
   if (err && !p) return <div className="card"><div className="card-body"><ErrorState message={err} onRetry={load} /></div></div>;
 
-  const field = (key: string, label: string, hint: string, opts: { min?: number; step?: number; placeholder?: string } = {}) => (
-    <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
-      <span className="muted">{label}</span>
-      <input type="number" min={opts.min ?? 0} step={opts.step ?? 1} value={form[key] ?? ''} placeholder={opts.placeholder || ''}
-        onChange={(e) => setField(key, e.target.value)} className="input" />
-      <span className="muted" style={{ fontSize: 11 }}>{hint}</span>
-    </label>
-  );
+  const d = p?.derived;
+  const fmtN = (v: number | null | undefined, unit = '') => (v != null ? `${v}${unit}` : '—');
 
   return (
     <div className="row-2">
       <div className="card">
-        <div className="card-header"><div className="card-title">Replenishment settings for {sku}</div></div>
+        <div className="card-header"><div className="card-title">Replenishment for {sku}</div></div>
         <div className="card-body" style={{ display: 'grid', gap: 12 }}>
           <p className="muted" style={{ fontSize: 12, marginTop: -2 }}>
-            One value per product — applied to this SKU in every warehouse it&apos;s stocked in
-            ({warehouseCount} connected). Blank timing fields fall back to the warehouse default.
-            The warehouse operator controls WHEN replenishment runs (time windows) separately.
+            You set the demand intent; the warehouse computes the rest (velocity from your sales,
+            pick-face size, handling). Applied to this product in every connected warehouse
+            ({warehouseCount}).
           </p>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
             <input type="checkbox" checked={enabled} onChange={(e) => { setEnabled(e.target.checked); setSavedNote(null); }} />
             <span>Enable auto-replenishment for this product</span>
           </label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {field('leadTimeDays', 'Lead time (days)', 'How long a refill takes end-to-end. Blank = warehouse default.', { step: 0.25, placeholder: 'default' })}
-            {field('demandTrailingWindowDays', 'Demand window (days)', 'Look-back for units/day demand. Blank = default.', { step: 1, placeholder: 'default' })}
-            {field('safetyBufferDays', 'Sizing buffer (days)', 'Extra cover in the pick-face size recommendation.', { step: 0.25, placeholder: 'default' })}
-            {field('velocityThresholdPerDay', 'Min velocity/day', 'Skip auto-replenish below this daily demand.', { step: 0.5 })}
-            {field('minPickFaceEaches', 'Min pick-face (eaches)', 'Low-water floor; refill triggers at/below this.', { step: 1 })}
-            {field('maxPickFaceEaches', 'Max pick-face (eaches)', 'Refill-to target.', { step: 1 })}
-          </div>
           <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
-            <span className="muted">Preferred handling unit</span>
-            <select value={handlingUnit} onChange={(e) => { setHandlingUnit(e.target.value); setSavedNote(null); }} className="input">
-              {HANDLING_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
-            <span className="muted" style={{ fontSize: 11 }}>Refills round up to whole units of this type.</span>
+            <span className="muted">Supplier lead time (days)</span>
+            <input type="number" min={0} step={1} value={leadTime} placeholder="optional"
+              onChange={(e) => { setLeadTime(e.target.value); setSavedNote(null); }} className="input" />
+            <span className="muted" style={{ fontSize: 11 }}>How long it takes YOU to restock this product from your supplier (reorder planning).</span>
+          </label>
+          <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+            <span className="muted">Demand window (days)</span>
+            <input type="number" min={1} step={1} value={windowDays} placeholder="default"
+              onChange={(e) => { setWindowDays(e.target.value); setSavedNote(null); }} className="input" />
+            <span className="muted" style={{ fontSize: 11 }}>How far back to look at your sales when estimating demand. Blank = warehouse default.</span>
           </label>
           {err ? <div style={{ color: 'var(--danger, #c0392b)', fontSize: 12 }}>{err}</div> : null}
           {savedNote ? <div style={{ color: 'var(--good, #2e7d32)', fontSize: 12 }}>{savedNote}</div> : null}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save for this product'}</button>
+            <button className="btn primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
             <button className="btn ghost" disabled={saving} onClick={load}>Reset</button>
           </div>
-          {p?.results?.length ? (
-            <div className="muted" style={{ fontSize: 11 }}>
-              Last save: {p.results.map((r) => `${r.warehouseCode}${r.updated ? '✓' : ` (${r.note || 'skipped'})`}`).join(', ')}
-            </div>
-          ) : null}
         </div>
       </div>
       <div className="card">
-        <div className="card-header"><div className="card-title">How it works</div></div>
-        <div className="card-body">
+        <div className="card-header"><div className="card-title">Computed by the warehouse</div></div>
+        <div className="card-body" style={{ display: 'grid', gap: 8 }}>
+          <Kv label="Sales velocity (ecommerce)" value={fmtN(p?.externalUnitsPerDay, '/day')} />
+          <Kv label="Blended velocity" value={fmtN(d?.velocityPerDay, '/day')} />
+          <Kv label="Pick-face min → max" value={d ? `${fmtN(d.minPickFaceEaches)} → ${fmtN(d.maxPickFaceEaches)}` : '—'} />
+          <Kv label="Safety buffer" value={fmtN(d?.safetyBufferDays, ' day(s)')} />
+          <Kv label="Handling unit" value={d?.handlingUnit || '—'} />
+          <Kv label="Computed by" value={d?.computedBy || '—'} />
           <p className="muted" style={{ fontSize: 11.5 }}>
-            The warehouse keeps this product&apos;s fast-pick bins stocked from reserve. It refills
-            when on-hand would run dry within the lead time, based on this SKU&apos;s recent demand.
-            Reorder point ≈ velocity × lead time (never below your min pick-face). Fast movers also
-            get a recommended pick-face size using the sizing buffer. Time-of-day scheduling is set
-            by the warehouse operator, not here.
+            These are derived from your sales demand and the warehouse&apos;s bin capacity, and
+            refresh as the warehouse runs replenishment. You don&apos;t set them directly.
           </p>
         </div>
       </div>
     </div>
   );
 };
+
+const Kv = ({ label, value }: { label: string; value?: string | null }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12.5 }}>
+    <span className="muted">{label}</span>
+    <span style={{ fontWeight: 700, textAlign: 'right' }}>{value || '—'}</span>
+  </div>
+);
 
 const KpiTile = ({ label, value, unit, sub, tone }: { label: string; value: React.ReactNode; unit?: string; sub?: string; tone?: string }) => (
   <div className={`stat ${tone || ''}`}>
