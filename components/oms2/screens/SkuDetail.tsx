@@ -1715,7 +1715,7 @@ const RelatedSkusCard = ({ data }: { data: OmsSkuDetail }) => {
 const Warehouses = ({ data }: { data: OmsSkuDetail }) => (
   <div className="table-wrap">
     {data.warehouses.length === 0 ? (
-      <EmptyState>No warehouse allocation for this SKU.</EmptyState>
+      <EmptyState>No WMS inventory reported for this SKU yet. Once a connected warehouse stocks it and syncs, its on-hand appears here per warehouse.</EmptyState>
     ) : (
       <table className="data">
         <thead>
