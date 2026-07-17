@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal } from '../ui';
+import { Modal, Thumb } from '../ui';
 import { Icon } from '../icons';
 
 // Order money always shows cents (unlike ui.fmt.money which rounds to whole dollars).
@@ -73,24 +73,6 @@ function addressToShip(addr: OmsCustomerAddress | undefined): ShipState | null {
 }
 
 const EMPTY_SHIP: ShipState = { line1: '', line2: '', city: '', state: '', postal: '', country: 'US' };
-
-// Small rounded thumbnail with a box-icon fallback (shared by the picker + line rows).
-const Thumb = ({ image, size = 40 }: { image?: string | null; size?: number }) => (
-  <div
-    style={{
-      width: size, height: size, flexShrink: 0, borderRadius: 8,
-      border: '1px solid var(--border-subtle)', background: 'var(--bg-elev)', overflow: 'hidden',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)',
-    }}
-  >
-    {image ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-    ) : (
-      <Icon name="box" size={Math.round(size * 0.5)} />
-    )}
-  </div>
-);
 
 /**
  * Searchable SKU picker with product thumbnails. A native <select> can't render images, so this is

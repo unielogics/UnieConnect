@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, Sparkline, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation } from '../ui';
+import { Chip, Sparkline, Loading, ErrorState, EmptyState, Thumb, useCloseOnOmsNavigation } from '../ui';
 import { DecisionComparison } from '../DecisionComparison';
 import { useCtxMenu } from '../ContextMenu';
 import {
@@ -98,6 +98,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
   );
 
   const atRisk = skus.filter((s) => s.daysOfCover < 14).length;
+  const reorderCount = skus.filter((s) => s.reorderNeeded).length;
   const avgDoc = skus.length ? Math.round(skus.reduce((a, s) => a + (s.daysOfCover || 0), 0) / skus.length) : 0;
   const avgFill = skus.length ? Math.round(skus.reduce((a, s) => a + (s.fillPercent || 0), 0) / skus.length) : 0;
   const recBySku = useMemo(() => {
@@ -168,6 +169,11 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           <div className="stat-value">{atRisk}</div>
           <div className="stat-delta down"><span className="arrow">▼</span> stockout watch</div>
         </div>
+        <div className="stat warn">
+          <div className="stat-label">Need reorder</div>
+          <div className="stat-value">{reorderCount}</div>
+          <div className="stat-delta" style={{ color: 'var(--text-tertiary)' }}>within supplier lead time</div>
+        </div>
         <div className="stat">
           <div className="stat-label">Avg days of cover</div>
           <div className="stat-value">{avgDoc}d</div>
@@ -220,8 +226,10 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                       key={s.id}
                       className="clickable"
                       style={{
-                        background: rec ? 'var(--purple-soft)' : sel ? 'var(--accent-soft)' : undefined,
-                        boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : undefined,
+                        // Reorder-needed gets an amber left-bar + soft tint (distinct from the
+                        // purple Cortex-recommendation highlight). Selection tint wins visually.
+                        background: sel ? 'var(--accent-soft)' : rec ? 'var(--purple-soft)' : s.reorderNeeded ? 'var(--amber-soft, rgba(245,158,11,0.08))' : undefined,
+                        boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : s.reorderNeeded ? 'inset 3px 0 0 var(--amber, #f59e0b)' : undefined,
                       }}
                       onClick={(e) => {
                         if ((e.target as HTMLInputElement).type === 'checkbox') return;
@@ -260,10 +268,13 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                         <KeepaMarker sku={s} />
                       </td>
                       <td>
-                        <span style={{ color: 'var(--text)' }}>
-                          {s.title || '—'}
-                          <KeepaMarker sku={s} />
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Thumb image={s.image} size={34} />
+                          <span style={{ color: 'var(--text)' }}>
+                            {s.title || '—'}
+                            <KeepaMarker sku={s} />
+                          </span>
+                        </div>
                       </td>
                       <td className="num mono strong">{(s.available ?? 0).toLocaleString()}</td>
                       <td className="num mono muted">{s.inbound > 0 ? s.inbound.toLocaleString() : '—'}</td>
@@ -277,7 +288,14 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                       </td>
                       <td className="mono muted" style={{ textTransform: 'capitalize' }}>{s.serviceTier}</td>
                       <td>
-                        <Chip tone={rl.tone}>{rl.label}</Chip>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                          <Chip tone={rl.tone}>{rl.label}</Chip>
+                          {s.reorderNeeded && (
+                            <Chip tone="amber" dot={false} className="" >
+                              <span title={s.reorderReason || ''}>Reorder</span>
+                            </Chip>
+                          )}
+                        </div>
                       </td>
                       <td className="num" onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', gap: 4 }}>

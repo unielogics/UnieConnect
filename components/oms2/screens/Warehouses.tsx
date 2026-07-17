@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, EmptyState, ErrorState, fmt, Loading, StatusChip, useCloseOnOmsNavigation } from '../ui';
+import { Chip, EmptyState, ErrorState, fmt, Loading, StatusChip, Thumb, useCloseOnOmsNavigation } from '../ui';
 import {
   fetchWarehouseDetail,
   fetchWarehouseOverview,
@@ -266,15 +266,24 @@ const Kv = ({ label, value }: { label: string; value?: string }) => (
 );
 
 const InventoryRows = ({ detail }: { detail: OmsWarehouseDetail }) => (
-  <SimpleTable empty="No SKU inventory snapshots for this warehouse." headers={['SKU', 'Product', 'Available', 'Inbound', 'Orders', 'Receiving', 'Updated']}>
+  <SimpleTable empty="No SKU inventory snapshots for this warehouse." headers={['SKU', 'Product', 'Available', 'Inbound', 'Orders', 'Receiving', 'Status', 'Updated']}>
     {detail.inventory.map((row) => (
-      <tr key={row.id}>
+      <tr
+        key={row.id}
+        style={row.reorderNeeded ? { boxShadow: 'inset 3px 0 0 var(--amber, #f59e0b)', background: 'var(--amber-soft, rgba(245,158,11,0.08))' } : undefined}
+      >
         <td className="mono strong">{row.sku}</td>
-        <td>{row.title || row.sku}</td>
+        <td>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Thumb image={row.image} size={30} />
+            <span>{row.title || row.sku}</span>
+          </div>
+        </td>
         <td className="num mono strong">{fmt.num(row.available)}</td>
         <td className="num mono">{fmt.num(row.inbound)}</td>
         <td className="num mono">{fmt.num(row.orders)}</td>
         <td className="num mono">{fmt.num(row.receiving)}</td>
+        <td>{row.reorderNeeded ? <Chip tone="amber" dot={false}>Reorder</Chip> : <span className="muted">—</span>}</td>
         <td className="mono muted">{fmtDate(row.updatedAt)}</td>
       </tr>
     ))}

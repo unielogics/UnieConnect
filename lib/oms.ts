@@ -82,6 +82,12 @@ export type OmsSku = {
   velocity30d: number;
   daysOfCover: number;
   risk: 'high' | 'medium' | 'low' | string;
+  // Reorder-needed (external supply loop): set when auto-replenishment is enabled for the SKU
+  // and projected cover falls within the supplier lead time + buffer. Suggestion only.
+  reorderNeeded?: boolean;
+  reorderReason?: string;
+  suggestedReorderQty?: number;
+  supplierLeadTimeDays?: number | null;
   currentWarehouseCount: number;
   proposedWarehouseCount: number;
   proposedUnits: number;
@@ -208,7 +214,7 @@ export type OmsWarehouseOverview = {
 
 export type OmsWarehouseDetail = {
   warehouse: OmsWarehouseOverview;
-  inventory: Array<{ id: string; sku: string; title?: string; available: number; inbound: number; received: number; orders: number; shippedToday: number; openAsnsCount: number; receiving: number; updatedAt?: string }>;
+  inventory: Array<{ id: string; sku: string; title?: string; image?: string | null; available: number; inbound: number; received: number; orders: number; shippedToday: number; openAsnsCount: number; receiving: number; reorderNeeded?: boolean; updatedAt?: string }>;
   orders: Array<{ id: string; publicId?: string; orderNumber?: string; customer?: string | null; channel?: string; status?: string; total?: number; placedAt?: string; createdAt?: string }>;
   asns: Array<{ id: string; publicId?: string; asnNumber?: string; status?: string; shipmentPlanId?: string; shipmentTitle?: string; units?: number; createdAt?: string; updatedAt?: string }>;
   shipmentPlans: Array<{ id: string; publicId?: string; title?: string; status?: string; units?: number; estimatedArrivalDate?: string; updatedAt?: string }>;
