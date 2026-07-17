@@ -4,13 +4,16 @@ import { Chip, EmptyState, ErrorState, fmt, Loading, StatusChip, useCloseOnOmsNa
 import {
   fetchWarehouseDetail,
   fetchWarehouseOverview,
+  fetchReplenishmentTuning,
+  updateReplenishmentTuning,
   OmsWarehouseDetail,
   OmsWarehouseOverview,
+  ReplenishmentTuning,
 } from '../../../lib/oms';
 import { fmtDate, num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 
-type Tab = 'overview' | 'inventory' | 'orders' | 'asns' | 'events' | 'activity' | 'cortex';
+type Tab = 'overview' | 'inventory' | 'orders' | 'asns' | 'events' | 'activity' | 'cortex' | 'replenishment';
 
 export const Warehouses = ({ onNavigate }: ScreenProps) => {
   const [data, setData] = useState<{ warehouses: OmsWarehouseOverview[]; total: number } | null>(null);
@@ -175,6 +178,7 @@ const WarehouseDrawer = ({
     ['events', 'WMS Events', detail?.wmsEvents?.length],
     ['activity', 'Activity', detail?.ledger?.length],
     ['cortex', 'Cortex', detail?.cortex?.signals?.length],
+    ['replenishment', 'Replenishment', undefined],
   ];
   return (
     <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
@@ -198,7 +202,9 @@ const WarehouseDrawer = ({
               </button>
             ))}
           </div>
-          {loading ? (
+          {tab === 'replenishment' ? (
+            <ReplenishmentTab warehouseCode={wh.warehouseCode} />
+          ) : loading ? (
             <Loading rows={6} />
           ) : !detail ? (
             <EmptyState>Warehouse detail is unavailable.</EmptyState>
@@ -257,6 +263,110 @@ const Panel = ({ title, children }: { title: string; children: React.ReactNode }
     <div className="card-body" style={{ display: 'grid', gap: 10 }}>{children}</div>
   </div>
 );
+
+// Replenishment tuning (P3): the two warehouse-wide knobs the WMS forward-pick
+// replenishment engine consumes. Stored canonically in the WMS; read/written here via the
+// OMS backend proxy → WMS internal API.
+const ReplenishmentTab = ({ warehouseCode }: { warehouseCode: string }) => {
+  const [tuning, setTuning] = useState<ReplenishmentTuning | null>(null);
+  const [leadTimeDays, setLeadTimeDays] = useState<string>('');
+  const [windowDays, setWindowDays] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    setErr(null);
+    fetchReplenishmentTuning(warehouseCode)
+      .then((t) => {
+        setTuning(t);
+        setLeadTimeDays(String(t.leadTimeDays));
+        setWindowDays(String(t.demandTrailingWindowDays));
+      })
+      .catch((e) => setErr(e.message || 'Failed to load replenishment tuning'))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, [warehouseCode]);
+
+  const dirty =
+    tuning != null &&
+    (Number(leadTimeDays) !== tuning.leadTimeDays || Number(windowDays) !== tuning.demandTrailingWindowDays);
+
+  const save = () => {
+    setSaving(true);
+    setErr(null);
+    setSaved(false);
+    updateReplenishmentTuning(warehouseCode, {
+      leadTimeDays: Number(leadTimeDays),
+      demandTrailingWindowDays: Number(windowDays),
+    })
+      .then((t) => {
+        setTuning(t);
+        setLeadTimeDays(String(t.leadTimeDays));
+        setWindowDays(String(t.demandTrailingWindowDays));
+        setSaved(true);
+      })
+      .catch((e) => setErr(e.message || 'Failed to save replenishment tuning'))
+      .finally(() => setSaving(false));
+  };
+
+  if (loading) return <Loading rows={4} />;
+  if (err && !tuning) return <ErrorState message={err} onRetry={load} />;
+
+  return (
+    <div className="row-2">
+      <Panel title="Replenishment tuning">
+        <p className="muted" style={{ fontSize: 12, marginTop: -2 }}>
+          Controls the WMS forward-pick replenishment engine for {warehouseCode}. Refill tasks
+          are triggered when a pick face would run dry within the lead time, based on demand over
+          the trailing window.
+        </p>
+        <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+          <span className="muted">Lead time (days)</span>
+          <input
+            type="number"
+            min={0}
+            step={0.25}
+            value={leadTimeDays}
+            onChange={(e) => { setLeadTimeDays(e.target.value); setSaved(false); }}
+            className="input"
+          />
+          <span className="muted" style={{ fontSize: 11 }}>How long a refill realistically takes end-to-end (e.g. 0.5 = same shift).</span>
+        </label>
+        <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+          <span className="muted">Demand trailing window (days)</span>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={windowDays}
+            onChange={(e) => { setWindowDays(e.target.value); setSaved(false); }}
+            className="input"
+          />
+          <span className="muted" style={{ fontSize: 11 }}>How far back to look when computing each SKU&apos;s units/day demand.</span>
+        </label>
+        {err ? <div style={{ color: 'var(--danger, #c0392b)', fontSize: 12 }}>{err}</div> : null}
+        {saved ? <div style={{ color: 'var(--good, #2e7d32)', fontSize: 12 }}>Saved.</div> : null}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn primary" disabled={saving || !dirty} onClick={save}>
+            {saving ? 'Saving…' : 'Save tuning'}
+          </button>
+          <button className="btn ghost" disabled={saving || !dirty} onClick={load}>Reset</button>
+        </div>
+      </Panel>
+      <Panel title="How it's used">
+        <Kv label="Lead time" value={tuning ? `${tuning.leadTimeDays} day(s)` : '—'} />
+        <Kv label="Trailing window" value={tuning ? `${tuning.demandTrailingWindowDays} day(s)` : '—'} />
+        <p className="muted" style={{ fontSize: 11.5 }}>
+          Reorder point ≈ SKU velocity × lead time (never below the configured pick-face minimum).
+          A shorter window reacts faster to demand shifts; a longer one is steadier.
+        </p>
+      </Panel>
+    </div>
+  );
+};
 
 const Kv = ({ label, value }: { label: string; value?: string }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12.5 }}>

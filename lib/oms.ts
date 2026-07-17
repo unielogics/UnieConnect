@@ -836,6 +836,26 @@ export const fetchWarehouseOverview = () => omsFetch<{ warehouses: OmsWarehouseO
 export const fetchWarehouseDetail = (warehouseCode: string) =>
   omsFetch<OmsWarehouseDetail>(`/warehouses/${encodeURIComponent(warehouseCode)}/detail`);
 
+// Replenishment tuning (P3): the WMS warehouse-wide leadTimeDays + demandTrailingWindowDays
+// the forward-pick replenishment engine consumes. Proxied by the OMS backend to the WMS.
+export type ReplenishmentTuning = {
+  warehouseCode: string;
+  leadTimeDays: number;
+  demandTrailingWindowDays: number;
+};
+
+export const fetchReplenishmentTuning = (warehouseCode: string) =>
+  omsFetch<ReplenishmentTuning>(`/warehouses/${encodeURIComponent(warehouseCode)}/replenishment-tuning`);
+
+export const updateReplenishmentTuning = (
+  warehouseCode: string,
+  body: { leadTimeDays?: number; demandTrailingWindowDays?: number },
+) =>
+  omsFetch<ReplenishmentTuning>(`/warehouses/${encodeURIComponent(warehouseCode)}/replenishment-tuning`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
 export const fetchLabelAudit = () => omsFetch<LabelAuditResponse>('/label-audit');
 
 export const createLabelAuditRun = (body: { filename?: string; rows: LabelAuditCsvRow[] }) =>
