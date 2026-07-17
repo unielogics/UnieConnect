@@ -836,12 +836,22 @@ export const fetchWarehouseOverview = () => omsFetch<{ warehouses: OmsWarehouseO
 export const fetchWarehouseDetail = (warehouseCode: string) =>
   omsFetch<OmsWarehouseDetail>(`/warehouses/${encodeURIComponent(warehouseCode)}/detail`);
 
-// Replenishment tuning (P3): the WMS warehouse-wide leadTimeDays + demandTrailingWindowDays
-// the forward-pick replenishment engine consumes. Proxied by the OMS backend to the WMS.
+// Replenishment tuning (P3): the WMS warehouse-wide knobs the forward-pick replenishment
+// engine consumes. Proxied by the OMS backend to the WMS. Windows say WHEN replenishment may
+// run (warehouse-local); empty = anytime. A window may cross midnight (start > end).
+export type ReplenishmentWindow = {
+  start: string; // "HH:mm" 24h, warehouse-local
+  end: string;
+  days?: number[]; // 0=Sun..6=Sat; omit = every day
+};
+
 export type ReplenishmentTuning = {
   warehouseCode: string;
   leadTimeDays: number;
   demandTrailingWindowDays: number;
+  safetyBufferDays: number;
+  maxTasksPerSweep: number;
+  windows: ReplenishmentWindow[];
 };
 
 export const fetchReplenishmentTuning = (warehouseCode: string) =>
@@ -849,12 +859,31 @@ export const fetchReplenishmentTuning = (warehouseCode: string) =>
 
 export const updateReplenishmentTuning = (
   warehouseCode: string,
-  body: { leadTimeDays?: number; demandTrailingWindowDays?: number },
+  body: {
+    leadTimeDays?: number;
+    demandTrailingWindowDays?: number;
+    safetyBufferDays?: number;
+    maxTasksPerSweep?: number;
+    windows?: ReplenishmentWindow[];
+  },
 ) =>
   omsFetch<ReplenishmentTuning>(`/warehouses/${encodeURIComponent(warehouseCode)}/replenishment-tuning`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
+
+// Quiet-time window suggestions (from WMS pick/pack activity) the operator can adopt.
+export type QuietTimeReport = {
+  warehouseCode: string;
+  timezone: string;
+  lookbackDays: number;
+  sampleSize: number;
+  suggestedWindows: Array<{ start: string; end: string; avgCompletionsPerHour: number }>;
+  note: string;
+};
+
+export const fetchReplenishmentQuietTimes = (warehouseCode: string) =>
+  omsFetch<QuietTimeReport>(`/warehouses/${encodeURIComponent(warehouseCode)}/replenishment-quiet-times`);
 
 export const fetchLabelAudit = () => omsFetch<LabelAuditResponse>('/label-audit');
 

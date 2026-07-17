@@ -6,9 +6,11 @@ import {
   fetchWarehouseOverview,
   fetchReplenishmentTuning,
   updateReplenishmentTuning,
+  fetchReplenishmentQuietTimes,
   OmsWarehouseDetail,
   OmsWarehouseOverview,
   ReplenishmentTuning,
+  ReplenishmentWindow,
 } from '../../../lib/oms';
 import { fmtDate, num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -264,35 +266,61 @@ const Panel = ({ title, children }: { title: string; children: React.ReactNode }
   </div>
 );
 
-// Replenishment tuning (P3): the two warehouse-wide knobs the WMS forward-pick
-// replenishment engine consumes. Stored canonically in the WMS; read/written here via the
-// OMS backend proxy → WMS internal API.
+// Replenishment tuning (P3): the warehouse-wide knobs the WMS forward-pick replenishment
+// engine consumes — lead time, demand window, sizing buffer, per-sweep cap, and the TIME
+// WINDOWS during which replenishment may run (warehouse-local; empty = anytime). Stored
+// canonically in the WMS; read/written here via the OMS backend proxy → WMS internal API.
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 const ReplenishmentTab = ({ warehouseCode }: { warehouseCode: string }) => {
   const [tuning, setTuning] = useState<ReplenishmentTuning | null>(null);
   const [leadTimeDays, setLeadTimeDays] = useState<string>('');
   const [windowDays, setWindowDays] = useState<string>('');
+  const [safetyBufferDays, setSafetyBufferDays] = useState<string>('');
+  const [maxTasksPerSweep, setMaxTasksPerSweep] = useState<string>('');
+  const [windows, setWindows] = useState<ReplenishmentWindow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [quiet, setQuiet] = useState<string | null>(null);
+  const [quietLoading, setQuietLoading] = useState(false);
+
+  const applyTuning = (t: ReplenishmentTuning) => {
+    setTuning(t);
+    setLeadTimeDays(String(t.leadTimeDays));
+    setWindowDays(String(t.demandTrailingWindowDays));
+    setSafetyBufferDays(String(t.safetyBufferDays ?? 1));
+    setMaxTasksPerSweep(String(t.maxTasksPerSweep ?? 50));
+    setWindows(Array.isArray(t.windows) ? t.windows.map((w) => ({ ...w, days: w.days ? [...w.days] : undefined })) : []);
+  };
 
   const load = () => {
     setLoading(true);
     setErr(null);
+    setSaved(false);
     fetchReplenishmentTuning(warehouseCode)
-      .then((t) => {
-        setTuning(t);
-        setLeadTimeDays(String(t.leadTimeDays));
-        setWindowDays(String(t.demandTrailingWindowDays));
-      })
+      .then(applyTuning)
       .catch((e) => setErr(e.message || 'Failed to load replenishment tuning'))
       .finally(() => setLoading(false));
   };
   useEffect(load, [warehouseCode]);
 
-  const dirty =
-    tuning != null &&
-    (Number(leadTimeDays) !== tuning.leadTimeDays || Number(windowDays) !== tuning.demandTrailingWindowDays);
+  const addWindow = () => { setWindows((w) => [...w, { start: '06:00', end: '10:00' }]); setSaved(false); };
+  const removeWindow = (idx: number) => { setWindows((w) => w.filter((_, i) => i !== idx)); setSaved(false); };
+  const setWindowField = (idx: number, field: 'start' | 'end', val: string) => {
+    setWindows((w) => w.map((win, i) => (i === idx ? { ...win, [field]: val } : win))); setSaved(false);
+  };
+  const toggleDay = (idx: number, day: number) => {
+    setWindows((w) => w.map((win, i) => {
+      if (i !== idx) return win;
+      const days = new Set(win.days || []);
+      if (days.has(day)) days.delete(day); else days.add(day);
+      const arr = Array.from(days).sort((a, b) => a - b);
+      return { ...win, days: arr.length ? arr : undefined };
+    }));
+    setSaved(false);
+  };
 
   const save = () => {
     setSaving(true);
@@ -301,18 +329,34 @@ const ReplenishmentTab = ({ warehouseCode }: { warehouseCode: string }) => {
     updateReplenishmentTuning(warehouseCode, {
       leadTimeDays: Number(leadTimeDays),
       demandTrailingWindowDays: Number(windowDays),
+      safetyBufferDays: Number(safetyBufferDays),
+      maxTasksPerSweep: Number(maxTasksPerSweep),
+      windows,
     })
-      .then((t) => {
-        setTuning(t);
-        setLeadTimeDays(String(t.leadTimeDays));
-        setWindowDays(String(t.demandTrailingWindowDays));
-        setSaved(true);
-      })
+      .then((t) => { applyTuning(t); setSaved(true); })
       .catch((e) => setErr(e.message || 'Failed to save replenishment tuning'))
       .finally(() => setSaving(false));
   };
 
-  if (loading) return <Loading rows={4} />;
+  const suggestQuiet = () => {
+    setQuietLoading(true);
+    setQuiet(null);
+    fetchReplenishmentQuietTimes(warehouseCode)
+      .then((r) => {
+        if (r.suggestedWindows?.length) {
+          // Adopt the suggested windows into the editable list (operator still Saves).
+          setWindows(r.suggestedWindows.map((w) => ({ start: w.start, end: w.end })));
+          setSaved(false);
+          setQuiet(`Suggested ${r.suggestedWindows.length} quiet window(s) from ${r.sampleSize} pick/pack events (${r.timezone}). Review and Save to apply.`);
+        } else {
+          setQuiet(r.note || 'No activity yet to infer quiet times.');
+        }
+      })
+      .catch((e) => setQuiet(e.message || 'Quiet-time suggestion unavailable'))
+      .finally(() => setQuietLoading(false));
+  };
+
+  if (loading) return <Loading rows={5} />;
   if (err && !tuning) return <ErrorState message={err} onRetry={load} />;
 
   return (
@@ -320,48 +364,87 @@ const ReplenishmentTab = ({ warehouseCode }: { warehouseCode: string }) => {
       <Panel title="Replenishment tuning">
         <p className="muted" style={{ fontSize: 12, marginTop: -2 }}>
           Controls the WMS forward-pick replenishment engine for {warehouseCode}. Refill tasks
-          are triggered when a pick face would run dry within the lead time, based on demand over
-          the trailing window.
+          trigger when a pick face would run dry within the lead time, based on demand over the
+          trailing window.
         </p>
-        <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
-          <span className="muted">Lead time (days)</span>
-          <input
-            type="number"
-            min={0}
-            step={0.25}
-            value={leadTimeDays}
-            onChange={(e) => { setLeadTimeDays(e.target.value); setSaved(false); }}
-            className="input"
-          />
-          <span className="muted" style={{ fontSize: 11 }}>How long a refill realistically takes end-to-end (e.g. 0.5 = same shift).</span>
-        </label>
-        <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
-          <span className="muted">Demand trailing window (days)</span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={windowDays}
-            onChange={(e) => { setWindowDays(e.target.value); setSaved(false); }}
-            className="input"
-          />
-          <span className="muted" style={{ fontSize: 11 }}>How far back to look when computing each SKU&apos;s units/day demand.</span>
-        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+            <span className="muted">Lead time (days)</span>
+            <input type="number" min={0} step={0.25} value={leadTimeDays} onChange={(e) => { setLeadTimeDays(e.target.value); setSaved(false); }} className="input" />
+          </label>
+          <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+            <span className="muted">Demand window (days)</span>
+            <input type="number" min={1} step={1} value={windowDays} onChange={(e) => { setWindowDays(e.target.value); setSaved(false); }} className="input" />
+          </label>
+          <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+            <span className="muted">Sizing buffer (days)</span>
+            <input type="number" min={0} step={0.25} value={safetyBufferDays} onChange={(e) => { setSafetyBufferDays(e.target.value); setSaved(false); }} className="input" />
+          </label>
+          <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+            <span className="muted">Max tasks / sweep</span>
+            <input type="number" min={0} step={1} value={maxTasksPerSweep} onChange={(e) => { setMaxTasksPerSweep(e.target.value); setSaved(false); }} className="input" />
+          </label>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border, #eee)', marginTop: 8, paddingTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700 }}>Replenishment windows</span>
+            <span className="muted" style={{ fontSize: 11 }}>{windows.length === 0 ? 'Empty = run anytime' : 'Warehouse-local time'}</span>
+            <div style={{ flex: 1 }} />
+            <button className="btn ghost sm" onClick={addWindow}>+ Window</button>
+          </div>
+          {windows.map((w, idx) => (
+            <div key={idx} style={{ display: 'grid', gap: 4, padding: '8px 0', borderBottom: '1px dashed var(--border, #eee)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <input type="time" value={w.start} onChange={(e) => setWindowField(idx, 'start', e.target.value)} className="input" style={{ width: 110 }} />
+                <span className="muted">to</span>
+                <input type="time" value={w.end} onChange={(e) => setWindowField(idx, 'end', e.target.value)} className="input" style={{ width: 110 }} />
+                <div style={{ flex: 1 }} />
+                <button className="btn ghost sm" onClick={() => removeWindow(idx)}>Remove</button>
+              </div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {DAY_LABELS.map((lbl, d) => {
+                  const on = !w.days || w.days.includes(d);
+                  const explicit = !!w.days;
+                  return (
+                    <button
+                      key={d}
+                      className={`btn sm ${explicit && on ? 'primary' : 'ghost'}`}
+                      style={{ opacity: explicit ? 1 : 0.6, padding: '2px 8px', fontSize: 11 }}
+                      title={w.days ? '' : 'All days (click to restrict)'}
+                      onClick={() => toggleDay(idx, d)}
+                    >
+                      {lbl}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {windows.some((w) => w.start > w.end) && (
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>A window where start &gt; end crosses midnight (e.g. 22:00 → 02:00).</div>
+          )}
+        </div>
+
         {err ? <div style={{ color: 'var(--danger, #c0392b)', fontSize: 12 }}>{err}</div> : null}
         {saved ? <div style={{ color: 'var(--good, #2e7d32)', fontSize: 12 }}>Saved.</div> : null}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn primary" disabled={saving || !dirty} onClick={save}>
-            {saving ? 'Saving…' : 'Save tuning'}
-          </button>
-          <button className="btn ghost" disabled={saving || !dirty} onClick={load}>Reset</button>
+        {quiet ? <div className="muted" style={{ fontSize: 11.5 }}>{quiet}</div> : null}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save tuning'}</button>
+          <button className="btn ghost" disabled={saving} onClick={load}>Reset</button>
+          <button className="btn ghost" disabled={quietLoading} onClick={suggestQuiet}>{quietLoading ? 'Analyzing…' : 'Suggest quiet windows'}</button>
         </div>
       </Panel>
       <Panel title="How it's used">
         <Kv label="Lead time" value={tuning ? `${tuning.leadTimeDays} day(s)` : '—'} />
-        <Kv label="Trailing window" value={tuning ? `${tuning.demandTrailingWindowDays} day(s)` : '—'} />
+        <Kv label="Demand window" value={tuning ? `${tuning.demandTrailingWindowDays} day(s)` : '—'} />
+        <Kv label="Sizing buffer" value={tuning ? `${tuning.safetyBufferDays} day(s)` : '—'} />
+        <Kv label="Max tasks / sweep" value={tuning ? String(tuning.maxTasksPerSweep) : '—'} />
+        <Kv label="Windows" value={windows.length ? `${windows.length} configured` : 'Anytime'} />
         <p className="muted" style={{ fontSize: 11.5 }}>
           Reorder point ≈ SKU velocity × lead time (never below the configured pick-face minimum).
-          A shorter window reacts faster to demand shifts; a longer one is steadier.
+          The sizing buffer adds cover to the fast-mover pick-face recommendation. Windows limit
+          when refill tasks are created so replenishment doesn&apos;t clash with peak picking.
         </p>
       </Panel>
     </div>
