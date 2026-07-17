@@ -83,10 +83,14 @@ export type OmsSku = {
   daysOfCover: number;
   risk: 'high' | 'medium' | 'low' | string;
   // Reorder-needed (external supply loop): set when auto-replenishment is enabled for the SKU
-  // and projected cover falls within the supplier lead time + buffer. Suggestion only.
+  // and projected cover (from true network on-hand) falls within the supplier lead time +
+  // buffer. Suggestion only. networkOnHand = summed WMS per-warehouse on-hand (null if no WMS
+  // snapshot yet), distinct from the channel-derived `available` column.
+  networkOnHand?: number | null;
   reorderNeeded?: boolean;
   reorderReason?: string;
   suggestedReorderQty?: number;
+  reorderDaysOfCover?: number | null;
   supplierLeadTimeDays?: number | null;
   currentWarehouseCount: number;
   proposedWarehouseCount: number;
