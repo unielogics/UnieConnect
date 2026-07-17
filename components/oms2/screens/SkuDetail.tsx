@@ -17,6 +17,9 @@ import {
   fetchSkuFulfillmentEconomics,
   refreshSkuFulfillmentEconomics,
   type SkuFulfillmentEconomics,
+  fetchSkuReplenishmentProfile,
+  updateSkuReplenishmentProfile,
+  type SkuReplenishmentProfile,
 } from '../../../lib/oms';
 import { num, docTone, riskLabel, channelColor } from '../../../lib/oms-adapters';
 import { amazonCategoryNames, amazonSubcategoriesFor } from '../../../lib/amazon-category-tree';
@@ -24,7 +27,7 @@ import { fetchShipmentPricingPreview, type ShipmentPricingPreview } from '../../
 import type { ScreenProps } from '../UnieConnectApp';
 import { AmazonListingDrawer, RecommendationDrawer } from './InventoryNetwork';
 
-type Tab = 'overview' | 'heatmap' | 'warehouses' | 'history' | 'channels' | 'billing' | 'orders';
+type Tab = 'overview' | 'heatmap' | 'warehouses' | 'history' | 'channels' | 'billing' | 'orders' | 'replenishment';
 
 const skuBaseline = (sku: OmsSkuDetail, productIntel: ProductResearchResult | null) => {
   const result = productIntel?.result;
@@ -454,6 +457,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
           ['warehouses', 'Warehouses', data.warehouses.length],
           ['history', 'History', undefined],
           ['channels', 'Channels', data.channels?.length],
+          ['replenishment', 'Replenishment', undefined],
           ['billing', 'Billing', undefined],
           ['orders', 'Orders', undefined],
         ] as [Tab, string, number | undefined][]).map(([id, label, count]) => (
@@ -469,6 +473,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
       {tab === 'warehouses' && <Warehouses data={data} />}
       {tab === 'history' && <History data={data} />}
       {tab === 'channels' && <Channels data={data} />}
+      {tab === 'replenishment' && <ReplenishmentProfileTab skuId={data.id} sku={data.sku} warehouseCount={data.warehouses.length} />}
       {tab === 'billing' && <Billing data={data} />}
       {tab === 'orders' && (
         <div className="card">
@@ -494,6 +499,137 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         />
       )}
       {amazonOpen && <AmazonListingDrawer sku={{ id: data.id, sku: data.sku, title: data.title }} onClose={() => setAmazonOpen(false)} />}
+    </div>
+  );
+};
+
+// Per-product replenishment profile (P3). One value per product, applied to this SKU in every
+// connected warehouse. Fields left blank fall back to the warehouse/engine defaults.
+const HANDLING_UNITS = ['each', 'sleeve', 'carton', 'box', 'case', 'pallet'];
+const ReplenishmentProfileTab = ({ skuId, sku, warehouseCount }: { skuId: string; sku: string; warehouseCount: number }) => {
+  const [p, setP] = useState<SkuReplenishmentProfile | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [enabled, setEnabled] = useState(false);
+  const [handlingUnit, setHandlingUnit] = useState('carton');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+
+  const apply = (prof: SkuReplenishmentProfile) => {
+    setP(prof);
+    setEnabled(!!prof.enabled);
+    setHandlingUnit(prof.preferredHandlingUnit || 'carton');
+    setForm({
+      leadTimeDays: prof.leadTimeDays != null ? String(prof.leadTimeDays) : '',
+      demandTrailingWindowDays: prof.demandTrailingWindowDays != null ? String(prof.demandTrailingWindowDays) : '',
+      safetyBufferDays: prof.safetyBufferDays != null ? String(prof.safetyBufferDays) : '',
+      minPickFaceEaches: String(prof.minPickFaceEaches ?? 0),
+      maxPickFaceEaches: String(prof.maxPickFaceEaches ?? 0),
+      velocityThresholdPerDay: String(prof.velocityThresholdPerDay ?? 0),
+    });
+  };
+
+  const load = () => {
+    setLoading(true); setErr(null); setSavedNote(null);
+    fetchSkuReplenishmentProfile(skuId)
+      .then(apply)
+      .catch((e) => setErr(e.message || 'Failed to load replenishment profile'))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, [skuId]);
+
+  const setField = (k: string, v: string) => { setForm((f) => ({ ...f, [k]: v })); setSavedNote(null); };
+  const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v));
+
+  const save = () => {
+    setSaving(true); setErr(null); setSavedNote(null);
+    updateSkuReplenishmentProfile(skuId, {
+      enabled,
+      preferredHandlingUnit: handlingUnit,
+      leadTimeDays: numOrNull(form.leadTimeDays),
+      demandTrailingWindowDays: numOrNull(form.demandTrailingWindowDays),
+      safetyBufferDays: numOrNull(form.safetyBufferDays),
+      minPickFaceEaches: Number(form.minPickFaceEaches) || 0,
+      maxPickFaceEaches: Number(form.maxPickFaceEaches) || 0,
+      velocityThresholdPerDay: Number(form.velocityThresholdPerDay) || 0,
+    })
+      .then((res) => {
+        apply(res);
+        const applied = (res.results || []).filter((r) => r.updated).length;
+        const total = (res.results || []).length;
+        setSavedNote(`Saved to ${applied}/${total} warehouse(s) where this SKU exists.`);
+      })
+      .catch((e) => setErr(e.message || 'Failed to save replenishment profile'))
+      .finally(() => setSaving(false));
+  };
+
+  if (loading) return <div className="card"><div className="card-body"><Loading rows={5} /></div></div>;
+  if (err && !p) return <div className="card"><div className="card-body"><ErrorState message={err} onRetry={load} /></div></div>;
+
+  const field = (key: string, label: string, hint: string, opts: { min?: number; step?: number; placeholder?: string } = {}) => (
+    <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+      <span className="muted">{label}</span>
+      <input type="number" min={opts.min ?? 0} step={opts.step ?? 1} value={form[key] ?? ''} placeholder={opts.placeholder || ''}
+        onChange={(e) => setField(key, e.target.value)} className="input" />
+      <span className="muted" style={{ fontSize: 11 }}>{hint}</span>
+    </label>
+  );
+
+  return (
+    <div className="row-2">
+      <div className="card">
+        <div className="card-header"><div className="card-title">Replenishment settings for {sku}</div></div>
+        <div className="card-body" style={{ display: 'grid', gap: 12 }}>
+          <p className="muted" style={{ fontSize: 12, marginTop: -2 }}>
+            One value per product — applied to this SKU in every warehouse it&apos;s stocked in
+            ({warehouseCount} connected). Blank timing fields fall back to the warehouse default.
+            The warehouse operator controls WHEN replenishment runs (time windows) separately.
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+            <input type="checkbox" checked={enabled} onChange={(e) => { setEnabled(e.target.checked); setSavedNote(null); }} />
+            <span>Enable auto-replenishment for this product</span>
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {field('leadTimeDays', 'Lead time (days)', 'How long a refill takes end-to-end. Blank = warehouse default.', { step: 0.25, placeholder: 'default' })}
+            {field('demandTrailingWindowDays', 'Demand window (days)', 'Look-back for units/day demand. Blank = default.', { step: 1, placeholder: 'default' })}
+            {field('safetyBufferDays', 'Sizing buffer (days)', 'Extra cover in the pick-face size recommendation.', { step: 0.25, placeholder: 'default' })}
+            {field('velocityThresholdPerDay', 'Min velocity/day', 'Skip auto-replenish below this daily demand.', { step: 0.5 })}
+            {field('minPickFaceEaches', 'Min pick-face (eaches)', 'Low-water floor; refill triggers at/below this.', { step: 1 })}
+            {field('maxPickFaceEaches', 'Max pick-face (eaches)', 'Refill-to target.', { step: 1 })}
+          </div>
+          <label style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+            <span className="muted">Preferred handling unit</span>
+            <select value={handlingUnit} onChange={(e) => { setHandlingUnit(e.target.value); setSavedNote(null); }} className="input">
+              {HANDLING_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+            <span className="muted" style={{ fontSize: 11 }}>Refills round up to whole units of this type.</span>
+          </label>
+          {err ? <div style={{ color: 'var(--danger, #c0392b)', fontSize: 12 }}>{err}</div> : null}
+          {savedNote ? <div style={{ color: 'var(--good, #2e7d32)', fontSize: 12 }}>{savedNote}</div> : null}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save for this product'}</button>
+            <button className="btn ghost" disabled={saving} onClick={load}>Reset</button>
+          </div>
+          {p?.results?.length ? (
+            <div className="muted" style={{ fontSize: 11 }}>
+              Last save: {p.results.map((r) => `${r.warehouseCode}${r.updated ? '✓' : ` (${r.note || 'skipped'})`}`).join(', ')}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <div className="card">
+        <div className="card-header"><div className="card-title">How it works</div></div>
+        <div className="card-body">
+          <p className="muted" style={{ fontSize: 11.5 }}>
+            The warehouse keeps this product&apos;s fast-pick bins stocked from reserve. It refills
+            when on-hand would run dry within the lead time, based on this SKU&apos;s recent demand.
+            Reorder point ≈ velocity × lead time (never below your min pick-face). Fast movers also
+            get a recommended pick-face size using the sizing buffer. Time-of-day scheduling is set
+            by the warehouse operator, not here.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

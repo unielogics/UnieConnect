@@ -769,6 +769,35 @@ export const fetchOmsSkus = (filter?: MarketplaceFilterParams) => {
 export const fetchOmsSkuDetail = (skuId: string) =>
   omsFetch<OmsSkuDetail>(`/skus/${encodeURIComponent(skuId)}`);
 
+// Per-product replenishment profile (P3): the forward-pick replenishment settings the WMS
+// engine consumes, set once per product and applied to that SKU in every connected warehouse.
+export type SkuReplenishmentProfile = {
+  skuId?: string;
+  sku?: string;
+  enabled: boolean;
+  preferredHandlingUnit: string;
+  minPickFaceEaches: number;
+  maxPickFaceEaches: number;
+  velocityThresholdPerDay: number;
+  approvalRequired: boolean;
+  leadTimeDays: number | null;
+  demandTrailingWindowDays: number | null;
+  safetyBufferDays: number | null;
+  results?: Array<{ warehouseCode: string; updated: boolean; note?: string }>;
+};
+
+export const fetchSkuReplenishmentProfile = (skuId: string) =>
+  omsFetch<SkuReplenishmentProfile>(`/skus/${encodeURIComponent(skuId)}/replenishment-profile`);
+
+export const updateSkuReplenishmentProfile = (
+  skuId: string,
+  body: Partial<Omit<SkuReplenishmentProfile, 'skuId' | 'sku' | 'results'>>,
+) =>
+  omsFetch<SkuReplenishmentProfile>(`/skus/${encodeURIComponent(skuId)}/replenishment-profile`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
 export type OmsSkuEnrichmentUpdate = {
   title?: string | null;
   subtitle?: string | null;
