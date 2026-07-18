@@ -430,6 +430,37 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         </div>
       </div>
 
+      {data.keepa && (() => {
+        const k = data.keepa as any;
+        const v = (k.verdict && k.verdict.final_verdict) || null;
+        const vTone = v === 'favorable' ? 'green' : v === 'cautious' ? 'red' : v ? 'amber' : undefined;
+        const cell = (label: string, value: React.ReactNode) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)' }}>{label}</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>{value ?? '—'}</span>
+          </div>
+        );
+        return (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 22, flexWrap: 'wrap', padding: '14px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Icon name="sparkle" size={14} style={{ color: 'var(--purple)' }} />
+                <span style={{ fontSize: 12.5, fontWeight: 800 }}>Keepa intelligence</span>
+                {v && <Chip tone={vTone as any} dot={false}>{String(v).toUpperCase()}</Chip>}
+                {k.verdict?.recommended_to_sell_label && (
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Sell: <strong>{k.verdict.recommended_to_sell_label}</strong></span>
+                )}
+              </div>
+              {cell('Sales rank', k.salesRank != null ? Number(k.salesRank).toLocaleString() : null)}
+              {cell('Buy box', k.buyboxPrice != null ? `$${Number(k.buyboxPrice).toFixed(2)}` : (k.buyBoxPrice != null ? `$${Number(k.buyBoxPrice).toFixed(2)}` : null))}
+              {cell('Rating', k.rating != null ? `${k.rating}★` : null)}
+              {cell('Reviews', k.reviewCount != null ? Number(k.reviewCount).toLocaleString() : null)}
+              {cell('Category', k.category || null)}
+            </div>
+          </div>
+        );
+      })()}
+
       <ItemDetailsPanel data={data} onSaved={setData} />
 
       <SkuCortexEconomicsCard

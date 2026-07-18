@@ -13,6 +13,7 @@ import {
   runProductResearch,
 } from '../../../lib/oms';
 import type { ScreenProps } from '../UnieConnectApp';
+import { ProductResearchResultModal } from '../modals/ProductResearchResultModal';
 
 const parseCsv = (text: string) => {
   const lines = text.split(/\r?\n/).filter((line) => line.trim());
@@ -97,6 +98,8 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
   const [bulkResults, setBulkResults] = useState<ProductResearchResult[]>([]);
   const [csvName, setCsvName] = useState('');
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
+  const [pasteText, setPasteText] = useState('');
+  const [activeResult, setActiveResult] = useState<ProductResearchResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -174,6 +177,28 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
     setErr(null);
     try {
       const response = await runBulkProductResearch({ filename: csvName || 'product-research.csv', rows: csvRows });
+      setBulkResults(response.results || []);
+      await load();
+    } catch (e: any) {
+      setErr(e.message || 'Bulk Product Research failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Paste multiple ASIN/UPC/identifiers (newline or comma separated) → one bulk run.
+  const pastedIdentifiers = useMemo(
+    () => Array.from(new Set(pasteText.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean))),
+    [pasteText],
+  );
+  const runPasted = async () => {
+    if (!pastedIdentifiers.length) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      // Each identifier becomes a row; the backend classifies asin vs upc/ean and looks it up.
+      const rows = pastedIdentifiers.map((id) => ({ identifier: id, asin: id }));
+      const response = await runBulkProductResearch({ filename: `pasted-${pastedIdentifiers.length}-identifiers`, rows });
       setBulkResults(response.results || []);
       await load();
     } catch (e: any) {
@@ -370,6 +395,24 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
               <button className="btn primary research-run-btn" onClick={runBulk} disabled={busy || !csvRows.length}>
                 <Icon name="sparkle" size={14} /> {busy ? 'Analyzing...' : 'Run bulk research'}
               </button>
+
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>…or paste identifiers</div>
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 8 }}>
+                  Paste ASINs / UPCs / other identifiers (one per line or comma-separated). We research each against Keepa via Cortex.
+                </div>
+                <textarea
+                  className="input"
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  placeholder={'B08N5WRWNW\n012345678905\nB01ABCDEF2'}
+                  rows={4}
+                  style={{ width: '100%', resize: 'vertical', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}
+                />
+                <button className="btn primary research-run-btn" onClick={runPasted} disabled={busy || !pastedIdentifiers.length} style={{ marginTop: 8 }}>
+                  <Icon name="sparkle" size={14} /> {busy ? 'Analyzing...' : `Research ${pastedIdentifiers.length || ''} identifier${pastedIdentifiers.length === 1 ? '' : 's'}`}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -397,37 +440,49 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
           <div className="card-header">
             <div>
               <div className="card-title">Research results</div>
-              <div className="card-subtitle">Use these results to complete missing data before sending SKUs into optimization.</div>
+              <div className="card-subtitle">Click a row for the full Keepa intelligence — verdict, charts, and list-to-marketplace.</div>
             </div>
-            <Chip tone="purple" dot={false}>{result ? 'Single item' : `${bulkResults.length} CSV rows`}</Chip>
+            <Chip tone="purple" dot={false}>{result ? 'Single item' : `${bulkResults.length} rows`}</Chip>
           </div>
           <div className="table-wrap">
             <table className="data">
               <thead>
                 <tr>
                   <th>SKU</th>
-                  <th>Status</th>
+                  <th>Keepa verdict</th>
                   <th className="num">Score</th>
+                  <th className="num">Sales rank</th>
                   <th>Readiness</th>
-                  <th>Fulfillment</th>
                   <th>Next step</th>
                 </tr>
               </thead>
               <tbody>
-                {(result ? [result] : bulkResults).slice(0, 25).map((row) => (
-                  <tr key={row.id || row.sku}>
-                    <td className="mono strong">{row.sku}</td>
-                    <td><Chip tone={riskTone(row.result.productRisk)}>{String(row.result.productRisk || row.status).replace(/_/g, ' ')}</Chip></td>
-                    <td className="num mono strong">{row.result.opportunityScore || 0}</td>
-                    <td>{String(row.result.marketplaceReadiness || 'unknown').replace(/_/g, ' ')}</td>
-                    <td className="muted">{String(row.result.fulfillment?.ltlSuitability || row.result.fulfillment?.warehouseFit || 'pending').replace(/_/g, ' ')}</td>
-                    <td>{row.result.recommendedAction}</td>
-                  </tr>
-                ))}
+                {(result ? [result] : bulkResults).slice(0, 100).map((row) => {
+                  const v = row.result.keepa?.verdict?.final_verdict || row.result.keepaVerdict;
+                  const vTone = v === 'favorable' ? 'green' : v === 'cautious' ? 'red' : v ? 'amber' : undefined;
+                  return (
+                    <tr key={row.id || row.sku} className="clickable" onClick={() => setActiveResult(row)} style={{ cursor: 'pointer' }}>
+                      <td className="mono strong">{row.sku}</td>
+                      <td>{v ? <Chip tone={vTone as any} dot={false}>{String(v).toUpperCase()}</Chip> : <Chip tone={riskTone(row.result.productRisk)}>{String(row.result.productRisk || row.status).replace(/_/g, ' ')}</Chip>}</td>
+                      <td className="num mono strong">{row.result.opportunityScore || 0}</td>
+                      <td className="num">{row.result.keepa?.salesRank != null ? Number(row.result.keepa.salesRank).toLocaleString() : '—'}</td>
+                      <td>{String(row.result.marketplaceReadiness || 'unknown').replace(/_/g, ' ')}</td>
+                      <td>{row.result.recommendedAction}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
+      )}
+
+      {activeResult && (
+        <ProductResearchResultModal
+          row={activeResult}
+          onClose={() => setActiveResult(null)}
+          onListed={load}
+        />
       )}
 
       <div className="research-bottom-grid">

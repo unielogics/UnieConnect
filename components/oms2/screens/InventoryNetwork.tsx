@@ -67,6 +67,10 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
   const [selectedRec, setSelectedRec] = useState<OmsRecommendation | null>(null);
   const [amazonSku, setAmazonSku] = useState<OmsSku | null>(null);
   const [marketplaceFilter, setMarketplaceFilter] = useState<MarketplaceFilterValue>({});
+  const [riskFilter, setRiskFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [docFilter, setDocFilter] = useState<'all' | 'lt14' | '14to30' | 'gt30'>('all');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const ctx = useCtxMenu();
@@ -89,13 +93,34 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
 
   const filtered = useMemo(
     () =>
-      skus.filter(
-        (s) =>
-          !search ||
-          s.sku?.toLowerCase().includes(search.toLowerCase()) ||
-          (s.title || '').toLowerCase().includes(search.toLowerCase())
-      ),
-    [skus, search]
+      skus.filter((s) => {
+        const q = search.toLowerCase();
+        const matchesSearch =
+          !q ||
+          s.sku?.toLowerCase().includes(q) ||
+          (s.title || '').toLowerCase().includes(q);
+        const matchesRisk = riskFilter === 'all' || s.risk === riskFilter;
+        const doc = s.daysOfCover || 0;
+        const matchesDoc =
+          docFilter === 'all' ||
+          (docFilter === 'lt14' && doc < 14) ||
+          (docFilter === '14to30' && doc >= 14 && doc <= 30) ||
+          (docFilter === 'gt30' && doc > 30);
+        return matchesSearch && matchesRisk && matchesDoc;
+      }),
+    [skus, search, riskFilter, docFilter]
+  );
+
+  // Reset to first page whenever the filtered set changes shape.
+  useEffect(() => {
+    setPage(1);
+  }, [search, riskFilter, docFilter, marketplaceFilter.channel, marketplaceFilter.channelAccountId]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage]
   );
 
   const atRisk = skus.filter((s) => s.daysOfCover < 14).length;
@@ -129,38 +154,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
         </div>
       </div>
 
-      <div className="inventory-view-toolbar">
-        <div className="view-mode-tabs" aria-label="SKU view mode">
-          <button className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>
-            <Icon name="list" size={13} /> Table
-          </button>
-          <button className={view === 'heatmap' ? 'active' : ''} onClick={() => setView('heatmap')}>
-            <Icon name="grid" size={13} /> Demand heatmap
-          </button>
-          <button className={view === 'treemap' ? 'active' : ''} onClick={() => setView('treemap')}>
-            <Icon name="layers" size={13} /> Margin
-          </button>
-        </div>
-        <div className="inventory-filter-row">
-          <div className="inventory-search">
-            <Icon name="search" size={13} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search SKU or product"
-            />
-          </div>
-          <MarketplaceFilter value={marketplaceFilter} onChange={setMarketplaceFilter} includeUnmapped />
-          <button className="filter-chip applied"><Icon name="filter" size={11} /> Warehouse: All <Icon name="x" size={10} /></button>
-          <button className="filter-chip"><Icon name="filter" size={11} /> DOC range</button>
-          <button className="filter-chip"><Icon name="filter" size={11} /> Risk</button>
-          <div className="spacer" />
-          <span className="inventory-count">{filtered.length} SKUs</span>
-          <button className="btn ghost sm"><Icon name="columns" size={12} /> Columns</button>
-        </div>
-      </div>
-
-      <div className="stat-grid">
+      <div className="stat-grid cols-5">
         <div className="stat">
           <div className="stat-label">SKUs tracked</div>
           <div className="stat-value">{skus.length}</div>
@@ -185,6 +179,51 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           <div className="stat-label">Avg pallet fill</div>
           <div className="stat-value">{avgFill}%</div>
           <div className="stat-delta up"><span className="arrow">▲</span> with plan applied</div>
+        </div>
+      </div>
+
+      <div className="inventory-view-toolbar">
+        <div className="view-mode-tabs" aria-label="SKU view mode">
+          <button className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>
+            <Icon name="list" size={13} /> Table
+          </button>
+          <button className={view === 'heatmap' ? 'active' : ''} onClick={() => setView('heatmap')}>
+            <Icon name="grid" size={13} /> Demand heatmap
+          </button>
+          <button className={view === 'treemap' ? 'active' : ''} onClick={() => setView('treemap')}>
+            <Icon name="layers" size={13} /> Margin
+          </button>
+        </div>
+        <div className="inventory-filter-row">
+          <div className="inventory-search">
+            <Icon name="search" size={13} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search SKU or product"
+            />
+          </div>
+          <MarketplaceFilter value={marketplaceFilter} onChange={setMarketplaceFilter} includeUnmapped />
+          <select className="filter-select" value={riskFilter} onChange={(e) => setRiskFilter(e.target.value as any)} aria-label="Risk filter">
+            <option value="all">Risk: All</option>
+            <option value="high">Risk: High</option>
+            <option value="medium">Risk: Medium</option>
+            <option value="low">Risk: Low</option>
+          </select>
+          <select className="filter-select" value={docFilter} onChange={(e) => setDocFilter(e.target.value as any)} aria-label="Days of cover filter">
+            <option value="all">DOC: All</option>
+            <option value="lt14">DOC: &lt; 14d</option>
+            <option value="14to30">DOC: 14–30d</option>
+            <option value="gt30">DOC: &gt; 30d</option>
+          </select>
+          {(riskFilter !== 'all' || docFilter !== 'all' || search) && (
+            <button className="filter-chip applied" onClick={() => { setSearch(''); setRiskFilter('all'); setDocFilter('all'); }}>
+              Clear <Icon name="x" size={10} />
+            </button>
+          )}
+          <div className="spacer" />
+          <span className="inventory-count">{filtered.length} SKUs</span>
+          <button className="btn ghost sm"><Icon name="columns" size={12} /> Columns</button>
         </div>
       </div>
 
@@ -220,7 +259,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((s) => {
+                {paged.map((s) => {
                   const sel = isSelected(s.id);
                   const rl = riskLabel(s.risk);
                   const rec = recBySku.get(s.id) || recBySku.get(s.sku);
@@ -315,6 +354,18 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                 })}
               </tbody>
             </table>
+          )}
+          {filtered.length > PAGE_SIZE && (
+            <div className="table-pagination" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderTop: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button className="btn ghost sm" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Page {currentPage} / {totalPages}</span>
+                <button className="btn ghost sm" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>
+              </div>
+            </div>
           )}
         </div>
       ) : view === 'heatmap' ? (

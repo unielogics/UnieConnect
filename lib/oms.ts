@@ -774,10 +774,39 @@ export type ProductResearchResult = {
     fulfillment?: Record<string, unknown>;
     recommendedAction?: string;
     missingData?: string[];
+    // Cortex/Keepa intelligence merged in when an identifier resolved (Phase 4).
+    keepa?: {
+      source?: string;
+      asin?: string | null;
+      title?: string | null;
+      brand?: string | null;
+      image?: string | null;
+      category?: string | null;
+      salesRank?: number | null;
+      buyBoxPrice?: number | null;
+      rating?: number | null;
+      reviewCount?: number | null;
+      verdict?: any | null;
+      opportunity?: any | null;
+      charts?: any | null;
+    } | null;
+    keepaVerdict?: string;
+    keepaRecommendedToSell?: string;
   };
   confidence?: number | null;
   createdAt?: string;
 };
+
+// Marketplace connections (channel accounts) + list-to-marketplace action for research → list.
+export type ChannelAccount = { id: string; channel: string; status?: string; display_name?: string | null; marketplace_id?: string | null };
+
+export const fetchChannelAccounts = () => apiFetch<ChannelAccount[]>('/channel-accounts');
+
+export const mapItemToChannel = (itemId: string, body: { channelAccountId: string; channelItemId: string; sku?: string; status?: string }) =>
+  apiFetch<{ id: string }>(`/items/${encodeURIComponent(itemId)}/map`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 
 export type AmazonItemProfile = {
   id?: string;
@@ -846,6 +875,35 @@ export const fetchOmsSkus = (filter?: MarketplaceFilterParams) => {
 
 export const fetchOmsSkuDetail = (skuId: string) =>
   omsFetch<OmsSkuDetail>(`/skus/${encodeURIComponent(skuId)}`);
+
+// Single-identifier Keepa lookup (ASIN / UPC / EAN) — powers new-product prefill + research.
+export type KeepaLookupResult = {
+  found: boolean;
+  source: 'keepa' | 'keepa+cortex' | 'none';
+  asin?: string | null;
+  upc?: string | null;
+  ean?: string | null;
+  title?: string | null;
+  brand?: string | null;
+  image?: string | null;
+  category?: string | null;
+  salesRank?: number | null;
+  buyBoxPrice?: number | null;
+  rating?: number | null;
+  reviewCount?: number | null;
+  weight?: number | null;
+  dimensions?: { length?: number | null; width?: number | null; height?: number | null };
+  verdict?: any | null;
+  opportunity?: any | null;
+  charts?: any | null;
+  message?: string;
+};
+
+export const lookupProductByIdentifier = (identifier: string, type?: 'asin' | 'upc' | 'ean') =>
+  omsFetch<KeepaLookupResult>('/keepa/lookup', {
+    method: 'POST',
+    body: JSON.stringify({ identifier, type }),
+  });
 
 // Per-product replenishment profile (P3). The CLIENT sets ONLY demand intent: enable +
 // supplier lead time + demand window. Everything physical (pick-face sizing, handling unit)

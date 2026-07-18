@@ -671,6 +671,9 @@
 .uc-shell .inventory-search { width: min(320px, 100%); height: 32px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elev); padding: 0 10px; color: var(--text-tertiary); }
 .uc-shell .inventory-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 12px; }
 .uc-shell .inventory-count { font-size: 11.5px; color: var(--text-tertiary); white-space: nowrap; }
+.uc-shell .inventory-filter-row .filter-select { height: 32px; padding: 0 8px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); font-size: 12px; cursor: pointer; }
+.uc-shell .inventory-filter-row .filter-chip { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--border); font-size: 11.5px; color: var(--text); background: transparent; cursor: pointer; }
+.uc-shell .inventory-filter-row .filter-chip.applied { background: var(--bg-active); }
 .uc-shell .sku-heatmap-card .card-header { align-items: center; }
 .uc-shell .heatmap-legend { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-tertiary); }
 .uc-shell .legend-gradient { width: 110px; height: 9px; border-radius: 999px; background: linear-gradient(90deg, var(--blue-soft), var(--amber), var(--red)); border: 1px solid var(--border-subtle); }
