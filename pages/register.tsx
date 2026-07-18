@@ -1,6 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { apiUrl, TOKEN_KEY } from '../lib/api';
 
+const REGISTER_HIGHLIGHTS = [
+  { title: 'Nationwide warehouse network', description: 'Instant access to fulfillment centers coast-to-coast — no leases, no setup.' },
+  { title: 'Continuous auditing', description: 'Every shipment and invoice checked automatically to catch errors and recover costs.' },
+  { title: 'AI-run operations', description: 'Cortex places inventory, forecasts demand, and rate-shops carriers so your business runs cheaper and faster.' },
+] as const;
+
 /**
  * Public self-signup for direct UnieConnect sellers (no invite required). Posts to the
  * token-less /auth/signup, which creates a self-owned (origin='direct') account with the AI
@@ -104,9 +110,23 @@ export default function Register() {
             <span className="auth-banner-sub">AI optimizes your fulfillment network from day one.</span>
           </div>
           <div className="auth-hero">
-            <h1 className="auth-hero-title">The operating system for connected commerce.</h1>
-            <p className="auth-hero-support">Create your account and Cortex starts rate-shopping your network, forecasting demand, and recommending optimal placement automatically.</p>
+            <h1 className="auth-hero-title">Nationwide warehouses at your fingertips.</h1>
+            <p className="auth-hero-support">Tap into a coast-to-coast fulfillment network, continuously audited and run by Cortex AI — so your operations get faster, more reliable, and cheaper automatically.</p>
           </div>
+          <section className="auth-features-wrap" aria-label="Highlights">
+            <h2 className="auth-features-headline">Built to run your business better</h2>
+            <ul className="auth-features-list">
+              {REGISTER_HIGHLIGHTS.map((feature, i) => (
+                <li key={i} className="auth-feature-item">
+                  <span className="auth-feature-num">{String(i + 1).padStart(2, '0')}</span>
+                  <div>
+                    <h3 className="auth-feature-title">{feature.title}</h3>
+                    <p className="auth-feature-desc">{feature.description}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
       </div>
       <div className="auth-main">
@@ -119,15 +139,6 @@ export default function Register() {
           <span suppressHydrationWarning>{mounted ? (theme === 'light' ? 'Dark' : 'Light') : ' '}</span>
         </button>
         <div className="auth-card">
-          <div className="auth-card-head">
-            <div>
-              <img className="auth-card-logo" src="/unieconnect-logo.png" alt="UnieConnect" />
-              <div className="eyebrow">Create your account</div>
-              <div className="title">Start optimizing with AI</div>
-              <div className="muted">No invite needed. You&apos;ll get AI network optimization enabled automatically.</div>
-            </div>
-          </div>
-
           <form className="auth-form" onSubmit={handleSignup}>
             <div className="field-row">
               <div className="field">
