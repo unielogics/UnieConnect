@@ -10,6 +10,7 @@ const CAT_META: { key: string; label: string; desc: string; refund?: boolean }[]
   { key: 'storage', label: 'Storage', desc: 'Long-term tier avoidance, smarter pre-positioning' },
   { key: 'freight', label: 'Freight (in + out)', desc: 'Lane consolidation, shared pallets, zone optimization' },
   { key: 'handling', label: 'Handling & pick', desc: 'Split-node strategy effect' },
+  { key: 'materials', label: 'Materials', desc: 'Packaging materials consumed at pack-out' },
   { key: 'accessorials', label: 'Accessorials', desc: 'Auto-disputed rework, dim-weight reclass' },
   { key: 'refundsCaptured', label: 'Refunds captured', desc: 'Cortex audit bot files more claims', refund: true },
   { key: 'lostRevenue', label: 'Lost revenue (SLA)', desc: 'Faster SLA reduces refund/chargeback rate' },

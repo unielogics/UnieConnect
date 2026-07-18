@@ -544,6 +544,7 @@ export type BillingProfitResponse = {
   current: { freight: number; storage: number; handling: number; accessorials: number; refundsCaptured: number; lostRevenue?: number } & Record<string, number>;
   optimized: { freight: number; storage: number; handling: number; accessorials: number; refundsCaptured: number; lostRevenue?: number } & Record<string, number>;
   perWarehouse?: Array<{ code: string; region?: string; current: number; optimized: number }>;
+  source?: 'wms_invoices' | 'estimate';
 };
 
 export type LedgerResponse = {
