@@ -546,8 +546,8 @@ export type BillingProfitResponse = {
   from?: string | null;
   to?: string | null;
   revenue?: number;
-  current: { freight: number; storage: number; handling: number; accessorials: number; refundsCaptured: number; lostRevenue?: number } & Record<string, number>;
-  optimized: { freight: number; storage: number; handling: number; accessorials: number; refundsCaptured: number; lostRevenue?: number } & Record<string, number>;
+  current: { freight: number; storage: number; handling: number; accessorials: number; refundsCaptured: number } & Record<string, number>;
+  optimized: { freight: number; storage: number; handling: number; accessorials: number; refundsCaptured: number } & Record<string, number>;
   previous?: Record<string, number>;
   deltaPct?: Record<string, number>;
   series?: Array<{ date: string; total: number; lineCount: number; byCategory: Record<string, number> }>;
@@ -558,6 +558,7 @@ export type BillingProfitResponse = {
     storage: {
       mtd: number;
       projectedMonthEnd: number;
+      preliminary?: boolean;
       method: 'run_rate' | 'cortex';
       observedBilledDays?: number;
       daysInMonth: number;

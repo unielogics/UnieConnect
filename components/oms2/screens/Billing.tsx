@@ -21,10 +21,9 @@ const CAT_META: { key: string; label: string; desc: string; refund?: boolean }[]
   { key: 'handling', label: 'Handling & pick', desc: 'Split-node strategy effect' },
   { key: 'materials', label: 'Materials', desc: 'Packaging materials consumed at pack-out' },
   { key: 'accessorials', label: 'Accessorials', desc: 'Auto-disputed rework, dim-weight reclass' },
-  { key: 'refundsCaptured', label: 'Refunds captured', desc: 'Cortex audit bot files more claims', refund: true },
-  { key: 'lostRevenue', label: 'Lost revenue (SLA)', desc: 'Faster SLA reduces refund/chargeback rate' },
+  { key: 'refundsCaptured', label: 'Refunds captured', desc: 'Carrier late-delivery refunds filed via Label Audit', refund: true },
 ];
-const LEDGER_CATEGORY_OPTIONS = CAT_META.filter((c) => !c.refund && c.key !== 'lostRevenue');
+const LEDGER_CATEGORY_OPTIONS = CAT_META.filter((c) => !c.refund);
 const LEDGER_STATUS_OPTIONS = ['open', 'approved', 'submitted', 'paid', 'void'];
 const RANGE_PRESETS: { key: BillingRange; label: string }[] = [
   { key: 'today', label: 'Today' },
@@ -357,10 +356,12 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
             <Icon name="box" size={16} style={{ color: 'var(--purple)' }} />
             <div>
               <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
-                Projected month-end storage
+                {data.forecast.storage.preliminary ? 'Storage billed so far (preliminary)' : 'Projected month-end storage'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 1 }}>
-                {data.forecast.storage.method === 'cortex' ? 'Cortex trajectory' : 'Run-rate estimate'} · this calendar month
+                {data.forecast.storage.preliminary
+                  ? 'Not enough billed days yet to project — showing month-to-date only'
+                  : `${data.forecast.storage.method === 'cortex' ? 'Cortex trajectory' : 'Run-rate estimate'} · this calendar month`}
               </div>
             </div>
           </div>
@@ -373,14 +374,20 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
               <> · {data.forecast.storage.observedBilledDays} of {data.forecast.storage.daysInMonth} days</>
             )}
           </div>
-          {data.forecast.storage.confidence != null && data.forecast.storage.confidence > 0 && (
-            <Chip dot={false} tone={data.forecast.storage.confidence >= 0.5 ? 'green' : 'amber'}>
-              {Math.round(data.forecast.storage.confidence * 100)}% confidence
-            </Chip>
+          {data.forecast.storage.preliminary ? (
+            <Chip dot={false} tone="amber">Preliminary — too early to project</Chip>
+          ) : (
+            data.forecast.storage.confidence != null && data.forecast.storage.confidence > 0 && (
+              <Chip dot={false} tone={data.forecast.storage.confidence >= 0.5 ? 'green' : 'amber'}>
+                {Math.round(data.forecast.storage.confidence * 100)}% confidence
+              </Chip>
+            )
           )}
           <div style={{ flex: 1 }} />
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)', maxWidth: 260 }}>
-            Extrapolated from storage already billed this month. Firms up as more days are invoiced.
+            {data.forecast.storage.preliminary
+              ? 'A full month-end projection needs a few more billed days to avoid an unreliable extrapolation.'
+              : 'Extrapolated from storage already billed this month. Firms up as more days are invoiced.'}
           </div>
         </div>
       )}
