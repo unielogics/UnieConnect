@@ -789,6 +789,7 @@ export type ProductResearchResult = {
       verdict?: any | null;
       opportunity?: any | null;
       charts?: any | null;
+      extract?: any | null;
     } | null;
     keepaVerdict?: string;
     keepaRecommendedToSell?: string;
@@ -896,6 +897,7 @@ export type KeepaLookupResult = {
   verdict?: any | null;
   opportunity?: any | null;
   charts?: any | null;
+  extract?: any | null;
   message?: string;
 };
 
@@ -1190,6 +1192,13 @@ export const runBulkProductResearch = (body: { filename?: string; rows: Array<Re
 
 export const fetchProductResearchRuns = () =>
   omsFetch<{ runs: IntelligenceRun[] }>('/intelligence/product-research/runs');
+
+// Single run + its stored results (each carries result.keepa.extract) — for re-opening a recent
+// research in the full-screen view without re-hitting Keepa.
+export const fetchProductResearchRun = (id: string) =>
+  omsFetch<{ run: IntelligenceRun; events?: any[]; productResearchResults: ProductResearchResult[] }>(
+    `/intelligence/product-research/runs/${encodeURIComponent(id)}`,
+  );
 
 export const fetchProductResearchResult = (skuId: string) =>
   omsFetch<ProductResearchResult>(`/intelligence/product-research/results/${encodeURIComponent(skuId)}`);

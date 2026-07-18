@@ -5,6 +5,7 @@ import {
   fetchIntelligenceReadiness,
   fetchOmsSkus,
   fetchProductResearchRuns,
+  fetchProductResearchRun,
   IntelligenceReadiness,
   IntelligenceRun,
   OmsSku,
@@ -13,7 +14,7 @@ import {
   runProductResearch,
 } from '../../../lib/oms';
 import type { ScreenProps } from '../UnieConnectApp';
-import { ProductResearchResultModal } from '../modals/ProductResearchResultModal';
+import { ProductResearchFullView } from '../modals/ProductResearchFullView';
 
 const parseCsv = (text: string) => {
   const lines = text.split(/\r?\n/).filter((line) => line.trim());
@@ -212,6 +213,22 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
       await load();
     } catch (e: any) {
       setErr(e.message || 'Bulk Product Research failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Re-open a recent research run in the full view (renders from stored result.keepa.extract).
+  const openRun = async (runId: string) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetchProductResearchRun(runId);
+      const first = res.productResearchResults?.[0];
+      if (first) setActiveResult(first);
+      else setErr('This run has no stored result to view.');
+    } catch (e: any) {
+      setErr(e.message || 'Failed to open research run');
     } finally {
       setBusy(false);
     }
@@ -525,7 +542,7 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
       )}
 
       {activeResult && (
-        <ProductResearchResultModal
+        <ProductResearchFullView
           row={activeResult}
           onClose={() => setActiveResult(null)}
           onListed={load}
@@ -542,12 +559,24 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
             {runs.length === 0 ? (
               <EmptyState>No Product Research runs yet.</EmptyState>
             ) : runs.slice(0, 8).map((run) => (
-              <div key={run.id} className="research-run-row">
+              <div
+                key={run.id}
+                className="research-run-row"
+                role="button"
+                tabIndex={0}
+                onClick={() => openRun(run.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRun(run.id); } }}
+                style={{ cursor: 'pointer' }}
+                title="Open the enriched research view"
+              >
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700 }}>{String(run.runType).replace(/_/g, ' ')}</div>
                   <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{run.publicId} · {run.cortexStatus || 'pending cortex'}</div>
                 </div>
-                <Chip tone={run.status === 'completed' ? 'green' : run.status === 'needs_data' ? 'amber' : 'blue'}>{run.status.replace(/_/g, ' ')}</Chip>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Chip tone={run.status === 'completed' ? 'green' : run.status === 'needs_data' ? 'amber' : 'blue'}>{run.status.replace(/_/g, ' ')}</Chip>
+                  <Icon name="chevron" size={14} />
+                </div>
               </div>
             ))}
           </div>
