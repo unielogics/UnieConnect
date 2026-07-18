@@ -8,6 +8,7 @@ import { Icon } from './icons';
 import { AICopilot } from './AICopilot';
 import { ShipmentWizard } from './ShipmentWizard';
 import { OrderModal } from './OrderModal';
+import { AsnModal } from './AsnModal';
 import { emitOmsNavigationStart } from './ui';
 import { CommandCenter } from './screens/CommandCenter';
 import { BusinessDouble } from './screens/BusinessDouble';
@@ -36,7 +37,8 @@ import { NewOrderModal } from './modals/NewOrderModal';
 import { NewTicketModal } from './modals/NewTicketModal';
 import { CsvImportModal, CsvImportEntity } from './modals/CsvImportModal';
 import { StateDetailModal } from './modals/StateDetailModal';
-import type { OmsOrder, OmsSku, OmsSupplier } from '../../lib/oms';
+import type { OmsAsnDetail, OmsOrder, OmsSku, OmsSupplier } from '../../lib/oms';
+import { fetchOmsAsn, fetchOmsOrder } from '../../lib/oms';
 import { fetchCurrentUser, type CurrentUser } from '../../lib/user';
 import { fetchUserFeatures, type Feature } from '../../lib/features';
 
@@ -53,6 +55,8 @@ export interface ScreenProps {
   isSelected: (id: string) => boolean;
   selectedSkus?: SelSku[];
   onOpenOrder?: (o: OmsOrder) => void;
+  onOpenOrderById?: (orderId: string) => void;
+  onOpenAsnById?: (asnId: string) => void;
   onCreateShipmentWithSupplier?: (supplierId: string, skus: SelSku[]) => void;
   onNewProduct?: () => void;
   onNewSupplier?: (onCreated?: (supplier?: OmsSupplier) => void) => void;
@@ -75,6 +79,8 @@ export default function UnieConnectApp() {
   const [skuSupplierMap, setSkuSupplierMap] = useState<Record<string, string | null>>({});
   const [showWizard, setShowWizard] = useState(false);
   const [orderModal, setOrderModal] = useState<OmsOrder | null>(null);
+  const [asnModal, setAsnModal] = useState<OmsAsnDetail | null>(null);
+  const [asnModalLoading, setAsnModalLoading] = useState(false);
   const [forcedSupplierId, setForcedSupplierId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [userLoadComplete, setUserLoadComplete] = useState(false);
@@ -96,6 +102,7 @@ export default function UnieConnectApp() {
     emitOmsNavigationStart();
     setShowWizard(false);
     setOrderModal(null);
+    setAsnModal(null);
     setForcedSupplierId(null);
     setNewProductOpen(false);
     setNewSupplierOpen(false);
@@ -202,6 +209,20 @@ export default function UnieConnectApp() {
 
   const isSelected = useCallback((id: string) => selectedSkus.some((s) => s.id === id), [selectedSkus]);
 
+  const openOrderById = useCallback((orderId: string) => {
+    fetchOmsOrder(orderId)
+      .then((res) => setOrderModal(res.order))
+      .catch(() => {});
+  }, []);
+
+  const openAsnById = useCallback((asnId: string) => {
+    setAsnModalLoading(true);
+    fetchOmsAsn(asnId)
+      .then((res) => setAsnModal(res.asn))
+      .catch(() => setAsnModal(null))
+      .finally(() => setAsnModalLoading(false));
+  }, []);
+
   const supplierMixed = useMemo(() => {
     if (selectedSkus.length < 2) return false;
     const sups = selectedSkus.map((s) => skuSupplierMap[s.id]).filter((x) => x != null);
@@ -288,6 +309,8 @@ export default function UnieConnectApp() {
     toggleSelect,
     isSelected,
     selectedSkus,
+    onOpenOrderById: openOrderById,
+    onOpenAsnById: openAsnById,
     onOpenOrder: setOrderModal,
     onCreateShipmentWithSupplier: createShipmentForSupplier,
     onNewProduct: () => setNewProductOpen(true),
@@ -387,6 +410,15 @@ export default function UnieConnectApp() {
 
           {orderModal && (
             <OrderModal order={orderModal} onClose={() => setOrderModal(null)} onNavigate={navigate} />
+          )}
+
+          {(asnModal || asnModalLoading) && (
+            <AsnModal
+              asn={asnModal}
+              loading={asnModalLoading && !asnModal}
+              onClose={() => setAsnModal(null)}
+              onNavigate={navigate}
+            />
           )}
 
           {newProductOpen && (

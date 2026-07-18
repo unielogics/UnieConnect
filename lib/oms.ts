@@ -539,12 +539,65 @@ export type LabelAuditRun = {
   updatedAt?: string;
 };
 
+export type BillingRange = 'today' | '7d' | '30d' | '90d' | 'mtd';
+
 export type BillingProfitResponse = {
+  range?: BillingRange;
+  from?: string | null;
+  to?: string | null;
   revenue?: number;
   current: { freight: number; storage: number; handling: number; accessorials: number; refundsCaptured: number; lostRevenue?: number } & Record<string, number>;
   optimized: { freight: number; storage: number; handling: number; accessorials: number; refundsCaptured: number; lostRevenue?: number } & Record<string, number>;
+  previous?: Record<string, number>;
+  deltaPct?: Record<string, number>;
+  series?: Array<{ date: string; total: number; lineCount: number; byCategory: Record<string, number> }>;
   perWarehouse?: Array<{ code: string; region?: string; current: number; optimized: number }>;
+  totals?: { current: number; optimized: number; savings: number; savingsPct: number };
   source?: 'wms_invoices' | 'estimate';
+};
+
+export type BillingInvoiceLink = { omsId: string; number: string; publicId: string };
+
+export type BillingInvoiceRow = {
+  id: string;
+  date?: string;
+  invoiceNumber: string;
+  warehouse?: string | null;
+  category: string;
+  code?: string | null;
+  description?: string;
+  qty: number;
+  unitPrice: number;
+  amount: number;
+  currency: string;
+  status: string;
+  linkedOrder: BillingInvoiceLink | null;
+  linkedAsn: BillingInvoiceLink | null;
+};
+
+export type BillingInvoicesResponse = {
+  rows: BillingInvoiceRow[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type BillingInvoicesParams = {
+  range?: BillingRange;
+  from?: string;
+  to?: string;
+  category?: string;
+  warehouseCode?: string;
+  status?: string;
+  search?: string;
+  invoiceNumber?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type OmsAsnDetail = OmsAsn & {
+  payload?: Record<string, unknown>;
+  items?: unknown;
 };
 
 export type LedgerResponse = {
@@ -944,7 +997,57 @@ export const fetchLabelAuditRuns = () => omsFetch<{ runs: LabelAuditRun[] }>('/l
 export const fetchLabelAuditRun = (id: string) =>
   omsFetch<{ run: LabelAuditRun; findings: LabelAuditResponse['findings'] }>(`/label-audit/runs/${encodeURIComponent(id)}`);
 
-export const fetchBillingProfit = () => omsFetch<BillingProfitResponse>('/billing-profit');
+function billingQuery(params: BillingInvoicesParams = {}): string {
+  const q = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') q.set(k, String(v));
+  });
+  const s = q.toString();
+  return s ? `?${s}` : '';
+}
+
+export const fetchBillingProfit = (params: { range?: BillingRange; from?: string; to?: string } = {}) =>
+  omsFetch<BillingProfitResponse>(`/billing-profit${billingQuery(params)}`);
+
+export const fetchBillingInvoices = (params: BillingInvoicesParams = {}) =>
+  omsFetch<BillingInvoicesResponse>(`/billing/invoices${billingQuery(params)}`);
+
+export const fetchBillingStatementPdf = async (params: BillingInvoicesParams = {}): Promise<Blob> => {
+  const res = await authFetch(apiUrl(`/api/v1/oms/billing/statement.pdf${billingQuery(params)}`), {
+    headers: { Accept: 'application/pdf' },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || `Failed to fetch billing statement (${res.status})`);
+  }
+  return res.blob();
+};
+
+export const fetchInvoicePdf = async (invoiceNumber: string): Promise<Blob> => {
+  const res = await authFetch(apiUrl(`/api/v1/oms/billing/invoices/${encodeURIComponent(invoiceNumber)}/export.pdf`), {
+    headers: { Accept: 'application/pdf' },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || `Failed to fetch invoice PDF (${res.status})`);
+  }
+  return res.blob();
+};
+
+export const fetchOmsOrder = (orderId: string) => omsFetch<{ order: OmsOrder }>(`/orders/${encodeURIComponent(orderId)}`);
+
+export const fetchOmsAsn = (asnId: string) => omsFetch<{ asn: OmsAsnDetail }>(`/asns/${encodeURIComponent(asnId)}`);
+
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 export const fetchLedger = () => omsFetch<LedgerResponse>('/ledger');
 
