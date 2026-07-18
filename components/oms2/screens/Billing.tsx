@@ -67,7 +67,8 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
 
   const ledgerRef = useRef<HTMLDivElement>(null);
-  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('billing');
+  // Pass `load` so approving/rejecting a billing plan immediately refetches the profit + hero.
+  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('billing', 100, () => load());
 
   const dateParams = () => (custom ? { from: custom.from, to: custom.to } : { range });
 
@@ -180,6 +181,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
   const maxBar = Math.max(1, ...cats.flatMap((c) => [Math.abs(c.current), Math.abs(c.optimized)]));
   const perWh = data.perWarehouse || [];
   const totalDeltaPct = data.deltaPct?.total ?? 0;
+  const hasApprovedPlan = (data.totals as any)?.savingsSource === 'approved_overrides' && savings > 0;
   const sparkData = (data.series || []).map((s) => s.total);
   const rangeLabel = custom
     ? `${(custom.from || '').slice(0, 10)} → ${new Date(nextDayIsoBack(custom.to)).toISOString().slice(0, 10)}`
@@ -251,20 +253,73 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--purple-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 6 }}>WITH AI PLAN APPLIED</div>
+              <div style={{ fontSize: 11, color: 'var(--purple-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {hasApprovedPlan ? 'PROJECTED (APPROVED PLAN)' : 'PROJECTED WITH AI PLAN'}
+                {screenRec && <CortexRowAction rec={screenRec} label onOpen={() => setSelectedRec(screenRec)} />}
+              </div>
               <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--purple-text)' }}>{fmt.money(optimizedTotal)}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>autonomous execution</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                {hasApprovedPlan ? 'projection · until WMS re-rates' : 'review a suggestion to approve'}
+              </div>
             </div>
             <div style={{ background: 'var(--green-soft)', padding: 18, borderRadius: 10 }}>
-              <div style={{ fontSize: 11, color: 'var(--green-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>YOU SAVE</div>
-              <div style={{ fontSize: 30, fontWeight: 700, color: 'var(--green-text)', marginTop: 4 }}>{fmt.money(savings)}</div>
-              <div style={{ fontSize: 12, color: 'var(--green-text)', fontWeight: 600, marginTop: 2 }}>
-                {savingsPct.toFixed(1)}% lower cost · {rangeLabel}
-              </div>
+              <div style={{ fontSize: 11, color: 'var(--green-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{hasApprovedPlan ? 'YOU SAVE (PROJECTED)' : 'POTENTIAL SAVINGS'}</div>
+              {hasApprovedPlan ? (
+                <>
+                  <div style={{ fontSize: 30, fontWeight: 700, color: 'var(--green-text)', marginTop: 4 }}>{fmt.money(savings)}</div>
+                  <div style={{ fontSize: 12, color: 'var(--green-text)', fontWeight: 600, marginTop: 2 }}>
+                    {savingsPct.toFixed(1)}% lower cost · {rangeLabel}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--green-text)', marginTop: 4 }}>No plan approved yet</div>
+                  <div style={{ fontSize: 12, color: 'var(--green-text)', fontWeight: 600, marginTop: 2 }}>
+                    {screenRec ? 'Review the AI plan to see projected savings' : 'No AI plan available for this period'}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {data.forecast?.storage && (
+        <div
+          className="card"
+          style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 20, padding: '14px 20px', flexWrap: 'wrap' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Icon name="box" size={16} style={{ color: 'var(--purple)' }} />
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+                Projected month-end storage
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 1 }}>
+                {data.forecast.storage.method === 'cortex' ? 'Cortex trajectory' : 'Run-rate estimate'} · this calendar month
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em' }}>
+            {fmt.money(data.forecast.storage.projectedMonthEnd)}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            {fmt.money(data.forecast.storage.mtd)} billed so far
+            {data.forecast.storage.observedBilledDays != null && (
+              <> · {data.forecast.storage.observedBilledDays} of {data.forecast.storage.daysInMonth} days</>
+            )}
+          </div>
+          {data.forecast.storage.confidence != null && data.forecast.storage.confidence > 0 && (
+            <Chip dot={false} tone={data.forecast.storage.confidence >= 0.5 ? 'green' : 'amber'}>
+              {Math.round(data.forecast.storage.confidence * 100)}% confidence
+            </Chip>
+          )}
+          <div style={{ flex: 1 }} />
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', maxWidth: 260 }}>
+            Extrapolated from storage already billed this month. Firms up as more days are invoiced.
+          </div>
+        </div>
+      )}
 
       <BillingTrendCard series={data.series || []} onDayClick={filterByDay} />
 

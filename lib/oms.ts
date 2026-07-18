@@ -553,6 +553,18 @@ export type BillingProfitResponse = {
   series?: Array<{ date: string; total: number; lineCount: number; byCategory: Record<string, number> }>;
   perWarehouse?: Array<{ code: string; region?: string; current: number; optimized: number }>;
   totals?: { current: number; optimized: number; savings: number; savingsPct: number };
+  forecast?: {
+    storage: {
+      mtd: number;
+      projectedMonthEnd: number;
+      method: 'run_rate' | 'cortex';
+      observedBilledDays?: number;
+      daysInMonth: number;
+      confidence?: number;
+      asOf?: string;
+      daily?: Array<{ date: string; charge: number }>;
+    };
+  };
   source?: 'wms_invoices' | 'estimate';
 };
 

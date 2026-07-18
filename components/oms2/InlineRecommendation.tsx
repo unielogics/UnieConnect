@@ -5,7 +5,7 @@ import { Chip } from './ui';
 import { RecommendationDrawer } from './screens/InventoryNetwork';
 import { isActionableDecisionRecommendation } from './DecisionComparison';
 
-export const useInlineRecommendations = (screen: string, limit = 100) => {
+export const useInlineRecommendations = (screen: string, limit = 100, onChanged?: () => void) => {
   const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
   const [selectedRec, setSelectedRec] = useState<OmsRecommendation | null>(null);
   const loadRecommendations = () => {
@@ -14,6 +14,13 @@ export const useInlineRecommendations = (screen: string, limit = 100) => {
       .catch(() => setRecommendations([]));
   };
   useEffect(loadRecommendations, [screen, limit]);
+
+  // After an approve/reject, refresh the rec list AND run any screen-level side-effect (e.g.
+  // Billing refetches getBillingProfit so the "you save" projection updates immediately).
+  const handleChanged = () => {
+    loadRecommendations();
+    onChanged?.();
+  };
 
   const byEntity = useMemo(() => {
     const map = new Map<string, OmsRecommendation>();
@@ -37,7 +44,7 @@ export const useInlineRecommendations = (screen: string, limit = 100) => {
     <RecommendationDrawer
       rec={selectedRec}
       onClose={() => setSelectedRec(null)}
-      onChanged={loadRecommendations}
+      onChanged={handleChanged}
     />
   ) : null;
 
