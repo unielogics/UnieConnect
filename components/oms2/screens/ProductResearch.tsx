@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, Confidence, EmptyState, ErrorState, Loading, fmt } from '../ui';
+import { Chip, Confidence, EmptyState, ErrorState, Loading, Sparkline, Thumb } from '../ui';
 import {
   fetchIntelligenceReadiness,
   fetchOmsSkus,
@@ -60,9 +60,6 @@ const sourceLabel = (mode?: string) => {
   return 'Manual / setup needed';
 };
 
-const riskTone = (risk?: string) =>
-  risk === 'needs_data' ? 'amber' : risk === 'strong_candidate' ? 'green' : risk === 'weak_candidate' ? 'red' : 'blue';
-
 const readinessTone = (score?: number) => {
   const n = Number(score || 0);
   if (n >= 75) return 'green';
@@ -101,6 +98,7 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
   const [pasteText, setPasteText] = useState('');
   const [activeResult, setActiveResult] = useState<ProductResearchResult | null>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -134,6 +132,69 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
   const baseline = useMemo(() => selectedBaseline(selected, manual), [selected, manual]);
   const missingBaseline = baseline.filter((item) => !item.met).length;
   const latestRun = runs[0];
+
+  // Unified research history: freshly-run results (rich — thumbnail/verdict/sparkline, opened in place)
+  // merged with persisted runs (lighter — re-fetched on open). Deduped by runId so a fresh run doesn't
+  // appear twice once it lands in the runs list.
+  const historyRows = useMemo(() => {
+    const freshResults = [...(result ? [result] : []), ...bulkResults];
+    const seenRunIds = new Set<string>();
+    const rows: Array<{
+      key: string; sku: string; title: string; image?: string | null;
+      verdict?: string; verdictTone?: string; score?: number | null; salesRank?: number | null;
+      spark: number[]; statusLabel: string; statusTone: string; onOpen: () => void;
+    }> = [];
+
+    const verdictToneOf = (v?: string) => (v === 'favorable' ? 'green' : v === 'cautious' ? 'red' : v ? 'amber' : 'blue');
+    const sparkOf = (res: ProductResearchResult) => {
+      const s = (res.result.keepa as any)?.extract?.keepa_trend_bundle?.chart?.series
+        || (res.result.keepa as any)?.charts?.series || [];
+      return Array.isArray(s)
+        ? s.map((p: any) => (typeof p?.sales_rank === 'number' ? p.sales_rank : null)).filter((x: any): x is number => x != null)
+        : [];
+    };
+
+    freshResults.forEach((res) => {
+      if (res.runId) seenRunIds.add(res.runId);
+      const v = res.result.keepa?.verdict?.final_verdict || res.result.keepaVerdict;
+      // Sales rank sparkline is inverted (lower rank = better), so negate to render "up = better".
+      const spark = sparkOf(res).map((x) => -x);
+      rows.push({
+        key: res.id || res.sku,
+        sku: res.sku,
+        title: res.result.title || res.result.keepa?.title || 'Untitled product',
+        image: res.result.keepa?.image,
+        verdict: v || undefined,
+        verdictTone: v ? verdictToneOf(v) : undefined,
+        score: res.result.opportunityScore ?? null,
+        salesRank: res.result.keepa?.salesRank ?? null,
+        spark,
+        statusLabel: String(res.result.marketplaceReadiness || res.status || 'done').replace(/_/g, ' '),
+        statusTone: res.result.productRisk === 'strong_candidate' ? 'green' : res.result.productRisk === 'weak_candidate' ? 'red' : 'blue',
+        onOpen: () => setActiveResult(res),
+      });
+    });
+
+    runs.forEach((run) => {
+      if (run.id && seenRunIds.has(run.id)) return;
+      const input = (run.input || {}) as Record<string, any>;
+      rows.push({
+        key: run.id,
+        sku: input.sku || input.asin || input.identifier || run.publicId || run.id,
+        title: input.title || String(run.runType).replace(/_/g, ' '),
+        image: null,
+        score: run.confidence != null ? Math.round(Number(run.confidence) * 100) : null,
+        salesRank: null,
+        spark: [],
+        statusLabel: run.status.replace(/_/g, ' '),
+        statusTone: run.status === 'completed' ? 'green' : run.status === 'needs_data' ? 'amber' : 'blue',
+        onOpen: () => openRun(run.id),
+      });
+    });
+
+    return rows;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, bulkResults, runs]);
 
   const runSingle = async () => {
     setBusy(true);
@@ -313,19 +374,47 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
               <Chip tone="purple" dot={false}>Cortex</Chip>
             </div>
             <div className="card-body">
-              <div className="research-search-box">
-                <Icon name="search" size={15} />
-                <input
-                  value={skuSearch}
-                  onChange={(e) => setSkuSearch(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && searchIdentifier && !exactCatalogMatch && !busy) runIdentifier(); }}
-                  placeholder="Search by SKU / title, or paste an ASIN / UPC…"
-                  aria-label="Search SKUs or research an identifier"
-                />
-                {selectedSku && (
-                  <button className="btn ghost sm" onClick={() => { setSelectedSku(''); setSkuSearch(''); }}>
-                    Manual item
-                  </button>
+              <div className="research-search-wrap">
+                <div className="research-search-box">
+                  <Icon name="search" size={15} />
+                  <input
+                    value={skuSearch}
+                    onChange={(e) => setSkuSearch(e.target.value)}
+                    onFocus={() => setSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && searchIdentifier && !exactCatalogMatch && !busy) runIdentifier(); }}
+                    placeholder="Search by SKU / title, or paste an ASIN / UPC…"
+                    aria-label="Search SKUs or research an identifier"
+                  />
+                  {selectedSku && (
+                    <button className="btn ghost sm" onClick={() => { setSelectedSku(''); setSkuSearch(''); }}>
+                      Manual item
+                    </button>
+                  )}
+                </div>
+
+                {searchFocused && !skuSearch.trim() && runs.length > 0 && (
+                  <div className="research-recent-dropdown">
+                    <div className="research-recent-head">Recent research</div>
+                    {runs.slice(0, 6).map((run) => {
+                      const input = (run.input || {}) as Record<string, any>;
+                      const label = input.sku || input.asin || input.identifier || run.publicId || run.id;
+                      return (
+                        <button
+                          key={run.id}
+                          className="research-recent-item"
+                          // onMouseDown (not onClick) so it fires before the input's blur closes the dropdown.
+                          onMouseDown={(e) => { e.preventDefault(); openRun(run.id); }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div className="mono strong" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
+                            <div className="research-muted">{String(run.runType).replace(/_/g, ' ')} · {run.publicId}</div>
+                          </div>
+                          <Chip tone={run.status === 'completed' ? 'green' : run.status === 'needs_data' ? 'amber' : 'blue'} dot={false}>{run.status.replace(/_/g, ' ')}</Chip>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
 
@@ -499,48 +588,6 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
         </div>
       )}
 
-      {(result || bulkResults.length > 0) && (
-        <div className="card research-results-card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Research results</div>
-              <div className="card-subtitle">Click a row for the full Keepa intelligence — verdict, charts, and list-to-marketplace.</div>
-            </div>
-            <Chip tone="purple" dot={false}>{result ? 'Single item' : `${bulkResults.length} rows`}</Chip>
-          </div>
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th>Keepa verdict</th>
-                  <th className="num">Score</th>
-                  <th className="num">Sales rank</th>
-                  <th>Readiness</th>
-                  <th>Next step</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(result ? [result] : bulkResults).slice(0, 100).map((row) => {
-                  const v = row.result.keepa?.verdict?.final_verdict || row.result.keepaVerdict;
-                  const vTone = v === 'favorable' ? 'green' : v === 'cautious' ? 'red' : v ? 'amber' : undefined;
-                  return (
-                    <tr key={row.id || row.sku} className="clickable" onClick={() => setActiveResult(row)} style={{ cursor: 'pointer' }}>
-                      <td className="mono strong">{row.sku}</td>
-                      <td>{v ? <Chip tone={vTone as any} dot={false}>{String(v).toUpperCase()}</Chip> : <Chip tone={riskTone(row.result.productRisk)}>{String(row.result.productRisk || row.status).replace(/_/g, ' ')}</Chip>}</td>
-                      <td className="num mono strong">{row.result.opportunityScore || 0}</td>
-                      <td className="num">{row.result.keepa?.salesRank != null ? Number(row.result.keepa.salesRank).toLocaleString() : '—'}</td>
-                      <td>{String(row.result.marketplaceReadiness || 'unknown').replace(/_/g, ' ')}</td>
-                      <td>{row.result.recommendedAction}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {activeResult && (
         <ProductResearchFullView
           row={activeResult}
@@ -550,36 +597,61 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
       )}
 
       <div className="research-bottom-grid">
-        <div className="card">
+        <div className="card research-history-card">
           <div className="card-header">
-            <div className="card-title">Recent research</div>
-            {latestRun?.confidence != null && <Confidence value={latestRun.confidence} />}
+            <div>
+              <div className="card-title">Research history &amp; results</div>
+              <div className="card-subtitle">Every run — freshest first. Click any row for the full Keepa intelligence: verdict, charts, and list-to-marketplace.</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {latestRun?.confidence != null && <Confidence value={latestRun.confidence} />}
+              <Chip tone="purple" dot={false}>{historyRows.length} {historyRows.length === 1 ? 'entry' : 'entries'}</Chip>
+            </div>
           </div>
-          <div style={{ padding: 0 }}>
-            {runs.length === 0 ? (
-              <EmptyState>No Product Research runs yet.</EmptyState>
-            ) : runs.slice(0, 8).map((run) => (
-              <div
-                key={run.id}
-                className="research-run-row"
-                role="button"
-                tabIndex={0}
-                onClick={() => openRun(run.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRun(run.id); } }}
-                style={{ cursor: 'pointer' }}
-                title="Open the enriched research view"
-              >
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{String(run.runType).replace(/_/g, ' ')}</div>
-                  <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{run.publicId} · {run.cortexStatus || 'pending cortex'}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Chip tone={run.status === 'completed' ? 'green' : run.status === 'needs_data' ? 'amber' : 'blue'}>{run.status.replace(/_/g, ' ')}</Chip>
-                  <Icon name="chevron" size={14} />
-                </div>
-              </div>
-            ))}
-          </div>
+          {historyRows.length === 0 ? (
+            <EmptyState>No research yet. Search a SKU or paste an ASIN / UPC above to run your first analysis.</EmptyState>
+          ) : (
+            <div className="table-wrap">
+              <table className="data research-history-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Verdict</th>
+                    <th className="num">Score</th>
+                    <th className="num">Sales rank</th>
+                    <th>Trend</th>
+                    <th>Status</th>
+                    <th aria-label="open" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyRows.map((row) => (
+                    <tr key={row.key} className="clickable" onClick={row.onOpen} style={{ cursor: 'pointer' }}>
+                      <td>
+                        <div className="research-history-product">
+                          <Thumb image={row.image} size={34} />
+                          <div style={{ minWidth: 0 }}>
+                            <div className="mono strong" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.sku}</div>
+                            <div className="research-muted">{row.title}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        {row.verdict
+                          ? <Chip tone={row.verdictTone as any} dot={false}>{row.verdict.toUpperCase()}</Chip>
+                          : <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>—</span>}
+                      </td>
+                      <td className="num mono strong">{row.score != null ? row.score : '—'}</td>
+                      <td className="num">{row.salesRank != null ? Number(row.salesRank).toLocaleString() : '—'}</td>
+                      <td>{row.spark.length >= 2 ? <Sparkline data={row.spark} width={72} height={24} color="var(--purple)" fill /> : <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>—</span>}</td>
+                      <td><Chip tone={row.statusTone as any} dot={false}>{row.statusLabel}</Chip></td>
+                      <td className="num"><Icon name="chevron" size={14} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="card">

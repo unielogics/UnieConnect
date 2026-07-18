@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Chip, Confidence } from '../ui';
 import { fetchChannelAccounts, mapItemToChannel, createCatalogItem, ChannelAccount, ProductResearchResult } from '../../../lib/oms';
 
@@ -16,45 +16,116 @@ const fmtUsd = (v: any) => (num(v) != null ? `$${Number(v).toFixed(2)}` : '—')
 const fmtPct = (v: any) => (num(v) != null ? `${Number(v).toFixed(0)}%` : '—');
 const titleCase = (s?: string | null) => (s ? String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—');
 
+// Keepa stores timestamps as "Keepa minutes" (minutes since 2011-01-01, offset 21564000).
+// unix_ms = (keepaMinutes + 21564000) * 60000.
+const keepaToDate = (t: number) => new Date((t + 21564000) * 60000);
+const fmtDate = (t: number, span: number) => {
+  const d = keepaToDate(t);
+  // span is in keepa minutes; > ~120 days → show "Mon 'YY", else "Mon D".
+  if (span > 120 * 24 * 60) return d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+const fmtDateFull = (t: number) => keepaToDate(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+// Amazon-orange for the Amazon price series, matching keepa.com's palette convention.
+const AMAZON_ORANGE = '#e77600';
+
 const VTONE: Record<string, { bg: string; fg: string; label: string }> = {
   favorable: { bg: 'var(--green-soft)', fg: 'var(--green-text)', label: 'FAVORABLE' },
   neutral: { bg: 'var(--amber-soft)', fg: 'var(--amber-text)', label: 'NEUTRAL' },
   cautious: { bg: 'var(--red-soft)', fg: 'var(--red-text)', label: 'CAUTIOUS' },
 };
 
-// ── Multi-series time-series chart (scaled up from the modal LineChart) ───────────────────
+type ChartField = { key: string; color: string; label: string; invert?: boolean; usd?: boolean; type?: 'line' | 'bars' };
+
+// Track the rendered pixel width of a container so the chart draws crisp text + maps hover 1:1.
+function useMeasuredWidth(fallback = 640) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [w, setW] = useState(fallback);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      const cw = entries[0]?.contentRect?.width;
+      if (cw && cw > 0) setW(cw);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return { ref, width: w };
+}
+
+// ── Interactive keepa.com-style time-series chart ─────────────────────────────────────────
+// Real date axis, hover crosshair + tooltip, y-gridlines, and Amazon out-of-stock shading.
 function KeepaChart({
-  series, fields, height = 150, title, hint,
+  series, fields, height = 200, title, hint, showAmazonStock = false,
 }: {
   series: Pt[];
-  fields: { key: string; color: string; label: string; invert?: boolean; usd?: boolean }[];
+  fields: ChartField[];
   height?: number;
   title: string;
   hint?: string;
+  showAmazonStock?: boolean;
 }) {
-  const W = 640, H = height, pad = 6;
-  const ts = series.map((p) => (typeof p.t === 'number' ? (p.t as number) : 0));
-  const tMin = Math.min(...ts), tMax = Math.max(...ts);
-  const x = (t: number) => pad + ((t - tMin) / (tMax - tMin || 1)) * (W - 2 * pad);
-  const drawn = fields
-    .map((f) => {
-      const pts = series
-        .map((p) => ({ t: typeof p.t === 'number' ? (p.t as number) : 0, v: num((p as any)[f.key]) }))
-        .filter((d) => d.v != null) as { t: number; v: number }[];
-      if (pts.length < 2) return null;
-      const vMin = Math.min(...pts.map((d) => d.v));
-      const vMax = Math.max(...pts.map((d) => d.v));
-      const y = (v: number) => {
-        const nrm = (v - vMin) / (vMax - vMin || 1);
-        return pad + (f.invert ? nrm : 1 - nrm) * (H - 2 * pad);
-      };
-      const path = pts.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(d.t).toFixed(1)} ${y(d.v).toFixed(1)}`).join(' ');
-      const last = pts[pts.length - 1].v;
-      return { f, path, last };
-    })
-    .filter(Boolean) as { f: any; path: string; last: number }[];
+  const { ref, width: W } = useMeasuredWidth();
+  const [hover, setHover] = useState<number | null>(null);
 
-  if (!drawn.length) {
+  const padL = 46, padR = 14, padT = 12, padB = 26;
+  const innerW = Math.max(10, W - padL - padR);
+  const innerH = Math.max(10, height - padT - padB);
+
+  const model = useMemo(() => {
+    const ts = series.map((p) => (typeof p.t === 'number' ? (p.t as number) : 0));
+    if (ts.length < 2) return null;
+    const tMin = Math.min(...ts), tMax = Math.max(...ts);
+    const span = tMax - tMin || 1;
+    const xOf = (t: number) => padL + ((t - tMin) / span) * innerW;
+
+    const drawn = fields
+      .map((f) => {
+        const pts = series
+          .map((p) => ({ t: typeof p.t === 'number' ? (p.t as number) : 0, v: num((p as any)[f.key]) }))
+          .filter((d) => d.v != null) as { t: number; v: number }[];
+        if (pts.length < 2 && f.type !== 'bars') return null;
+        if (!pts.length) return null;
+        const vMin = Math.min(...pts.map((d) => d.v));
+        const vMax = Math.max(...pts.map((d) => d.v));
+        const yOf = (v: number) => {
+          const nrm = (v - vMin) / (vMax - vMin || 1);
+          return padT + (f.invert ? nrm : 1 - nrm) * innerH;
+        };
+        const path = pts.map((d, i) => `${i === 0 ? 'M' : 'L'} ${xOf(d.t).toFixed(1)} ${yOf(d.v).toFixed(1)}`).join(' ');
+        return { f, pts, vMin, vMax, yOf, path, last: pts[pts.length - 1].v };
+      })
+      .filter(Boolean) as any[];
+    if (!drawn.length) return null;
+
+    // Amazon out-of-stock bands: contiguous runs where amazon_in_stock === false.
+    const bands: { x0: number; x1: number }[] = [];
+    let inStockCount = 0, stockTotal = 0;
+    if (showAmazonStock) {
+      let runStart: number | null = null;
+      series.forEach((p, i) => {
+        const s = (p as any).amazon_in_stock;
+        if (s === true || s === false) { stockTotal += 1; if (s === true) inStockCount += 1; }
+        const t = typeof p.t === 'number' ? (p.t as number) : 0;
+        if (s === false && runStart === null) runStart = t;
+        if (s !== false && runStart !== null) { bands.push({ x0: xOf(runStart), x1: xOf(t) }); runStart = null; }
+        if (i === series.length - 1 && runStart !== null) bands.push({ x0: xOf(runStart), x1: xOf(t) });
+      });
+    }
+    const stockPct = stockTotal ? Math.round((inStockCount / stockTotal) * 100) : null;
+
+    // ~5 evenly spaced x-axis date ticks.
+    const ticks = Array.from({ length: 5 }, (_, i) => {
+      const t = tMin + (span * i) / 4;
+      return { x: xOf(t), label: fmtDate(t, span) };
+    });
+
+    return { ts, tMin, tMax, span, xOf, drawn, bands, stockPct, ticks };
+  }, [series, fields, W, innerW, innerH, showAmazonStock, height]);
+
+  if (!model) {
     return (
       <div style={panel}>
         <div style={panelTitle}>{title}</div>
@@ -62,22 +133,123 @@ function KeepaChart({
       </div>
     );
   }
+
+  const { ts, xOf, drawn, bands, stockPct, ticks } = model;
+
+  // Map a mouse X (in svg px, 1:1 with container px) to the nearest data index.
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < ts.length; i += 1) {
+      const d = Math.abs(xOf(ts[i]) - mx);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    setHover(best);
+  };
+
+  const hoverT = hover != null ? ts[hover] : null;
+  const hoverX = hoverT != null ? xOf(hoverT) : null;
+  const tooltipLeft = hoverX != null ? Math.min(Math.max(hoverX + 10, 4), Math.max(4, W - 168)) : 0;
+
   return (
-    <div style={panel}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+    <div style={panel} ref={ref}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
         <span style={panelTitle}>{title}</span>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {drawn.map((d) => (
-            <span key={d.f.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--text-secondary)' }}>
-              <span style={{ width: 9, height: 9, borderRadius: 2, background: d.f.color }} />
-              {d.f.label}: <strong style={{ color: 'var(--text)' }}>{d.f.usd ? `$${d.last.toFixed(2)}` : Math.round(d.last).toLocaleString()}</strong>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          {showAmazonStock && stockPct != null && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--text-secondary)' }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: AMAZON_ORANGE }} />
+              Amazon in-stock <strong style={{ color: 'var(--text)' }}>{stockPct}%</strong>
             </span>
-          ))}
+          )}
+          {drawn.map((d: any) => {
+            const shown = hover != null ? num((series[hover] as any)[d.f.key]) : d.last;
+            return (
+              <span key={d.f.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                <span style={{ width: 9, height: 9, borderRadius: 2, background: d.f.color }} />
+                {d.f.label}: <strong style={{ color: 'var(--text)' }}>{shown == null ? '—' : d.f.usd ? `$${Number(shown).toFixed(2)}` : Math.round(Number(shown)).toLocaleString()}</strong>
+              </span>
+            );
+          })}
         </div>
       </div>
-      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block' }}>
-        {drawn.map((d) => <path key={d.f.key} d={d.path} fill="none" stroke={d.f.color} strokeWidth={1.8} />)}
-      </svg>
+
+      <div style={{ position: 'relative' }}>
+        <svg
+          width={W} height={height} viewBox={`0 0 ${W} ${height}`}
+          style={{ display: 'block', cursor: 'crosshair' }}
+          onMouseMove={onMove}
+          onMouseLeave={() => setHover(null)}
+        >
+          {/* horizontal gridlines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((g) => {
+            const y = padT + g * innerH;
+            return <line key={g} x1={padL} y1={y} x2={W - padR} y2={y} stroke="var(--border-subtle)" strokeWidth={1} />;
+          })}
+          {/* Amazon out-of-stock shaded bands */}
+          {bands.map((b: any, i: number) => (
+            <rect key={i} x={b.x0} y={padT} width={Math.max(1, b.x1 - b.x0)} height={innerH} fill="var(--red-text)" opacity={0.08} />
+          ))}
+          {/* x-axis date ticks */}
+          {ticks.map((tk: any, i: number) => (
+            <text key={i} x={tk.x} y={height - 8} fontSize={10} fill="var(--text-tertiary)" textAnchor={i === 0 ? 'start' : i === ticks.length - 1 ? 'end' : 'middle'}>{tk.label}</text>
+          ))}
+          {/* series */}
+          {drawn.map((d: any) => (
+            d.f.type === 'bars' ? (
+              <g key={d.f.key}>
+                {d.pts.map((p: any, i: number) => {
+                  const bw = Math.max(1, (innerW / d.pts.length) * 0.7);
+                  const y = d.yOf(p.v);
+                  return <rect key={i} x={xOf(p.t) - bw / 2} y={y} width={bw} height={Math.max(0, padT + innerH - y)} fill={d.f.color} opacity={0.55} />;
+                })}
+              </g>
+            ) : (
+              <path key={d.f.key} d={d.path} fill="none" stroke={d.f.color} strokeWidth={1.8} strokeLinejoin="round" />
+            )
+          ))}
+          {/* hover crosshair + markers */}
+          {hoverX != null && (
+            <>
+              <line x1={hoverX} y1={padT} x2={hoverX} y2={padT + innerH} stroke="var(--text-tertiary)" strokeWidth={1} strokeDasharray="3 3" />
+              {drawn.filter((d: any) => d.f.type !== 'bars').map((d: any) => {
+                const v = num((series[hover as number] as any)[d.f.key]);
+                if (v == null) return null;
+                return <circle key={d.f.key} cx={hoverX} cy={d.yOf(v)} r={3.2} fill={d.f.color} stroke="var(--bg-elev)" strokeWidth={1.5} />;
+              })}
+            </>
+          )}
+        </svg>
+        {hoverT != null && (
+          <div style={{
+            position: 'absolute', top: 4, left: tooltipLeft, pointerEvents: 'none',
+            background: 'var(--bg-elev)', border: '1px solid var(--border)', borderRadius: 8,
+            boxShadow: 'var(--shadow-pop)', padding: '7px 9px', fontSize: 11, minWidth: 150, zIndex: 2,
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: 4, color: 'var(--text)' }}>{fmtDateFull(hoverT)}</div>
+            {drawn.map((d: any) => {
+              const v = num((series[hover as number] as any)[d.f.key]);
+              return (
+                <div key={d.f.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: 'var(--text-secondary)' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: d.f.color }} />{d.f.label}
+                  </span>
+                  <strong style={{ color: 'var(--text)' }}>{v == null ? '—' : d.f.usd ? `$${v.toFixed(2)}` : Math.round(v).toLocaleString()}</strong>
+                </div>
+              );
+            })}
+            {showAmazonStock && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                <span>Amazon</span>
+                <strong style={{ color: (series[hover as number] as any).amazon_in_stock === false ? 'var(--red-text)' : 'var(--green-text)' }}>
+                  {(series[hover as number] as any).amazon_in_stock === false ? 'Out of stock' : 'In stock'}
+                </strong>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {hint && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>{hint}</div>}
     </div>
   );
@@ -127,6 +299,7 @@ export const ProductResearchFullView = ({ row, onClose, onListed }: {
   const opp = ex.opportunity_summary_ux || k.opportunity || {};
   const chart = (ex.keepa_trend_bundle && ex.keepa_trend_bundle.chart) || k.charts || {};
   const series: Pt[] = Array.isArray(chart.series) ? chart.series : [];
+  const ordersSeries: Pt[] = Array.isArray(chart.daily_orders_series) ? chart.daily_orders_series : [];
   const dq = ex.data_quality || {};
   const econ = ex.listing_economics_reference || {};
   const bbCtx = ex.buybox_context || {};
@@ -234,13 +407,42 @@ export const ProductResearchFullView = ({ row, onClose, onListed }: {
           {est.status === 'partial' && est.message && <div style={{ marginTop: 8 }}><PartialHint note={est.message} /></div>}
         </Section>
 
-        {/* 3. CHARTS GRID */}
+        {/* 3. CHARTS GRID — interactive keepa.com-style (hover tooltip, date axis, Amazon-stock shading) */}
         {series.length >= 2 ? (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <KeepaChart title="Sales rank history" series={series} fields={[{ key: 'sales_rank', color: 'var(--purple)', label: 'BSR', invert: false }]} hint="Lower is better — line up = improving rank." />
-            <KeepaChart title="Price history" series={series} fields={[{ key: 'amazon_price_usd', color: 'var(--blue-text)', label: 'Amazon', invert: true, usd: true }, { key: 'buy_box_landed_usd', color: 'var(--green-text)', label: 'Buy box', invert: true, usd: true }]} />
-            <KeepaChart title="Offer count" series={series} fields={[{ key: 'new_offer_count', color: 'var(--amber-text)', label: 'Offers', invert: true }]} hint="Number of competing new offers over time." />
-            <KeepaChart title="Reviews" series={series} fields={[{ key: 'review_count', color: 'var(--text-secondary)', label: 'Reviews', invert: true }]} />
+            <KeepaChart
+              title="Price history"
+              series={series}
+              showAmazonStock
+              fields={[
+                { key: 'amazon_price_usd', color: AMAZON_ORANGE, label: 'Amazon', usd: true },
+                { key: 'buy_box_landed_usd', color: 'var(--green-text)', label: 'Buy box', usd: true },
+              ]}
+              hint="Amazon (orange) vs buy-box landed price. Red bands = Amazon out of stock."
+            />
+            <KeepaChart
+              title="Sales rank history"
+              series={series}
+              fields={[{ key: 'sales_rank', color: 'var(--purple)', label: 'BSR', invert: true }]}
+              hint="Best rank at the top (Keepa convention). Higher line = selling faster."
+            />
+            {ordersSeries.length >= 2 && (
+              <KeepaChart
+                title="Estimated daily orders"
+                series={ordersSeries}
+                fields={[{ key: 'daily_orders_est', color: 'var(--blue-text)', label: 'Orders/day', type: 'bars' }]}
+                hint="Cortex demand estimate derived from Keepa rank velocity."
+              />
+            )}
+            <KeepaChart
+              title="Offers & reviews"
+              series={series}
+              fields={[
+                { key: 'new_offer_count', color: 'var(--amber-text)', label: 'Offers' },
+                { key: 'review_count', color: 'var(--text-secondary)', label: 'Reviews' },
+              ]}
+              hint="Competing offers and cumulative review count over time."
+            />
           </div>
         ) : (
           <Section title="History charts"><PartialHint note="No Keepa time-series available for this identifier." /></Section>
