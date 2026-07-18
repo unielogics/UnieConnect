@@ -266,19 +266,15 @@ const Kv = ({ label, value }: { label: string; value?: string }) => (
 );
 
 const InventoryRows = ({ detail }: { detail: OmsWarehouseDetail }) => (
-  <SimpleTable empty="No SKU inventory snapshots for this warehouse." headers={['SKU', 'Product', 'Available', 'Inbound', 'Orders', 'Receiving', 'Status', 'Updated']}>
+  <SimpleTable empty="No SKU inventory snapshots for this warehouse." headers={['', 'SKU', 'Product', 'Available', 'Inbound', 'Orders', 'Receiving', 'Status', 'Updated']}>
     {detail.inventory.map((row) => (
       <tr
         key={row.id}
         style={row.reorderNeeded ? { boxShadow: 'inset 3px 0 0 var(--amber, #f59e0b)', background: 'var(--amber-soft, rgba(245,158,11,0.08))' } : undefined}
       >
+        <td style={{ width: 40 }}><Thumb image={row.image} size={30} /></td>
         <td className="mono strong">{row.sku}</td>
-        <td>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Thumb image={row.image} size={30} />
-            <span>{row.title || row.sku}</span>
-          </div>
-        </td>
+        <td>{row.title || row.sku}</td>
         <td className="num mono strong">{fmt.num(row.available)}</td>
         <td className="num mono">{fmt.num(row.inbound)}</td>
         <td className="num mono">{fmt.num(row.orders)}</td>

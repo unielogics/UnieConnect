@@ -203,6 +203,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
               <thead>
                 <tr>
                   <th style={{ width: 28 }} />
+                  <th style={{ width: 44 }} />
                   <th>SKU</th>
                   <th>Product</th>
                   <th className="num">Available</th>
@@ -263,18 +264,16 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                           onChange={() => toggleSelect({ id: s.id, name: s.title || s.sku, ...(s as any) })}
                         />
                       </td>
+                      <td><Thumb image={s.image} size={34} /></td>
                       <td className="mono strong">
                         {s.sku}
                         <KeepaMarker sku={s} />
                       </td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Thumb image={s.image} size={34} />
-                          <span style={{ color: 'var(--text)' }}>
-                            {s.title || '—'}
-                            <KeepaMarker sku={s} />
-                          </span>
-                        </div>
+                        <span style={{ color: 'var(--text)' }}>
+                          {s.title || '—'}
+                          <KeepaMarker sku={s} />
+                        </span>
                       </td>
                       <td className="num mono strong">{(s.available ?? 0).toLocaleString()}</td>
                       <td className="num mono muted">{s.inbound > 0 ? s.inbound.toLocaleString() : '—'}</td>
