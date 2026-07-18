@@ -241,7 +241,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
       )}
       {isEmptyWindow && (
         <div className="card" style={{ marginBottom: 12, borderLeft: '3px solid var(--border)', padding: '12px 16px', fontSize: 12.5, color: 'var(--text-secondary)' }}>
-          No charges were billed in this window. Storage and daily fees post overnight for the previous day, so <strong style={{ color: 'var(--text)' }}>Today</strong> is usually empty until late evening — try 7 days or 30 days for recent activity.
+          No charges were billed in this window yet. Storage and daily fees post nightly — try 7 days or 30 days to see recent activity.
         </div>
       )}
 
