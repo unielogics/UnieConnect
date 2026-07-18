@@ -1621,11 +1621,14 @@ const NextSixShipments = ({ data }: { data: OmsSkuDetail }) => {
               alignItems: 'center',
             }}
           >
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{(s.date || '').split('-').slice(1).join('/') || '—'}</div>
+            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+              {/* s.date is a full ISO datetime (2026-06-22T13:33:24.9Z), not YYYY-MM-DD — take
+                  the MM/DD calendar date only. minWidth:0 + overflow:hidden + nowrap keep this
+                  fixed 90px column from ever painting over the id/status column. */}
+              <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{(s.date || '').slice(5, 10).replace('-', '/') || '—'}</div>
               <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{(s.date || '').slice(0, 4)}</div>
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                 <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{s.id}</span>
                 <StatusChip status={s.status} />
