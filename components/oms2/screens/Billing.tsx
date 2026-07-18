@@ -182,6 +182,9 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
   const perWh = data.perWarehouse || [];
   const totalDeltaPct = data.deltaPct?.total ?? 0;
   const hasApprovedPlan = (data.totals as any)?.savingsSource === 'approved_overrides' && savings > 0;
+  const isEstimate = data.source === 'estimate';
+  const isEmptyWindow = data.source === 'empty';
+  const categoryRecCount = recommendations.filter((r) => r.entityId).length;
   const sparkData = (data.series || []).map((s) => s.total);
   const rangeLabel = custom
     ? `${(custom.from || '').slice(0, 10)} → ${new Date(nextDayIsoBack(custom.to)).toISOString().slice(0, 10)}`
@@ -192,7 +195,11 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
       <div className="page-header">
         <div>
           <h1 className="page-title">Billing &amp; Profit</h1>
-          <p className="page-subtitle">Daily invoice tracking cockpit. Every line reconciled against WMS truth, linked to its Order / ASN.</p>
+          <p className="page-subtitle">
+            {isEstimate
+              ? 'Projected from account activity — no WMS invoices have synced yet.'
+              : 'Daily invoice tracking cockpit. Every line reconciled against WMS truth, linked to its Order / ASN.'}
+          </p>
         </div>
         <div className="page-actions" style={{ position: 'relative' }}>
           <div className="seg">
@@ -227,6 +234,17 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
         </div>
       </div>
 
+      {isEstimate && (
+        <div className="card" style={{ marginBottom: 12, borderLeft: '3px solid var(--amber, #f59e0b)', padding: '12px 16px', fontSize: 12.5, color: 'var(--text-secondary)' }}>
+          <strong style={{ color: 'var(--text)' }}>Modeled estimate.</strong> No WMS invoices have synced for your account yet — these figures are illustrative, not billed charges.
+        </div>
+      )}
+      {isEmptyWindow && (
+        <div className="card" style={{ marginBottom: 12, borderLeft: '3px solid var(--border)', padding: '12px 16px', fontSize: 12.5, color: 'var(--text-secondary)' }}>
+          No charges were billed in this window. Storage and daily fees post overnight for the previous day, so <strong style={{ color: 'var(--text)' }}>Today</strong> is usually empty until late evening — try 7 days or 30 days for recent activity.
+        </div>
+      )}
+
       <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 50%)' }}>
         <div className="card-body" style={{ padding: 22 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr', gap: 28, alignItems: 'center' }}>
@@ -235,7 +253,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
               <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em' }}>{fmt.money(currentTotal)}</div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>{rangeLabel}</span>
-                {data.previous && (
+                {data.previous && !isEstimate && !isEmptyWindow && currentTotal > 0 && (
                   <span style={{ color: totalDeltaPct > 0 ? 'var(--red-text)' : 'var(--green-text)', fontWeight: 600 }}>
                     {totalDeltaPct > 0 ? '+' : ''}{totalDeltaPct}% vs prior period
                   </span>
@@ -283,6 +301,52 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
           </div>
         </div>
       </div>
+
+      {screenRec && !hasApprovedPlan && (
+        <div
+          className="card"
+          style={{ marginBottom: 16, border: '1px solid var(--purple)', background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 100%)', display: 'flex', alignItems: 'center', gap: 20, padding: '18px 22px', flexWrap: 'wrap' }}
+        >
+          <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-elev)', border: '2px solid var(--purple)', display: 'grid', placeItems: 'center', color: 'var(--purple)', flexShrink: 0 }}>
+            <Icon name="sparkle" size={22} />
+          </div>
+          <div style={{ minWidth: 220, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 15, fontWeight: 800 }}>AI Savings Plan ready to approve</span>
+              <Chip tone="purple" dot={false}>{recommendations.length} suggestion{recommendations.length === 1 ? '' : 's'}</Chip>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Cortex found a lower-cost billing plan for {rangeLabel}. Review the suggested rate changes and approve to apply the projected discounts{categoryRecCount ? ` across ${categoryRecCount} categor${categoryRecCount === 1 ? 'y' : 'ies'}` : ''}.
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', minWidth: 130 }}>
+            <div style={{ fontSize: 11, color: 'var(--green-text)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Projected savings</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--green-text)', letterSpacing: '-0.02em' }}>{fmt.money(savings)}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--green-text)', fontWeight: 600 }}>{savingsPct.toFixed(1)}% lower · {rangeLabel}</div>
+          </div>
+          <button className="btn primary" style={{ flexShrink: 0 }} onClick={() => setSelectedRec(screenRec)}>
+            <Icon name="sparkle" size={13} /> Review &amp; approve plan
+          </button>
+        </div>
+      )}
+
+      {hasApprovedPlan && (
+        <div
+          className="card"
+          style={{ marginBottom: 16, borderLeft: '3px solid var(--green, #16a34a)', display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px', flexWrap: 'wrap' }}
+        >
+          <Icon name="check" size={18} style={{ color: 'var(--green-text)' }} />
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700 }}>AI Savings Plan approved</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              {fmt.money(savings)} projected savings ({savingsPct.toFixed(1)}%) · projection until WMS re-rates
+            </div>
+          </div>
+          {screenRec && (
+            <button className="btn ghost sm" onClick={() => setSelectedRec(screenRec)}>Review plan</button>
+          )}
+        </div>
+      )}
 
       {data.forecast?.storage && (
         <div
@@ -405,8 +469,12 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                     {c.current ? ((delta / c.current) * 100).toFixed(0) : 0}%
                   </div>
                 </div>
-                <div>
-                  <CortexRowAction rec={rec} onOpen={() => rec && setSelectedRec(rec)} />
+                <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  {rec ? (
+                    <button className="btn sm primary" onClick={() => setSelectedRec(rec)} data-hint="Review Cortex optimization">
+                      <Icon name="sparkle" size={12} /> Review &amp; approve
+                    </button>
+                  ) : null}
                 </div>
               </div>
             );

@@ -552,7 +552,8 @@ export type BillingProfitResponse = {
   deltaPct?: Record<string, number>;
   series?: Array<{ date: string; total: number; lineCount: number; byCategory: Record<string, number> }>;
   perWarehouse?: Array<{ code: string; region?: string; current: number; optimized: number }>;
-  totals?: { current: number; optimized: number; savings: number; savingsPct: number };
+  totals?: { current: number; optimized: number; savings: number; savingsPct: number; savingsSource?: 'approved_overrides' | 'none'; appliedCategories?: string[] };
+  accountHasInvoices?: boolean;
   forecast?: {
     storage: {
       mtd: number;
@@ -565,7 +566,7 @@ export type BillingProfitResponse = {
       daily?: Array<{ date: string; charge: number }>;
     };
   };
-  source?: 'wms_invoices' | 'estimate';
+  source?: 'wms_invoices' | 'empty' | 'estimate';
 };
 
 export type BillingInvoiceLink = { omsId: string; number: string; publicId: string };
