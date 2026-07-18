@@ -155,9 +155,40 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
           };
       const response = await runProductResearch(payload);
       setResult(response.result);
+      if (response.result) setActiveResult(response.result);
       await load();
     } catch (e: any) {
       setErr(e.message || 'Product Research failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // The search text looks like a raw identifier (ASIN or UPC/EAN/GTIN), not a catalog search.
+  const searchIdentifier = useMemo(() => {
+    const q = skuSearch.trim().toUpperCase();
+    if (/^[A-Z0-9]{10}$/.test(q) && !/^\d{10}$/.test(q)) return { value: q, kind: 'ASIN' as const };
+    if (/^\d{12,14}$/.test(q)) return { value: q, kind: 'UPC/EAN' as const };
+    return null;
+  }, [skuSearch]);
+  const exactCatalogMatch = useMemo(
+    () => skus.some((s) => s.sku?.toUpperCase() === skuSearch.trim().toUpperCase() || (s.asin || '').toUpperCase() === skuSearch.trim().toUpperCase()),
+    [skus, skuSearch],
+  );
+
+  // Research a pasted identifier directly against Keepa via Cortex (no catalog SKU required).
+  const runIdentifier = async () => {
+    const id = skuSearch.trim();
+    if (!id) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const response = await runProductResearch({ sku: id, asin: id, identifier: id });
+      setResult(response.result);
+      if (response.result) setActiveResult(response.result);
+      await load();
+    } catch (e: any) {
+      setErr(e.message || 'Keepa lookup failed for that identifier');
     } finally {
       setBusy(false);
     }
@@ -270,8 +301,9 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
                 <input
                   value={skuSearch}
                   onChange={(e) => setSkuSearch(e.target.value)}
-                  placeholder="Search by SKU or title..."
-                  aria-label="Search SKUs"
+                  onKeyDown={(e) => { if (e.key === 'Enter' && searchIdentifier && !exactCatalogMatch && !busy) runIdentifier(); }}
+                  placeholder="Search by SKU / title, or paste an ASIN / UPC…"
+                  aria-label="Search SKUs or research an identifier"
                 />
                 {selectedSku && (
                   <button className="btn ghost sm" onClick={() => { setSelectedSku(''); setSkuSearch(''); }}>
@@ -280,9 +312,24 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
                 )}
               </div>
 
+              {searchIdentifier && !exactCatalogMatch && (
+                <button
+                  className="btn primary"
+                  style={{ width: '100%', marginTop: 10, justifyContent: 'center' }}
+                  onClick={runIdentifier}
+                  disabled={busy}
+                >
+                  <Icon name="sparkle" size={14} /> {busy ? 'Researching…' : `Research ${searchIdentifier.kind} ${searchIdentifier.value} on Keepa`}
+                </button>
+              )}
+
               <div className="research-sku-list">
                 {filteredSkus.length === 0 ? (
-                  <EmptyState>No matching SKUs. Enter the item manually below.</EmptyState>
+                  searchIdentifier ? (
+                    <EmptyState>Not in your catalog yet — click “Research {searchIdentifier.kind}” above to pull it from Keepa via Cortex.</EmptyState>
+                  ) : (
+                    <EmptyState>No matching SKUs. Paste an ASIN/UPC to research a new product, or enter it manually below.</EmptyState>
+                  )
                 ) : filteredSkus.map((sku) => (
                   <button
                     key={sku.id}
