@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, Sparkline, Loading, ErrorState, EmptyState, Thumb, useCloseOnOmsNavigation } from '../ui';
 import { DecisionComparison } from '../DecisionComparison';
+import { CortexPlanApprovals } from '../CortexPlanApprovals';
 import { useCtxMenu } from '../ContextMenu';
 import {
   approveRecommendation,
@@ -111,6 +112,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
 
   return (
     <div className="page fade-in">
+      <CortexPlanApprovals />
       <div className="page-header">
         <div>
           <h1 className="page-title">SKUs</h1>

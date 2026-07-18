@@ -1457,3 +1457,33 @@ export const addTicketMessage = (
     method: 'POST',
     body: JSON.stringify(body),
   });
+
+// Cortex placement plans relayed from the owning warehouse for the client's final approval.
+export type CortexPlan = {
+  id: string;
+  decision_id: string;
+  warehouse_code?: string | null;
+  owning_warehouse_code?: string | null;
+  plan: any;
+  summary?: string | null;
+  total_savings_usd?: number | null;
+  status: string;
+  approved_at?: string | null;
+  executed_at?: string | null;
+  created_at?: string | null;
+};
+
+export const fetchCortexPlans = (status?: string) =>
+  omsFetch<{ plans: CortexPlan[] }>(`/cortex/plans${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+
+export const approveCortexPlan = (id: string) =>
+  omsFetch<{ ok: boolean; status: string; wms?: any }>(`/cortex/plans/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+
+export const declineCortexPlan = (id: string) =>
+  omsFetch<{ ok: boolean; status: string }>(`/cortex/plans/${encodeURIComponent(id)}/decline`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
