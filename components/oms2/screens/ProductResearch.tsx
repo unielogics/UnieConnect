@@ -621,7 +621,7 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
                     <th className="num">Sales rank</th>
                     <th>Trend</th>
                     <th>Status</th>
-                    <th aria-label="open" />
+                    <th className="num" aria-label="open" />
                   </tr>
                 </thead>
                 <tbody>

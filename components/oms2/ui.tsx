@@ -250,7 +250,9 @@ export const Gauge = ({
   const largeArc = angle - -120 > 180 ? 1 : 0;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-      <svg width={size} height={size * 0.74}>
+      {/* Explicit viewBox + small height headroom + overflow visible so the round-capped arc
+          endpoints (at y≈0.75·size) and the target tick (radius r+6) never clip at the edge. */}
+      <svg width={size} height={size * 0.78} viewBox={`0 0 ${size} ${size * 0.78}`} style={{ overflow: 'visible' }}>
         <path d={`M${arcStart.x} ${arcStart.y} A ${r} ${r} 0 1 1 ${arcEnd.x} ${arcEnd.y}`} fill="none" stroke="var(--bg-active)" strokeWidth="6" strokeLinecap="round" />
         <path d={`M${arcStart.x} ${arcStart.y} A ${r} ${r} 0 ${largeArc} 1 ${arcVal.x} ${arcVal.y}`} fill="none" stroke={colorMap[tone]} strokeWidth="6" strokeLinecap="round" />
         <line x1={polar(cx, cy, r - 6, targetAngle).x} y1={polar(cx, cy, r - 6, targetAngle).y} x2={polar(cx, cy, r + 6, targetAngle).x} y2={polar(cx, cy, r + 6, targetAngle).y} stroke="var(--text-secondary)" strokeWidth="1.5" />

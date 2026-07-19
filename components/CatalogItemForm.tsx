@@ -36,7 +36,9 @@ export function CatalogItemForm({
     category: item?.category || '',
     subCategory: item?.subCategory || '',
     lob: item?.lob || '',
-    weight: item?.weight != null ? String(item.weight) : '',
+    // Round to 2 decimals on display so already-cached 3-decimal Keepa weights (pre-fix rows)
+    // render cleanly without waiting for a re-fetch; matches the input's step="0.01".
+    weight: item?.weight != null ? String(Math.round(item.weight * 100) / 100) : '',
     length: item?.dimensions?.length != null ? String(item.dimensions.length) : '',
     width: item?.dimensions?.width != null ? String(item.dimensions.width) : '',
     height: item?.dimensions?.height != null ? String(item.dimensions.height) : '',

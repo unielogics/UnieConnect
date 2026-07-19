@@ -73,6 +73,8 @@ function KeepaChart({
   const padL = 46, padR = 14, padT = 12, padB = 26;
   const innerW = Math.max(10, W - padL - padR);
   const innerH = Math.max(10, height - padT - padB);
+  // Single source of truth for the tooltip width so the right-edge clamp and the box agree.
+  const TOOLTIP_W = 150;
 
   const model = useMemo(() => {
     const ts = series.map((p) => (typeof p.t === 'number' ? (p.t as number) : 0));
@@ -122,7 +124,24 @@ function KeepaChart({
       return { x: xOf(t), label: fmtDate(t, span) };
     });
 
-    return { ts, tMin, tMax, span, xOf, drawn, bands, stockPct, ticks };
+    // y-axis value labels for the PRIMARY series (drawn[0]) — fills the padL gutter that was
+    // previously reserved but empty, so the plot reads as framed rather than shoved right.
+    // Aligned to the same 5 gridline fractions (top→bottom); honors invert (BSR) + usd formatting.
+    const primary = drawn[0];
+    const yTicks = primary
+      ? [0, 0.25, 0.5, 0.75, 1].map((g) => {
+          const y = padT + g * innerH;
+          // g=0 is the top gridline. For a normal series the top = vMax; for inverted (rank) the top = vMin.
+          const frac = primary.f.invert ? g : 1 - g;
+          const v = primary.vMin + frac * (primary.vMax - primary.vMin);
+          const label = primary.f.usd
+            ? `$${v.toFixed(v >= 100 ? 0 : 2)}`
+            : Math.round(v).toLocaleString();
+          return { y, label };
+        })
+      : [];
+
+    return { ts, tMin, tMax, span, xOf, drawn, bands, stockPct, ticks, yTicks };
   }, [series, fields, W, innerW, innerH, showAmazonStock, height]);
 
   if (!model) {
@@ -134,7 +153,7 @@ function KeepaChart({
     );
   }
 
-  const { ts, xOf, drawn, bands, stockPct, ticks } = model;
+  const { ts, xOf, drawn, bands, stockPct, ticks, yTicks } = model;
 
   // Map a mouse X (in svg px, 1:1 with container px) to the nearest data index.
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -150,7 +169,7 @@ function KeepaChart({
 
   const hoverT = hover != null ? ts[hover] : null;
   const hoverX = hoverT != null ? xOf(hoverT) : null;
-  const tooltipLeft = hoverX != null ? Math.min(Math.max(hoverX + 10, 4), Math.max(4, W - 168)) : 0;
+  const tooltipLeft = hoverX != null ? Math.min(Math.max(hoverX + 10, 4), Math.max(4, W - TOOLTIP_W - 8)) : 0;
 
   return (
     <div style={panel} ref={ref}>
@@ -187,6 +206,10 @@ function KeepaChart({
             const y = padT + g * innerH;
             return <line key={g} x1={padL} y1={y} x2={W - padR} y2={y} stroke="var(--border-subtle)" strokeWidth={1} />;
           })}
+          {/* y-axis value labels (primary series) in the left gutter */}
+          {yTicks.map((yt: any, i: number) => (
+            <text key={`y${i}`} x={padL - 6} y={yt.y + 3} fontSize={9.5} fill="var(--text-tertiary)" textAnchor="end">{yt.label}</text>
+          ))}
           {/* Amazon out-of-stock shaded bands */}
           {bands.map((b: any, i: number) => (
             <rect key={i} x={b.x0} y={padT} width={Math.max(1, b.x1 - b.x0)} height={innerH} fill="var(--red-text)" opacity={0.08} />
@@ -225,7 +248,7 @@ function KeepaChart({
           <div style={{
             position: 'absolute', top: 4, left: tooltipLeft, pointerEvents: 'none',
             background: 'var(--bg-elev)', border: '1px solid var(--border)', borderRadius: 8,
-            boxShadow: 'var(--shadow-pop)', padding: '7px 9px', fontSize: 11, minWidth: 150, zIndex: 2,
+            boxShadow: 'var(--shadow-pop)', padding: '7px 9px', fontSize: 11, minWidth: TOOLTIP_W, zIndex: 2,
           }}>
             <div style={{ fontWeight: 700, marginBottom: 4, color: 'var(--text)' }}>{fmtDateFull(hoverT)}</div>
             {drawn.map((d: any) => {

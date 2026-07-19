@@ -44,8 +44,10 @@ function LineChart({ points, field, color, label, invert }: { points: Pt[]; fiel
         <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)' }}>{label}</span>
         <span style={{ fontSize: 12, fontWeight: 700, color }}>{Math.round(last).toLocaleString()}</span>
       </div>
-      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block' }}>
-        <path d={line} fill="none" stroke={color} strokeWidth={1.8} />
+      {/* No preserveAspectRatio="none": that non-uniformly stretched the stroke at any width ≠ 320.
+          Uniform scaling (xMidYMid meet) keeps the line proportional. */}
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
+        <path d={line} fill="none" stroke={color} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
       </svg>
     </div>
   );
