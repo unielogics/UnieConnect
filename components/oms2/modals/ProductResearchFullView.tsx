@@ -286,10 +286,14 @@ function PartialHint({ note }: { note?: string }) {
   );
 }
 
-export const ProductResearchFullView = ({ row, onClose, onListed }: {
+export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, subtitle }: {
   row: ProductResearchResult;
   onClose: () => void;
   onListed?: () => void;
+  // When provided (new-product review step), the marketplace-listing footer is replaced by a
+  // "Continue to create product" action — listing before the SKU exists would be nonsensical.
+  onContinue?: () => void;
+  subtitle?: string;
 }) => {
   const r = (row.result || {}) as any;
   const k = r.keepa || {};
@@ -351,7 +355,7 @@ export const ProductResearchFullView = ({ row, onClose, onListed }: {
   const idChips = [k.asin || r.asin, ...(Array.isArray(lp.upc) ? lp.upc : lp.upc ? [lp.upc] : []), ...(Array.isArray(lp.ean) ? lp.ean : lp.ean ? [lp.ean] : [])].filter(Boolean);
 
   return (
-    <Modal title={`Research · ${r.sku || k.asin || 'product'}`} subtitle={r.title || lp.title || undefined} onClose={onClose} fullscreen>
+    <Modal title={`Research · ${r.sku || k.asin || 'product'}`} subtitle={subtitle ?? (r.title || lp.title || undefined)} onClose={onClose} fullscreen>
       <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {/* 1. VERDICT HERO */}
@@ -536,17 +540,28 @@ export const ProductResearchFullView = ({ row, onClose, onListed }: {
 
         {/* 10. ACTIONS + RAW */}
         <div style={{ ...panel, padding: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>List &amp; add SKU to a marketplace</div>
-          {accounts.length === 0 ? (
-            <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No connected marketplaces. Connect one first.</div>
-          ) : (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <select className="filter-select" value={selectedAccount} onChange={(e) => setSelectedAccount(e.target.value)}>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.display_name || a.channel}{a.marketplace_id ? ` (${a.marketplace_id})` : ''}</option>)}
-              </select>
-              <button className="btn primary" onClick={listToMarketplace} disabled={listing}>{listing ? 'Listing…' : 'List & activate'}</button>
-              {listMsg && <span style={{ fontSize: 12, color: listMsg.tone === 'ok' ? 'var(--green-text)' : 'var(--red-text)' }}>{listMsg.text}</span>}
+          {onContinue ? (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                Reviewed the intelligence? Continue to create the product — these fields prefill the form.
+              </div>
+              <button className="btn primary" onClick={onContinue}>Continue to create product →</button>
             </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>List &amp; add SKU to a marketplace</div>
+              {accounts.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No connected marketplaces. Connect one first.</div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select className="filter-select" value={selectedAccount} onChange={(e) => setSelectedAccount(e.target.value)}>
+                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.display_name || a.channel}{a.marketplace_id ? ` (${a.marketplace_id})` : ''}</option>)}
+                  </select>
+                  <button className="btn primary" onClick={listToMarketplace} disabled={listing}>{listing ? 'Listing…' : 'List & activate'}</button>
+                  {listMsg && <span style={{ fontSize: 12, color: listMsg.tone === 'ok' ? 'var(--green-text)' : 'var(--red-text)' }}>{listMsg.text}</span>}
+                </div>
+              )}
+            </>
           )}
           <div style={{ marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
             <button className="btn ghost sm" onClick={() => setRawOpen((o) => !o)}>{rawOpen ? 'Hide' : 'Show'} raw Cortex data</button>

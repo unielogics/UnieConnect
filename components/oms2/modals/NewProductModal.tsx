@@ -1,22 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from '../ui';
 import { CatalogItemForm } from '../../CatalogItemForm';
+import { ProductResearchFullView } from './ProductResearchFullView';
 import {
   createCatalogItem,
   fetchOmsSuppliers,
   lookupProductByIdentifier,
   CreateCatalogItemBody,
   KeepaLookupResult,
+  ProductResearchResult,
 } from '../../../lib/oms';
 import type { Supplier } from '../../../lib/amazon-fba';
 import type { CatalogItem } from '../../../lib/catalog-types';
 
 /**
  * New-product flow, Keepa-first:
- *  Step 1 (lookup): a single ASIN/UPC/identifier box → Keepa lookup. On a hit, prefill the
- *    catalog form; if Keepa is down or finds nothing, fall through to the blank manual form.
- *    A "Skip / enter manually" link jumps straight to the form.
- *  Step 2 (form): the (optionally prefilled) CatalogItemForm; save via createCatalogItem.
+ *  Step 1 (lookup): a single ASIN/UPC/identifier box → Keepa lookup. A "Skip / enter manually"
+ *    link jumps straight to the form.
+ *  Step 2 (review): when the lookup carries Cortex intelligence (charts/verdict/opportunity),
+ *    show the full research dashboard (reusing ProductResearchFullView) so the user can weigh the
+ *    product before creating it. "Continue to create product" advances to the form. Lookups with
+ *    no intelligence (pure keepa, Cortex cold) skip this step.
+ *  Step 3 (form): the (optionally prefilled) CatalogItemForm; save via createCatalogItem.
  */
 export const NewProductModal = ({
   onClose,
@@ -29,12 +34,14 @@ export const NewProductModal = ({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const [step, setStep] = useState<'lookup' | 'form'>('lookup');
+  const [step, setStep] = useState<'lookup' | 'review' | 'form'>('lookup');
   const [identifier, setIdentifier] = useState('');
   const [looking, setLooking] = useState(false);
   const [lookupMsg, setLookupMsg] = useState<string | null>(null);
   const [prefill, setPrefill] = useState<CatalogItem | null>(null);
   const [fromKeepa, setFromKeepa] = useState(false);
+  // The full lookup result, kept so the review step can render the Cortex intelligence dashboard.
+  const [lookupResult, setLookupResult] = useState<KeepaLookupResult | null>(null);
 
   useEffect(() => {
     fetchOmsSuppliers()
@@ -65,6 +72,41 @@ export const NewProductModal = ({
       },
     } as unknown as CatalogItem);
 
+  // Does the lookup carry enough Cortex intelligence to be worth a review step?
+  const hasIntelligence = (r: KeepaLookupResult): boolean =>
+    !!(r.extract || r.charts || r.verdict || r.opportunity);
+
+  // Adapt a KeepaLookupResult into the ProductResearchResult shape ProductResearchFullView reads
+  // (it keys everything off row.result.keepa.{extract,charts,verdict,opportunity,...}).
+  const toResearchRow = (r: KeepaLookupResult): ProductResearchResult =>
+    ({
+      id: `lookup-${r.asin || r.upc || r.ean || identifier.trim()}`,
+      sku: proposeSku(r),
+      status: 'complete',
+      input: { identifier: identifier.trim() },
+      result: {
+        sku: proposeSku(r),
+        title: r.title || undefined,
+        asin: r.asin || null,
+        keepa: {
+          source: r.source,
+          asin: r.asin || null,
+          title: r.title || null,
+          brand: r.brand || null,
+          image: r.image || null,
+          category: r.category || null,
+          salesRank: r.salesRank ?? null,
+          buyBoxPrice: r.buyBoxPrice ?? null,
+          rating: r.rating ?? null,
+          reviewCount: r.reviewCount ?? null,
+          verdict: r.verdict ?? null,
+          opportunity: r.opportunity ?? null,
+          charts: r.charts ?? null,
+          extract: r.extract ?? null,
+        },
+      },
+    } as ProductResearchResult);
+
   const runLookup = async () => {
     const id = identifier.trim();
     if (!id) return;
@@ -74,16 +116,21 @@ export const NewProductModal = ({
       const r = await lookupProductByIdentifier(id);
       if (r.found) {
         setPrefill(toPrefill(r));
+        setLookupResult(r);
         setFromKeepa(true);
-        setStep('form');
+        // Show the intelligence dashboard first when Cortex enriched the lookup; otherwise the
+        // review step would be a mostly-empty shell, so go straight to the form.
+        setStep(hasIntelligence(r) ? 'review' : 'form');
       } else {
         setPrefill(null);
+        setLookupResult(null);
         setFromKeepa(false);
         setLookupMsg("We couldn't find that identifier on Keepa. You can enter the product manually.");
         setStep('form');
       }
     } catch {
       setPrefill(null);
+      setLookupResult(null);
       setFromKeepa(false);
       setLookupMsg('Keepa lookup is unavailable right now — enter the product manually.');
       setStep('form');
@@ -103,6 +150,19 @@ export const NewProductModal = ({
       setSaving(false);
     }
   };
+
+  // Review step renders the full-screen research dashboard on its own (it IS a fullscreen Modal),
+  // so return it directly rather than nesting it inside the outer New-product modal.
+  if (step === 'review' && lookupResult) {
+    return (
+      <ProductResearchFullView
+        row={toResearchRow(lookupResult)}
+        subtitle="Review the Keepa & Cortex intelligence, then continue to create the product."
+        onClose={onClose}
+        onContinue={() => setStep('form')}
+      />
+    );
+  }
 
   return (
     <Modal
@@ -148,8 +208,13 @@ export const NewProductModal = ({
       ) : (
         <div style={{ maxWidth: 880, margin: '0 auto' }}>
           {fromKeepa && (
-            <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--purple-soft, #f5f3ff)', color: 'var(--purple, #6d28d9)', borderRadius: 6, fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              ✨ Prefilled from Keepa — review and complete the required fields before saving.
+            <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--purple-soft, #f5f3ff)', color: 'var(--purple, #6d28d9)', borderRadius: 6, fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span>✨ Prefilled from Keepa — review and complete the required fields before saving.</span>
+              {lookupResult && hasIntelligence(lookupResult) && (
+                <button className="btn ghost sm" onClick={() => setStep('review')} style={{ flexShrink: 0 }}>
+                  ← Back to research
+                </button>
+              )}
             </div>
           )}
           {lookupMsg && (
