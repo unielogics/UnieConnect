@@ -42,11 +42,16 @@ export const NewProductModal = ({
       .catch(() => setSuppliers([]));
   }, []);
 
+  // Proposed SKU derived from whichever identifier resolved — traceable back to its source and
+  // still fully editable (CatalogItemForm only locks the SKU input when isEditing is true).
+  const proposeSku = (r: KeepaLookupResult): string =>
+    r.asin ? `ASIN-${r.asin}` : r.upc ? `UPC-${r.upc}` : r.ean ? `EAN-${r.ean}` : '';
+
   const toPrefill = (r: KeepaLookupResult): CatalogItem =>
     ({
-      sku: '',
+      sku: proposeSku(r),
       title: r.title || '',
-      description: '',
+      description: r.description || '',
       image: r.image || '',
       upc: r.upc || '',
       ean: r.ean || '',
@@ -160,6 +165,7 @@ export const NewProductModal = ({
           <CatalogItemForm
             key={fromKeepa ? 'prefilled' : 'blank'}
             item={prefill}
+            isEditing={false}
             suppliers={suppliers}
             onSubmit={submit}
             onCancel={onClose}

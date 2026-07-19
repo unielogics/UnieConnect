@@ -886,6 +886,7 @@ export type KeepaLookupResult = {
   ean?: string | null;
   title?: string | null;
   brand?: string | null;
+  description?: string | null;
   image?: string | null;
   category?: string | null;
   salesRank?: number | null;

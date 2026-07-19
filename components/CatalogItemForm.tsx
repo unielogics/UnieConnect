@@ -6,6 +6,10 @@ import { uploadCatalogImage } from '../lib/oms';
 
 interface CatalogItemFormProps {
   item?: CatalogItem | null;
+  /** True when `item` is an existing catalog item being edited (locks + preserves its SKU).
+   *  False when `item` merely supplies prefill data (e.g. from Keepa) for a new product.
+   *  Defaults to `!!item` so existing edit-flow callers are unaffected. */
+  isEditing?: boolean;
   suppliers: Supplier[];
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
@@ -14,11 +18,13 @@ interface CatalogItemFormProps {
 
 export function CatalogItemForm({
   item,
+  isEditing,
   suppliers,
   onSubmit,
   onCancel,
   isLoading = false,
 }: CatalogItemFormProps) {
+  const editing = isEditing ?? !!item;
   const [formData, setFormData] = useState({
     sku: item?.sku || '',
     title: item?.title || '',
@@ -96,7 +102,7 @@ export function CatalogItemForm({
             .filter(Boolean)
         : undefined,
     };
-    if (item) {
+    if (editing) {
       delete payload.sku;
     }
     await onSubmit(payload);
@@ -168,11 +174,11 @@ export function CatalogItemForm({
                 value={formData.sku}
                 onChange={(e) => setFormData((p) => ({ ...p, sku: e.target.value }))}
                 required
-                disabled={!!item}
+                disabled={editing}
                 placeholder="e.g. SKU-001"
                 className={inputClass}
               />
-              {item && (
+              {editing && (
                 <p className="text-xs text-gray-500 mt-1">SKU cannot be changed after creation.</p>
               )}
             </div>
@@ -369,9 +375,9 @@ export function CatalogItemForm({
         <Button
           type="submit"
           variant="primary"
-          disabled={isLoading || !formData.title.trim() || (!item && !formData.sku.trim())}
+          disabled={isLoading || !formData.title.trim() || (!editing && !formData.sku.trim())}
         >
-          {isLoading ? 'Saving...' : item ? 'Save' : 'Create'}
+          {isLoading ? 'Saving...' : editing ? 'Save' : 'Create'}
         </Button>
       </div>
     </form>
