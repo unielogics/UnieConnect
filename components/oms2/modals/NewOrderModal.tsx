@@ -192,31 +192,6 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
     }
   };
 
-  const thumb = (image: string | null, size = 40) => (
-    <div
-      style={{
-        width: size,
-        height: size,
-        flexShrink: 0,
-        borderRadius: 8,
-        border: '1px solid var(--border-subtle)',
-        background: 'var(--bg-elev)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-        color: 'var(--text-tertiary)',
-      }}
-    >
-      {image ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      ) : (
-        <Icon name="box" size={Math.round(size * 0.5)} />
-      )}
-    </div>
-  );
-
   return (
     <>
       <Modal

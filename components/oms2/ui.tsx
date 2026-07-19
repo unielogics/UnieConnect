@@ -37,22 +37,39 @@ export const Chip = ({
 );
 
 // Small rounded product thumbnail with a box-icon fallback. Shared across tables + pickers.
-export const Thumb = ({ image, size = 40 }: { image?: string | null; size?: number }) => (
-  <div
-    style={{
-      width: size, height: size, flexShrink: 0, borderRadius: 8,
-      border: '1px solid var(--border-subtle)', background: 'var(--bg-elev)', overflow: 'hidden',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)',
-    }}
-  >
-    {image ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-    ) : (
-      <Icon name="box" size={Math.round(size * 0.5)} />
-    )}
-  </div>
-);
+// Falls back to the icon when `image` is empty AND when the URL fails to load (broken/dead
+// link, CORS block, etc.) — matches the onError pattern already used elsewhere for item
+// images (CatalogItemView.tsx), but swaps to the icon instead of leaving a blank box.
+export const Thumb = ({ image, size = 40 }: { image?: string | null; size?: number }) => {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [image]);
+
+  const showImage = !!image && !failed;
+
+  return (
+    <div
+      style={{
+        width: size, height: size, flexShrink: 0, borderRadius: 8,
+        border: '1px solid var(--border-subtle)', background: 'var(--bg-elev)', overflow: 'hidden',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)',
+      }}
+    >
+      {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={image as string}
+          alt=""
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <Icon name="box" size={Math.round(size * 0.5)} />
+      )}
+    </div>
+  );
+};
 
 /**
  * Compact "last N" context strip for create modals (recent orders when ordering,
