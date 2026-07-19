@@ -13,6 +13,7 @@ import {
   createASN,
   fetchEstimatedCost,
   fetchEstimateServiceFees,
+  fetchShipmentPricingPreview,
   fetchAsnLabelBlob,
   fetchItemBarcodeBlob,
   fetchClosestFacilityPreview,
@@ -21,6 +22,7 @@ import {
   type ShipmentPricingPreview,
 } from '../lib/shipment-plan';
 import { fetchTransportationTemplates, type TransportationTemplate } from '../lib/transportation-template';
+import { CortexPricingPanel } from './oms2/CortexPricingPanel';
 
 export type CreateShipmentPlanInitialItem = {
   sku: string;
@@ -152,6 +154,10 @@ export function CreateShipmentPlanModal({
   const [showVerification, setShowVerification] = useState(false);
   const [asnId, setAsnId] = useState<string | null>(null);
   const [estimateServiceFees, setEstimateServiceFees] = useState<PricingAwareEstimate | 'loading' | null>(null);
+  // Rich rate-shopped pricing (per-SKU economics + single/multi-warehouse networkComparison) for
+  // the step-4 cost card. Fetched only once dimensions+weight are present (the gate ensures this).
+  const [pricingPreview, setPricingPreview] = useState<ShipmentPricingPreview | null>(null);
+  const [pricingPreviewState, setPricingPreviewState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [acknowledgedAgreed, setAcknowledgedAgreed] = useState(false);
   const [planItemsWithWms, setPlanItemsWithWms] = useState<(ShipmentPlanItem & { wmsItemId?: string; wmsSku?: string })[]>([]);
   const [warehousePreview, setWarehousePreview] = useState<{
@@ -515,6 +521,54 @@ export function CreateShipmentPlanModal({
       }))
       .catch(() => setEstimateServiceFees(null));
   }, [hasCompletedGate, shipFromLocationId, planId, items, prepServicesOnly, marketplaceType]);
+
+  // Rich rate-shopped pricing for the step-4 cost card. Only fires once the gate is complete, we're
+  // on the review step, and every SKU has weight+dims (so rate shopping is real, not modeled).
+  useEffect(() => {
+    if (!hasCompletedGate || !shipFromLocationId || planId || currentSection !== 4) {
+      return;
+    }
+    const validItems = items.filter((i) => (i.quantity ?? 0) > 0);
+    if (validItems.length === 0 || itemsMissingDims.length > 0) {
+      setPricingPreview(null);
+      setPricingPreviewState('idle');
+      return;
+    }
+    let cancelled = false;
+    setPricingPreviewState('loading');
+    fetchShipmentPricingPreview({
+      shipFromLocationId,
+      facilityId: warehousePreview && warehousePreview !== 'loading' ? undefined : undefined,
+      workflowType: prepServicesOnly ? marketplaceType : 'DTC',
+      marketplaceType: prepServicesOnly ? marketplaceType : 'DTC',
+      serviceWorkflow: prepServicesOnly ? 'prep' : 'dtc_fbm',
+      items: validItems.map((i) => ({
+        itemId: i.itemId,
+        sku: i.sku,
+        title: i.title,
+        quantity: i.quantity,
+        unitsPerCarton: i.unitsPerBox,
+        cartons: i.boxCount,
+        boxCount: i.boxCount,
+        unitWeightLb: i.weightPerUnit,
+        weight: i.weightPerUnit,
+        asin: i.asin,
+        dimensions: i.dimensions,
+        labRequirements: i.labRequirements,
+      })),
+    })
+      .then((r) => {
+        if (cancelled) return;
+        setPricingPreview(r);
+        setPricingPreviewState('idle');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPricingPreview(null);
+        setPricingPreviewState('error');
+      });
+    return () => { cancelled = true; };
+  }, [hasCompletedGate, shipFromLocationId, planId, currentSection, items, itemsMissingDims.length, prepServicesOnly, marketplaceType, warehousePreview]);
 
   if (!isOpen) return null;
 
@@ -1346,6 +1400,17 @@ export function CreateShipmentPlanModal({
                   </div>
                 </div>
               </div>
+              {/* Segregated per-unit cost + single-vs-multi-warehouse rate shopping (once dims are in). */}
+              {itemsMissingDims.length === 0 && (pricingPreviewState !== 'idle' || pricingPreview) && (
+                <div style={{ marginTop: 16 }}>
+                  <CortexPricingPanel
+                    preview={pricingPreview}
+                    loading={pricingPreviewState === 'loading'}
+                    error={pricingPreviewState === 'error' ? 'Rate shopping is temporarily unavailable — you can still create the plan; costs will finalize after.' : null}
+                    units={totalUnits}
+                  />
+                </div>
+              )}
             </div>
           )}
           {currentSection === 4 && planId && (
