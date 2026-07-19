@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Thumb } from '../ui';
+import { Modal, Thumb, RecentStrip } from '../ui';
 import { Icon } from '../icons';
 
 // Order money always shows cents (unlike ui.fmt.money which rounds to whole dollars).
@@ -8,13 +8,16 @@ const money = (n: number) =>
 import {
   fetchOmsCustomers,
   fetchOmsSkus,
+  fetchOmsOrders,
   createManualOrder,
   OmsCustomer,
   OmsCustomerAddress,
   OmsSku,
+  OmsOrder,
   CreateOrderLine,
 } from '../../../lib/oms';
 import { NewCustomerModal } from './NewCustomerModal';
+import { SkuPicker } from '../SkuPicker';
 
 const field: React.CSSProperties = {
   width: '100%',
@@ -74,94 +77,13 @@ function addressToShip(addr: OmsCustomerAddress | undefined): ShipState | null {
 
 const EMPTY_SHIP: ShipState = { line1: '', line2: '', city: '', state: '', postal: '', country: 'US' };
 
-/**
- * Searchable SKU picker with product thumbnails. A native <select> can't render images, so this is
- * a button (shows the chosen item) that opens a filterable dropdown of items, each with its image,
- * SKU code, title and availability.
- */
-const SkuPicker = ({ skus, value, onPick }: { skus: OmsSku[]; value: string; onPick: (id: string) => void }) => {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState('');
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const selected = skus.find((s) => s.id === value);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-
-  const filtered = skus
-    .filter((s) => !q || `${s.sku} ${s.title || ''}`.toLowerCase().includes(q.toLowerCase()))
-    .slice(0, 50);
-
-  return (
-    <div ref={wrapRef} style={{ position: 'relative' }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        style={{ ...field, height: 34, display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', cursor: 'pointer' }}
-      >
-        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selected ? 'var(--text)' : 'var(--text-tertiary)' }}>
-          {selected ? `${selected.sku} — ${selected.title || ''}` : 'Select SKU…'}
-        </span>
-        <Icon name="chevronDown" size={12} />
-      </button>
-      {open && (
-        <div
-          style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 20,
-            background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.18)', overflow: 'hidden',
-          }}
-        >
-          <div style={{ padding: 8, borderBottom: '1px solid var(--border-subtle)' }}>
-            <input
-              autoFocus
-              style={{ ...field, height: 30 }}
-              placeholder="Search SKU or title…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </div>
-          <div style={{ maxHeight: 260, overflowY: 'auto' }}>
-            {filtered.length === 0 && (
-              <div style={{ padding: 12, fontSize: 12, color: 'var(--text-tertiary)' }}>No matching SKUs.</div>
-            )}
-            {filtered.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => { onPick(s.id); setOpen(false); setQ(''); }}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                  background: s.id === value ? 'var(--bg-elev)' : 'transparent', border: 'none',
-                  borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', textAlign: 'left',
-                }}
-              >
-                <Thumb image={s.image} size={34} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.title || s.sku}
-                  </div>
-                  <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{s.sku}</div>
-                </div>
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>{s.available ?? 0} avail</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+// SkuPicker (searchable SKU dropdown with thumbnails + ASIN search + on-hand) is now
+// shared from ../SkuPicker so the shipment-plan flow can reuse it.
 
 export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) => {
   const [customers, setCustomers] = useState<OmsCustomer[]>([]);
   const [skus, setSkus] = useState<OmsSku[]>([]);
+  const [recentOrders, setRecentOrders] = useState<OmsOrder[]>([]);
   const [custSearch, setCustSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [channel, setChannel] = useState('manual');
@@ -178,6 +100,7 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
   useEffect(() => {
     reloadCustomers();
     fetchOmsSkus().then((d) => setSkus(d.skus || [])).catch(() => setSkus([]));
+    fetchOmsOrders().then((d) => setRecentOrders((d.orders || []).slice(0, 3))).catch(() => setRecentOrders([]));
   }, []);
 
   const filteredCustomers = useMemo(
@@ -226,7 +149,9 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
 
   const pickSku = (key: number, skuId: string) => {
     const s = skus.find((x) => x.id === skuId);
-    setLine(key, { skuId, sku: s?.sku || '', title: s?.title || '', image: s?.image || null, available: s?.available ?? 0 });
+    // Prefer true physical warehouse on-hand; fall back to channel available.
+    const avail = Number((s as any)?.networkOnHand ?? s?.available ?? 0);
+    setLine(key, { skuId, sku: s?.sku || '', title: s?.title || '', image: s?.image || null, available: avail });
   };
 
   const submit = async () => {
@@ -325,6 +250,18 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
         >
           {/* ---------- Main column ---------- */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+            {/* Recent context: last 3 orders */}
+            <RecentStrip
+              label="Recent orders"
+              items={recentOrders.map((o) => ({
+                id: o.id,
+                number: o.displayId || o.publicId || o.chOrderId || o.id,
+                status: o.status || o.state,
+                units: o.qty ?? o.itemCount ?? o.items,
+                date: o.date,
+                images: o.image ? [o.image] : [],
+              }))}
+            />
             {/* Customer */}
             <div className="card">
               <div className="card-header">
@@ -423,9 +360,14 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <SkuPicker skus={skus} value={l.skuId} onPick={(id) => pickSku(l.key, id)} />
                       {l.skuId && (
-                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                           <span className="chip" style={{ fontSize: 10 }}>{l.sku}</span>
-                          <span>{l.available} available</span>
+                          <span>{l.available} on-hand</span>
+                          {l.quantity > l.available && (
+                            <span style={{ color: 'var(--warn, #b45309)', fontWeight: 600 }}>
+                              Exceeds on-hand by {l.quantity - l.available} — accepted only if this client allows backorders
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>

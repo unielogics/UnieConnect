@@ -54,6 +54,43 @@ export const Thumb = ({ image, size = 40 }: { image?: string | null; size?: numb
   </div>
 );
 
+/**
+ * Compact "last N" context strip for create modals (recent orders when ordering,
+ * recent ASNs when receiving). Shows number, status chip, units + a couple of thumbnails.
+ */
+export const RecentStrip = ({
+  label,
+  items,
+}: {
+  label: string;
+  items: Array<{ id: string; number: string; status?: string; units?: number; date?: string; images?: (string | null | undefined)[] }>;
+}) => {
+  if (!items || items.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)', marginBottom: 6 }}>
+        {label}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+        {items.map((it) => (
+          <div key={it.id} style={{ border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 8, background: 'var(--bg-elev)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.number}</span>
+              {it.status ? <Chip dot={false}>{it.status}</Chip> : null}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              {(it.images || []).filter(Boolean).slice(0, 2).map((img, i) => (
+                <Thumb key={i} image={img as string} size={22} />
+              ))}
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{it.units ?? 0} units</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const STATUS_MAP: Record<string, [Tone, string]> = {
   'on-track': ['green', 'On track'],
   'at-risk': ['amber', 'At risk'],

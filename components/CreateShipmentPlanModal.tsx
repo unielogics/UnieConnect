@@ -121,6 +121,8 @@ export function CreateShipmentPlanModal({
   const [templatePopupForItemIdx, setTemplatePopupForItemIdx] = useState<number | null>(null);
   const [addonsForItemIdx, setAddonsForItemIdx] = useState<number | null>(null);
   const [supplierSearch, setSupplierSearch] = useState('');
+  // Filter the review grid of pre-selected items by SKU / title / ASIN.
+  const [itemSearch, setItemSearch] = useState('');
   const [deliveryOption, setDeliveryOption] = useState<'parcel' | 'pallet' | 'none' | null>(null);
   const [verificationSteps, setVerificationSteps] = useState<Array<{ id: string; label: string; status: 'pending' | 'in_progress' | 'success' | 'error'; detail?: string }>>([]);
   const [showVerification, setShowVerification] = useState(false);
@@ -738,8 +740,29 @@ export function CreateShipmentPlanModal({
               {items.length === 0 ? (
                 <p className="muted">No items. Select products from Catalog first, then click Create Shipment Plan.</p>
               ) : (
+                <>
+                {items.length > 6 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <input
+                      type="text"
+                      value={itemSearch}
+                      onChange={(e) => setItemSearch(e.target.value)}
+                      placeholder="Search items by SKU, title, or ASIN…"
+                      style={{
+                        width: '100%', height: 34, padding: '0 12px', borderRadius: 8,
+                        border: '1px solid var(--border)', background: 'var(--bg, #fff)', fontSize: 13,
+                      }}
+                    />
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>
-                  {items.map((it, i) => (
+                  {items
+                    .filter((it) => {
+                      const q = itemSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return `${it.sku || ''} ${(it as any).title || ''} ${(it as any).asin || ''}`.toLowerCase().includes(q);
+                    })
+                    .map((it, i) => (
                     <div
                       key={i}
                       style={{
@@ -805,6 +828,7 @@ export function CreateShipmentPlanModal({
                     </div>
                   ))}
                 </div>
+                </>
               )}
               <div className="fba-stage-footer">
                 <div className="muted">{items.length} item(s)</div>
