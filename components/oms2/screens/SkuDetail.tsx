@@ -24,6 +24,7 @@ import {
 import { num, docTone, riskLabel, channelColor } from '../../../lib/oms-adapters';
 import { amazonCategoryNames, amazonSubcategoriesFor } from '../../../lib/amazon-category-tree';
 import { fetchShipmentPricingPreview, type ShipmentPricingPreview } from '../../../lib/shipment-plan';
+import { sizeTierLabel } from '../../../lib/size';
 import type { ScreenProps } from '../UnieConnectApp';
 import { AmazonListingDrawer, RecommendationDrawer } from './InventoryNetwork';
 
@@ -1103,7 +1104,7 @@ const ItemDetailsPanel = ({ data, onSaved }: { data: OmsSkuDetail; onSaved: (det
     { key: 'subtitle', label: 'Subtitle', value: firstValue(data.subtitle, meta.subtitle, meta.subTitle), missing: !firstValue(data.subtitle, meta.subtitle, meta.subTitle), kind: 'text', payload: (value) => ({ subtitle: value }) },
     { key: 'brand', label: 'Brand', value: firstValue(data.brand, meta.brand, attrs.brand), missing: !firstValue(data.brand, meta.brand, attrs.brand), kind: 'text', payload: (value) => ({ brand: value }) },
     { key: 'description', label: 'Description', value: firstValue(data.description, meta.description, attrs.description), missing: !firstValue(data.description, meta.description, attrs.description), kind: 'textarea', payload: (value) => ({ description: value }) },
-    { key: 'size', label: 'Size', value: firstValue(attrs.size, meta.size, attrs.variant, meta.variant), missing: !firstValue(attrs.size, meta.size, attrs.variant, meta.variant), kind: 'text', payload: (value) => ({ size: value }) },
+    { key: 'size', label: 'Size', value: firstValue(attrs.size, meta.size, attrs.variant, meta.variant, sizeTierLabel(data.dimensions)), missing: !firstValue(attrs.size, meta.size, attrs.variant, meta.variant, sizeTierLabel(data.dimensions)), kind: 'text', payload: (value) => ({ size: value }) },
     { key: 'weight', label: 'Weight', value: data.weight ? `${num(data.weight)} lb` : '', missing: !data.weight, kind: 'number', payload: (value) => ({ weight: parseNumberOrNull(value) }) },
     { key: 'dimensions', label: 'Dimensions', value: dimText(data.dimensions), missing: !dimText(data.dimensions), kind: 'dimensions', payload: (value) => {
       return { dimensions: dimensionPayloadFromEntry(value) };

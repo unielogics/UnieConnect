@@ -22,6 +22,7 @@ import {
   type ShipmentPricingPreview,
 } from '../lib/shipment-plan';
 import { fetchTransportationTemplates, type TransportationTemplate } from '../lib/transportation-template';
+import { itemCubicFeet, sizeTier } from '../lib/size';
 import { CortexPricingPanel } from './oms2/CortexPricingPanel';
 
 export type CreateShipmentPlanInitialItem = {
@@ -52,24 +53,6 @@ function shipFromDisplay(location: ShipFromLocation | null): string {
   if (!location) return 'Select supplier';
   const addr = formatAddress(location.address as any);
   return addr ? `${location.label} – ${addr}` : location.label || '—';
-}
-
-// Cubic feet for one unit from L×W×H inches (1728 in³ = 1 ft³). Mirrors the backend itemCubeFt.
-function itemCubicFeet(dims?: { length?: number; width?: number; height?: number }): number | null {
-  if (!dims) return null;
-  const l = dims.length ?? 0, w = dims.width ?? 0, h = dims.height ?? 0;
-  if (l <= 0 || w <= 0 || h <= 0) return null;
-  return Number(((l * w * h) / 1728).toFixed(3));
-}
-
-// Coarse size tier from cubic feet — small/medium/large. Reference-only label for the operator;
-// the real FBA size-tier classifier lives in Cortex. Thresholds: ~<0.5 ft³ small, <2 ft³ medium.
-function sizeTier(dims?: { length?: number; width?: number; height?: number }): 'small' | 'medium' | 'large' | null {
-  const cf = itemCubicFeet(dims);
-  if (cf == null) return null;
-  if (cf < 0.5) return 'small';
-  if (cf < 2) return 'medium';
-  return 'large';
 }
 
 function shipToDisplay(wh: { name: string; address?: { city?: string; stateOrProvinceCode?: string } } | null | 'loading'): string {
