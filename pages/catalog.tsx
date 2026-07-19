@@ -27,6 +27,8 @@ export type CatalogProduct = {
   source: 'item' | 'amazon';
   supplierId?: string;
   supplierName?: string;
+  weight?: number;
+  dimensions?: { length?: number; width?: number; height?: number };
   wmsInventory?: {
     inbound: number;
     received: number;
@@ -192,6 +194,8 @@ export default function CatalogPage() {
       source: 'item' as const,
       supplierId: i.supplierId,
       supplierName: i.supplierId ? supplierById.get(i.supplierId)?.name : undefined,
+      weight: i.weight,
+      dimensions: i.dimensions,
       wmsInventory: (i as any).wmsInventory,
     }));
   }, [items, supplierById]);
@@ -285,6 +289,8 @@ export default function CatalogPage() {
     asin: p.asin,
     imageUrl: p.imageUrl,
     itemId: p.id,
+    weight: p.weight,
+    dimensions: p.dimensions,
   }));
 
   const openAddModal = () => {

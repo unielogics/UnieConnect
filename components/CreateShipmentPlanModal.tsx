@@ -28,6 +28,8 @@ export type CreateShipmentPlanInitialItem = {
   asin?: string;
   imageUrl?: string;
   itemId?: string;
+  weight?: number;
+  dimensions?: { length?: number; width?: number; height?: number };
 };
 
 type Section = 1 | 2 | 3 | 4 | 4.5 | 5 | 6 | 7 | 8 | 9 | 10; // 1-4 workflow, 4.5=acknowledgement, 5=ASN/PDFs
@@ -48,6 +50,24 @@ function shipFromDisplay(location: ShipFromLocation | null): string {
   if (!location) return 'Select supplier';
   const addr = formatAddress(location.address as any);
   return addr ? `${location.label} – ${addr}` : location.label || '—';
+}
+
+// Cubic feet for one unit from L×W×H inches (1728 in³ = 1 ft³). Mirrors the backend itemCubeFt.
+function itemCubicFeet(dims?: { length?: number; width?: number; height?: number }): number | null {
+  if (!dims) return null;
+  const l = dims.length ?? 0, w = dims.width ?? 0, h = dims.height ?? 0;
+  if (l <= 0 || w <= 0 || h <= 0) return null;
+  return Number(((l * w * h) / 1728).toFixed(3));
+}
+
+// Coarse size tier from cubic feet — small/medium/large. Reference-only label for the operator;
+// the real FBA size-tier classifier lives in Cortex. Thresholds: ~<0.5 ft³ small, <2 ft³ medium.
+function sizeTier(dims?: { length?: number; width?: number; height?: number }): 'small' | 'medium' | 'large' | null {
+  const cf = itemCubicFeet(dims);
+  if (cf == null) return null;
+  if (cf < 0.5) return 'small';
+  if (cf < 2) return 'medium';
+  return 'large';
 }
 
 function shipToDisplay(wh: { name: string; address?: { city?: string; stateOrProvinceCode?: string } } | null | 'loading'): string {
@@ -109,6 +129,10 @@ export function CreateShipmentPlanModal({
           asin: p.asin,
           imageUrl: p.imageUrl,
           itemId: p.itemId,
+          // Seed physical attributes from the catalog so weight/dims are present before (and as a
+          // fallback to) any transportation template selection — powers total weight + rate shopping.
+          weightPerUnit: p.weight,
+          dimensions: p.dimensions,
         }))
       : []
   );
@@ -158,6 +182,8 @@ export function CreateShipmentPlanModal({
           asin: p.asin,
           imageUrl: p.imageUrl,
           itemId: p.itemId,
+          weightPerUnit: p.weight,
+          dimensions: p.dimensions,
         }))
       );
     }
@@ -196,6 +222,28 @@ export function CreateShipmentPlanModal({
 
   const totalUnits = useMemo(() => items.reduce((s, i) => s + (i.quantity || 0), 0), [items]);
   const totalBoxes = useMemo(() => items.reduce((s, i) => s + (i.boxCount || 0), 0), [items]);
+  // Total shipment weight: prefer per-unit weight × units; fall back to per-box weight × boxes.
+  const totalWeight = useMemo(
+    () =>
+      items.reduce((s, i) => {
+        if (i.weightPerUnit != null) return s + i.weightPerUnit * (i.quantity || 0);
+        if (i.weightPerBox != null) return s + i.weightPerBox * (i.boxCount || 0);
+        return s;
+      }, 0),
+    [items],
+  );
+  // Items still missing physical attributes needed to rate-shop (per the "force the client to
+  // provide dimensions" policy — we never invent size). Gate the cost step on this.
+  const itemsMissingDims = useMemo(
+    () =>
+      items.filter((i) => {
+        const d = i.dimensions;
+        const hasDims = d && (d.length ?? 0) > 0 && (d.width ?? 0) > 0 && (d.height ?? 0) > 0;
+        const hasWeight = (i.weightPerUnit ?? 0) > 0 || (i.weightPerBox ?? 0) > 0;
+        return !hasDims || !hasWeight;
+      }),
+    [items],
+  );
 
   const mapPins = useMemo(() => {
     const pins: MapPin[] = [];
@@ -924,10 +972,12 @@ export function CreateShipmentPlanModal({
                               templateId: t.id,
                               unitsPerBox: t.unitsPerBox,
                               weightPerBox: t.weightPerBox,
-                              weightPerUnit: t.weightPerUnit,
+                              // Keep the catalog-derived per-unit weight/dims when the template
+                              // doesn't carry them, so rate shopping still has physical attributes.
+                              weightPerUnit: t.weightPerUnit ?? it.weightPerUnit,
                               boxCount,
                               quantity: boxCount * t.unitsPerBox,
-                              dimensions: t.dimensions,
+                              dimensions: t.dimensions ?? it.dimensions,
                             });
                           }
                         }}
@@ -944,26 +994,36 @@ export function CreateShipmentPlanModal({
                           ))}
                         <option value="__manage__">— Manage templates —</option>
                       </select>
-                      {(it.weightPerBox != null || (it.dimensions && (it.dimensions.length ?? it.dimensions.width ?? it.dimensions.height) != null)) && (
-                        <div
-                          style={{
-                            marginTop: 12,
-                            padding: 12,
-                            background: 'var(--surface)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 8,
-                            fontSize: 13,
-                          }}
-                        >
-                          <strong style={{ display: 'block', marginBottom: 6 }}>Template specs</strong>
-                          <div className="muted">
-                            {it.unitsPerBox} units/box · {it.weightPerBox ?? 0} lbs/box
-                            {(it.dimensions?.length ?? it.dimensions?.width ?? it.dimensions?.height) != null && (
-                              <> · {[it.dimensions?.length, it.dimensions?.width, it.dimensions?.height].filter((n) => n != null).join('×')} in</>
-                            )}
+                      {(() => {
+                        const cube = itemCubicFeet(it.dimensions);
+                        const tier = sizeTier(it.dimensions);
+                        const perUnitWeight = it.weightPerUnit ?? (it.weightPerBox != null && it.unitsPerBox ? it.weightPerBox / it.unitsPerBox : null);
+                        const hasSpecs = it.weightPerBox != null || perUnitWeight != null || cube != null;
+                        if (!hasSpecs) return null;
+                        return (
+                          <div
+                            style={{
+                              marginTop: 12,
+                              padding: 12,
+                              background: 'var(--surface)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 8,
+                              fontSize: 13,
+                            }}
+                          >
+                            <strong style={{ display: 'block', marginBottom: 6 }}>Item specs</strong>
+                            <div className="muted">
+                              {it.unitsPerBox != null && <>{it.unitsPerBox} units/box · </>}
+                              {perUnitWeight != null ? `${perUnitWeight.toFixed(2)} lbs/unit` : `${it.weightPerBox ?? 0} lbs/box`}
+                              {(it.dimensions?.length ?? it.dimensions?.width ?? it.dimensions?.height) != null && (
+                                <> · {[it.dimensions?.length, it.dimensions?.width, it.dimensions?.height].filter((n) => n != null).join('×')} in</>
+                              )}
+                              {cube != null && <> · {cube} ft³/unit</>}
+                              {tier && <> · <span style={{ textTransform: 'capitalize', fontWeight: 600, color: 'var(--text)' }}>{tier}</span></>}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                     <div>
                       <label style={{ fontWeight: 500, display: 'block', marginBottom: 4, fontSize: 12 }}>Boxes</label>
@@ -1199,6 +1259,9 @@ export function CreateShipmentPlanModal({
             <div className="sta-section-body" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               <div className="fba-inline-summary-bar" style={{ marginBottom: 16 }}>
                 <span className="pill subtle">Items: {items.length}</span>
+                <span className="pill subtle">Units: {totalUnits}</span>
+                <span className="pill subtle">Boxes: {totalBoxes}</span>
+                <span className="pill subtle">Est. weight: {totalWeight > 0 ? `${totalWeight.toFixed(2)} lbs` : '—'}</span>
                 <span className="pill subtle">Prep: {prepServicesOnly ? marketplaceType : 'DTC'}</span>
                 <span className="pill subtle">Ship from: {shipFromText}</span>
                 <span className="pill subtle">Ship to: {shipToText}</span>
@@ -1253,9 +1316,31 @@ export function CreateShipmentPlanModal({
                       Ship via: {deliveryOption === 'parcel' ? 'Parcel (LTL/courier)' : 'Pallet (FTL)'}
                     </div>
                   )}
+                  {itemsMissingDims.length > 0 && (
+                    <div style={{ marginTop: 12, padding: 12, background: 'var(--amber-soft, #fef3c7)', border: '1px solid var(--amber, #f59e0b)', borderRadius: 8, fontSize: 12.5 }}>
+                      <strong style={{ color: 'var(--amber-text, #92400e)' }}>Enter dimensions &amp; weight to rate-shop these SKUs.</strong>
+                      <div style={{ color: 'var(--amber-text, #92400e)', marginTop: 2, marginBottom: 8 }}>
+                        We never estimate size — accurate L×W×H and weight are required for a real shipping rate. Saved back to the catalog for next time.
+                      </div>
+                      {itemsMissingDims.map((mi) => {
+                        const idx = items.findIndex((x) => x === mi);
+                        const d = mi.dimensions || {};
+                        const numOrUndef = (v: string) => (v === '' ? undefined : Number(v));
+                        return (
+                          <div key={mi.sku} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+                            <span className="mono" style={{ minWidth: 120, fontWeight: 600, fontSize: 12 }}>{mi.sku}</span>
+                            <input type="number" min={0} step="0.01" placeholder="L in" value={d.length ?? ''} onChange={(e) => updateItem(idx, { dimensions: { ...d, length: numOrUndef(e.target.value) } })} style={{ width: 66, padding: 5, borderRadius: 6, border: '1px solid var(--border)' }} />
+                            <input type="number" min={0} step="0.01" placeholder="W in" value={d.width ?? ''} onChange={(e) => updateItem(idx, { dimensions: { ...d, width: numOrUndef(e.target.value) } })} style={{ width: 66, padding: 5, borderRadius: 6, border: '1px solid var(--border)' }} />
+                            <input type="number" min={0} step="0.01" placeholder="H in" value={d.height ?? ''} onChange={(e) => updateItem(idx, { dimensions: { ...d, height: numOrUndef(e.target.value) } })} style={{ width: 66, padding: 5, borderRadius: 6, border: '1px solid var(--border)' }} />
+                            <input type="number" min={0} step="0.01" placeholder="lbs" value={mi.weightPerUnit ?? ''} onChange={(e) => updateItem(idx, { weightPerUnit: numOrUndef(e.target.value) })} style={{ width: 66, padding: 5, borderRadius: 6, border: '1px solid var(--border)' }} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="fba-stage-footer" style={{ marginTop: 'auto', paddingTop: 16 }}>
                     <button className="button-secondary" onClick={() => setCurrentSection(3)}>Back</button>
-                    <button className="button-primary" onClick={handleCreate} disabled={busy}>
+                    <button className="button-primary" onClick={handleCreate} disabled={busy || itemsMissingDims.length > 0} title={itemsMissingDims.length > 0 ? 'Enter dimensions & weight for all SKUs first' : undefined}>
                       {busy ? 'Creating...' : 'Create plan'}
                     </button>
                   </div>
