@@ -1201,8 +1201,19 @@ export const fetchProductResearchRun = (id: string) =>
     `/intelligence/product-research/runs/${encodeURIComponent(id)}`,
   );
 
-export const fetchProductResearchResult = (skuId: string) =>
-  omsFetch<ProductResearchResult>(`/intelligence/product-research/results/${encodeURIComponent(skuId)}`);
+// A SKU with no product-research run yet legitimately 404s. Treat that as "no result" (null)
+// instead of throwing, so the SKU detail page doesn't log a noisy error for a normal empty state.
+export const fetchProductResearchResult = async (skuId: string): Promise<ProductResearchResult | null> => {
+  const res = await authFetch(apiUrl(`/api/v1/oms/intelligence/product-research/results/${encodeURIComponent(skuId)}`), {
+    headers: { Accept: 'application/json' },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any)?.error || `OMS request failed (${res.status})`);
+  }
+  return res.json();
+};
 
 export const runSellerOptimization = (body: Record<string, unknown> = {}) =>
   omsFetch<{

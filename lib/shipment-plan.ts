@@ -202,6 +202,33 @@ export async function createASN(shipmentPlanId: string) {
   return readJson<{ asn: any; plan: ShipmentPlan }>(res);
 }
 
+export type MultiWarehouseAcceptResult = {
+  ok: boolean;
+  anchorWarehouseCode: string;
+  secondWarehouseCode: string;
+  wms?: {
+    receivingAsn?: { asnNumber?: string; workflowType?: string };
+    transfer?: { transferNumber?: string; status?: string; approvalMode?: string; routedUnits?: number };
+    message?: string;
+  };
+  plan?: ShipmentPlan;
+};
+
+/** Accept the suggested multi-warehouse plan: client ships to one receiving warehouse (anchor),
+ *  we cross-dock a routed portion and LTL it to the second warehouse. Stages the receiving ASN +
+ *  approval-gated transfer in the WMS. Optional per-SKU `routing` overrides the default 50/50 split. */
+export async function acceptMultiWarehousePlan(
+  shipmentPlanId: string,
+  body?: { secondWarehouseCode?: string; routing?: Record<string, number>; transferRate?: Record<string, unknown> },
+) {
+  const res = await authFetch(apiUrl(`/api/v1/shipment-plans/${encodeURIComponent(shipmentPlanId)}/accept-multi-warehouse`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  return readJson<MultiWarehouseAcceptResult>(res);
+}
+
 export async function fetchClosestFacilityPreview(shipFromLocationId: string) {
   const url = new URL(apiUrl('/api/v1/shipment-plans/closest-facility-preview'));
   url.searchParams.set('shipFromLocationId', shipFromLocationId);

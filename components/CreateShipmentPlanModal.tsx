@@ -17,13 +17,16 @@ import {
   fetchAsnLabelBlob,
   fetchItemBarcodeBlob,
   fetchClosestFacilityPreview,
+  acceptMultiWarehousePlan,
   type ShipmentPlanItem,
   type EstimateServiceFeesLineItem,
   type ShipmentPricingPreview,
+  type MultiWarehouseAcceptResult,
 } from '../lib/shipment-plan';
 import { fetchTransportationTemplates, type TransportationTemplate } from '../lib/transportation-template';
 import { itemCubicFeet, sizeTier } from '../lib/size';
 import { CortexPricingPanel } from './oms2/CortexPricingPanel';
+import { Thumb } from './oms2/ui';
 
 export type CreateShipmentPlanInitialItem = {
   sku: string;
@@ -161,6 +164,11 @@ export function CreateShipmentPlanModal({
   const [asnPdfPreviewUrl, setAsnPdfPreviewUrl] = useState<string | null>(null);
   const [asnPdfError, setAsnPdfError] = useState<string | null>(null);
   const asnPdfBlobUrlRef = useRef<string | null>(null);
+  // Multi-warehouse plan acceptance (immersive step-4): the client accepts a suggested plan that
+  // routes a portion of units from the receiving warehouse to a second warehouse via cross-dock + LTL.
+  const [mwAccepting, setMwAccepting] = useState(false);
+  const [mwResult, setMwResult] = useState<MultiWarehouseAcceptResult | null>(null);
+  const [mwError, setMwError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && initialItems.length > 0) {
@@ -221,6 +229,31 @@ export function CreateShipmentPlanModal({
       }, 0),
     [items],
   );
+  // Multi-warehouse suggestion extracted from the rate-shop preview's networkComparison. Drives
+  // the immersive step-4 accept card: single (anchor/receiving) vs multi (receiving + 2nd node),
+  // per-unit savings, and the warehouse codes. Only "executable" when a distinct 2nd node exists.
+  const multiWarehouseSuggestion = useMemo(() => {
+    const rows = Array.isArray(pricingPreview?.perSkuEconomics) ? (pricingPreview!.perSkuEconomics as any[]) : [];
+    let single = 0, multi = 0, savings = 0, n = 0;
+    let anchorCode = ''; let secondCode = ''; let executable = false;
+    for (const r of rows) {
+      const nc = r?.pricingPayload?.networkComparison;
+      if (!nc) continue;
+      const sw = nc.singleWarehouse || {}; const tn = nc.optimizedTwoNode || {};
+      const s = Number(sw.totalPerUnit); const m = Number(tn.totalPerUnit);
+      if (Number.isFinite(s)) single += s;
+      if (Number.isFinite(m)) multi += m;
+      if (Number.isFinite(Number(tn.savingsPerUnit))) savings += Number(tn.savingsPerUnit);
+      const codes = Array.isArray(tn.warehouseCodes) ? tn.warehouseCodes.map((c: any) => String(c || '').trim()).filter(Boolean) : [];
+      if (!anchorCode && Array.isArray(sw.warehouseCodes) && sw.warehouseCodes[0]) anchorCode = String(sw.warehouseCodes[0]).trim();
+      if (!secondCode) secondCode = codes.find((c: string) => c && c !== anchorCode) || '';
+      if (tn.executable) executable = true;
+      n += 1;
+    }
+    if (!n || !executable || !secondCode) return null;
+    return { anchorCode, secondCode, singlePerUnit: single, multiPerUnit: multi, savingsPerUnit: savings };
+  }, [pricingPreview]);
+
   // Items still missing physical attributes needed to rate-shop (per the "force the client to
   // provide dimensions" policy — we never invent size). Gate the cost step on this.
   const itemsMissingDims = useMemo(
@@ -299,6 +332,20 @@ export function CreateShipmentPlanModal({
       setError(e?.message || 'Failed to create plan');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleAcceptMultiWarehouse = async () => {
+    if (!planId || !multiWarehouseSuggestion) return;
+    setMwAccepting(true);
+    setMwError(null);
+    try {
+      const res = await acceptMultiWarehousePlan(planId, { secondWarehouseCode: multiWarehouseSuggestion.secondCode });
+      setMwResult(res);
+    } catch (err: any) {
+      setMwError(err?.message || 'Could not accept the multi-warehouse plan.');
+    } finally {
+      setMwAccepting(false);
     }
   };
 
@@ -955,38 +1002,8 @@ export function CreateShipmentPlanModal({
                   className="fba-selection-card"
                   style={{ marginBottom: 16, padding: 16, border: '1px solid var(--border)', borderRadius: 8, display: 'flex', gap: 16, alignItems: 'flex-start' }}
                 >
-                  <div
-                    style={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      background: 'var(--bg-muted, #f4f4f4)',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {(it as any).imageUrl ? (
-                      <img
-                        src={(it as any).imageUrl}
-                        alt=""
-                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'var(--muted)',
-                          fontSize: 11,
-                        }}
-                      >
-                        —
-                      </div>
-                    )}
+                  <div style={{ flexShrink: 0 }}>
+                    <Thumb image={(it as any).imageUrl || (it as any).image} size={64} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                   <div style={{ fontWeight: 600, marginBottom: 12 }}>{it.sku} – {it.title || '—'}</div>
@@ -1035,8 +1052,10 @@ export function CreateShipmentPlanModal({
                         const cube = itemCubicFeet(it.dimensions);
                         const tier = sizeTier(it.dimensions);
                         const perUnitWeight = it.weightPerUnit ?? (it.weightPerBox != null && it.unitsPerBox ? it.weightPerBox / it.unitsPerBox : null);
-                        const hasSpecs = it.weightPerBox != null || perUnitWeight != null || cube != null;
-                        if (!hasSpecs) return null;
+                        // Always show the specs strip: units/carton + cartons default to 0 until the
+                        // operator sets them, and the cubic-feet estimate renders whenever dims exist.
+                        const unitsPerCarton = it.unitsPerBox ?? 0;
+                        const cartons = it.boxCount ?? 0;
                         return (
                           <div
                             style={{
@@ -1050,12 +1069,12 @@ export function CreateShipmentPlanModal({
                           >
                             <strong style={{ display: 'block', marginBottom: 6 }}>Item specs</strong>
                             <div className="muted">
-                              {it.unitsPerBox != null && <>{it.unitsPerBox} units/box · </>}
-                              {perUnitWeight != null ? `${perUnitWeight.toFixed(2)} lbs/unit` : `${it.weightPerBox ?? 0} lbs/box`}
+                              {unitsPerCarton} units/carton · {cartons} cartons
+                              {perUnitWeight != null ? ` · ${perUnitWeight.toFixed(2)} lbs/unit` : it.weightPerBox != null ? ` · ${it.weightPerBox} lbs/box` : ''}
                               {(it.dimensions?.length ?? it.dimensions?.width ?? it.dimensions?.height) != null && (
                                 <> · {[it.dimensions?.length, it.dimensions?.width, it.dimensions?.height].filter((n) => n != null).join('×')} in</>
                               )}
-                              {cube != null && <> · {cube} ft³/unit</>}
+                              {cube != null ? <> · est. {cube} ft³/unit</> : <> · cubic feet: enter dimensions</>}
                               {tier && <> · <span style={{ textTransform: 'capitalize', fontWeight: 600, color: 'var(--text)' }}>{tier}</span></>}
                             </div>
                           </div>
@@ -1063,14 +1082,17 @@ export function CreateShipmentPlanModal({
                       })()}
                     </div>
                     <div>
-                      <label style={{ fontWeight: 500, display: 'block', marginBottom: 4, fontSize: 12 }}>Boxes</label>
+                      <label style={{ fontWeight: 500, display: 'block', marginBottom: 4, fontSize: 12 }}>Cartons</label>
                       <input
                         type="number"
-                        min={1}
+                        min={0}
                         value={it.boxCount ?? ''}
+                        placeholder="0"
                         onChange={(e) => {
-                          const v = Number(e.target.value) || 1;
-                          const upb = it.unitsPerBox ?? 1;
+                          // Default 0 (empty allowed) — the operator explicitly sets carton count.
+                          const raw = e.target.value;
+                          const v = raw === '' ? 0 : Math.max(0, Number(raw) || 0);
+                          const upb = it.unitsPerBox ?? 0;
                           updateItem(idx, { boxCount: v, quantity: v * upb });
                         }}
                         style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border)' }}
@@ -1398,6 +1420,52 @@ export function CreateShipmentPlanModal({
           )}
           {currentSection === 4 && planId && (
             <div className="sta-section-body">
+              {/* Immersive multi-warehouse suggestion: the client ships to ONE receiving warehouse;
+                  we cross-dock a routed portion and LTL it to a second warehouse. Accepting stages
+                  the receiving ASN + approval-gated transfer in the WMS. Only shown when a distinct
+                  second node is executable and the plan hasn't already been accepted. */}
+              {multiWarehouseSuggestion && !mwResult && (
+                <div style={{ marginBottom: 20, border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+                  <div style={{ padding: '14px 16px', background: 'var(--purple-soft, #f3f0ff)', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontWeight: 900, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Truck size={16} /> Multi-warehouse plan available — save {money(multiWarehouseSuggestion.savingsPerUnit)}/unit
+                    </div>
+                    <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
+                      You ship <strong>all units to {multiWarehouseSuggestion.anchorCode}</strong> (closest to your supplier). We cross-dock and LTL-route a portion to <strong>{multiWarehouseSuggestion.secondCode}</strong> — you never ship to two warehouses.
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                    <div style={{ padding: 16, borderRight: '1px solid var(--border)', background: 'var(--green-soft, #eefaf1)' }}>
+                      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)', fontWeight: 850 }}>Single warehouse</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 8px' }}>Ship to {multiWarehouseSuggestion.anchorCode}</div>
+                      <div style={{ fontSize: 24, fontWeight: 900 }}>{money(multiWarehouseSuggestion.singlePerUnit)}<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}> /unit</span></div>
+                    </div>
+                    <div style={{ padding: 16, background: 'var(--purple-soft, #f3f0ff)' }}>
+                      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)', fontWeight: 850 }}>Multi-warehouse (suggested)</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 8px' }}>{multiWarehouseSuggestion.anchorCode} + {multiWarehouseSuggestion.secondCode}</div>
+                      <div style={{ fontSize: 24, fontWeight: 900 }}>{money(multiWarehouseSuggestion.multiPerUnit)}<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}> /unit</span></div>
+                    </div>
+                  </div>
+                  <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <button className="button-primary" onClick={handleAcceptMultiWarehouse} disabled={mwAccepting}>
+                      {mwAccepting ? 'Setting up…' : `Accept multi-warehouse plan`}
+                    </button>
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      Creates a cross-dock receiving ASN at {multiWarehouseSuggestion.anchorCode} + an LTL transfer to {multiWarehouseSuggestion.secondCode} (your warehouse approves the physical move).
+                    </span>
+                  </div>
+                  {mwError && <div style={{ padding: '0 16px 16px', color: 'var(--red-text, #b42318)', fontSize: 12.5, fontWeight: 700 }}>{mwError}</div>}
+                </div>
+              )}
+              {mwResult?.ok && (
+                <div style={{ marginBottom: 20, padding: 16, border: '1px solid var(--green-border, #b7e4c7)', background: 'var(--green-soft, #eefaf1)', borderRadius: 14 }}>
+                  <div style={{ fontWeight: 900, marginBottom: 6 }}>✓ Multi-warehouse plan accepted</div>
+                  <div className="muted" style={{ fontSize: 13 }}>
+                    Ship all units to <strong>{mwResult.anchorWarehouseCode}</strong>. Receiving ASN <strong>{mwResult.wms?.receivingAsn?.asnNumber || '—'}</strong> created (cross-dock).
+                    Transfer <strong>{mwResult.wms?.transfer?.transferNumber || '—'}</strong> ({mwResult.wms?.transfer?.routedUnits ?? 0} units → {mwResult.secondWarehouseCode}, {mwResult.wms?.transfer?.status || 'pending'}).
+                  </div>
+                </div>
+              )}
               <p className="muted" style={{ marginBottom: 16 }}>
                 Shipment plan created. Continue to Acknowledgement to confirm and create ASN.
               </p>

@@ -454,7 +454,7 @@ export default function SuppliersPage() {
     }
 
     if (needsAddress && !hasAddressInput) {
-      setMessage({ type: 'error', text: 'Address is required for offline suppliers.' });
+      setMessage({ type: 'error', text: 'A ship-from address is required. Check "Online Supplier" if this supplier has no physical pickup address.' });
       return;
     }
 
@@ -904,23 +904,20 @@ export default function SuppliersPage() {
                   />
                 </div>
                 <div className="form-field form-grid-full">
-                  <label>Online supplier</label>
-                  <div className="toggle-yes-no">
-                    <button
-                      type="button"
-                      className={supplierForm.onlineSupplier ? 'toggle-option selected' : 'toggle-option'}
-                      onClick={() => setSupplierForm((c) => ({ ...c, onlineSupplier: true }))}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      className={!supplierForm.onlineSupplier ? 'toggle-option selected' : 'toggle-option'}
-                      onClick={() => setSupplierForm((c) => ({ ...c, onlineSupplier: false }))}
-                    >
-                      No
-                    </button>
-                  </div>
+                  <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={supplierForm.onlineSupplier}
+                      onChange={(e) => setSupplierForm((c) => ({ ...c, onlineSupplier: e.target.checked }))}
+                      style={{ marginTop: 3 }}
+                    />
+                    <span>
+                      <span style={{ fontWeight: 600 }}>Online Supplier</span>
+                      <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                        Check only for online/dropship suppliers with no physical pickup address. By default we collect a ship-from address.
+                      </span>
+                    </span>
+                  </label>
                 </div>
                 <div className="form-field">
                   <label>Email</label>
@@ -960,9 +957,9 @@ export default function SuppliersPage() {
 
             {!supplierForm.onlineSupplier && (!editingSupplierId || locations.filter((l) => l.supplierId === editingSupplierId).length === 0) && (
               <div className="form-section">
-                <h3 className="form-section-title">Address</h3>
+                <h3 className="form-section-title">Ship-from address</h3>
                 <p className="muted" style={{ marginBottom: 16 }}>
-                  Search and select an address to auto-fill, or enter manually. Validate to capture coordinates.
+                  Collected by default so we can route inbound to the closest warehouse. Search to auto-fill or enter manually, then validate to capture coordinates. Add more addresses below for a multi-location supplier.
                 </p>
                 <div className="form-field" style={{ marginBottom: 16 }}>
                   <AddressInput

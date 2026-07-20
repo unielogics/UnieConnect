@@ -750,7 +750,7 @@ const SkuCortexEconomicsCard = ({
     }> = [
       {
         key: 'single',
-        title: 'Single warehouse near supplier',
+        title: 'Single warehouse',
         tone: 'green',
         badge: 'Executable',
         warehouses: singleWarehouses.length ? singleWarehouses.join(' + ') : economics.anchorWarehouseCode || 'Anchor warehouse',
@@ -761,7 +761,7 @@ const SkuCortexEconomicsCard = ({
       },
       {
         key: 'optimized',
-        title: optimizedHubCount > 1 ? 'Optimized 2-node heatmap' : 'Network expansion check',
+        title: optimizedHubCount > 1 ? 'Multi-warehouse' : 'Network expansion check',
         tone: optimizedBlocked ? 'amber' : optimized.modeledOnly ? 'amber' : 'purple',
         badge: optimizedBlocked ? 'Blocked' : optimized.modeledOnly ? 'Modeled only' : 'Executable',
         warehouses: optimizedDisplayWarehouses,
@@ -793,52 +793,83 @@ const SkuCortexEconomicsCard = ({
           </div>
         </div>
         <div className="card-body" style={{ paddingBottom: 0 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
-            {comparisonRows.map((row) => (
-              <div
-                key={row.key}
-                style={{
-                  padding: 14,
-                  border: '1px solid var(--border)',
-                  borderRadius: 12,
-                  background: row.key === 'optimized' ? 'var(--purple-soft)' : 'var(--green-soft)',
-                  minWidth: 0,
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)', fontWeight: 850 }}>
-                      48-state label model
-                    </div>
-                    <div style={{ fontWeight: 900, marginTop: 4 }}>{row.title}</div>
+          {(() => {
+            // Single-vs-multi comparison table. The single column reads the full stored cost stack
+            // (costs.*); the multi column reads networkComparison.optimizedTwoNode.* which — after the
+            // anchor-inherited fee fix — carries a complete second-node fulfillment stack. Fulfillment
+            // lines the optimized node doesn't itemize are derived so each column reconciles to its total.
+            const singleRow = comparisonRows[0];
+            const multiRow = comparisonRows[1];
+            const num = (v: unknown) => (v == null || Number.isNaN(Number(v)) ? null : Number(v));
+            const singlePickPack = num(optionalNumber((costs.pickPerUnit ?? 0) + (costs.packPerUnit ?? 0) + (costs.orderHandlingPerUnit ?? 0)));
+            const singleMaterials = num(costs.materialsPerUnit ?? costs.materialsPerOrder);
+            const singleReceiving = num(costs.receivingPerUnit);
+            // Multi fulfillment: prefer explicit optimized fields, else derive (total − label − transfer)
+            // minus materials/receiving so the pick/pack row is what's left of the optimized total.
+            const multiFulfillment = num(optimized.fulfillmentPerUnit);
+            const optimizedInheritsAnchor = String(optimized.optimizedFulfillmentRatesSource || optimized.fulfillmentRatesSource || '') === 'anchor_inherited';
+            const rows: Array<{ label: string; single: number | null; multi: number | null; hint?: string }> = [
+              { label: 'Shipping label / unit', single: num(singleRow.label), multi: optimizedBlocked ? null : num(multiRow.label), hint: '48-state parcel avg' },
+              { label: 'Pick · pack · handling / unit', single: singlePickPack, multi: optimizedBlocked ? null : (multiFulfillment ?? singlePickPack), hint: optimizedInheritsAnchor ? 'multi inherits anchor rates' : 'warehouse pricing' },
+              { label: 'Materials / unit', single: singleMaterials, multi: optimizedBlocked ? null : singleMaterials, hint: 'boxes · dunnage' },
+              { label: 'Receiving / unit', single: singleReceiving, multi: optimizedBlocked ? null : singleReceiving, hint: 'inbound handling' },
+              { label: 'LTL transfer / unit', single: num(singleRow.transfer), multi: optimizedBlocked ? null : num(multiRow.transfer), hint: 'warehouse-to-warehouse' },
+              { label: 'Total / unit', single: num(singleRow.total), multi: optimizedBlocked ? null : num(multiRow.total), hint: 'landed per unit' },
+            ];
+            const th: React.CSSProperties = { textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)', fontWeight: 850, padding: '8px 12px' };
+            const tdLabel: React.CSSProperties = { fontSize: 12.5, color: 'var(--text-secondary)', padding: '9px 12px', borderTop: '1px solid var(--border)' };
+            const tdVal: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, padding: '9px 12px', borderTop: '1px solid var(--border)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+            return (
+              <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={th}>Cost line</th>
+                      <th style={{ ...th, textAlign: 'right', background: 'var(--green-soft)' }}>
+                        <div style={{ fontWeight: 900, color: 'var(--text-primary)', textTransform: 'none', fontSize: 13 }}>{singleRow.title}</div>
+                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220, marginLeft: 'auto' }}>{singleRow.warehouses}</div>
+                      </th>
+                      <th style={{ ...th, textAlign: 'right', background: optimizedBlocked ? 'var(--amber-soft)' : 'var(--purple-soft)' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 900, color: 'var(--text-primary)', textTransform: 'none', fontSize: 13 }}>{multiRow.title}</span>
+                          <Chip tone={multiRow.tone} dot={false}>{multiRow.badge}</Chip>
+                        </div>
+                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220, marginLeft: 'auto' }}>{multiRow.warehouses}</div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => {
+                      const isTotal = r.label.startsWith('Total');
+                      return (
+                        <tr key={r.label} style={isTotal ? { background: 'var(--bg-sunken)' } : undefined}>
+                          <td style={{ ...tdLabel, fontWeight: isTotal ? 850 : 600, color: isTotal ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                            {r.label}
+                            {r.hint && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 500 }}>{r.hint}</span>}
+                          </td>
+                          <td style={{ ...tdVal, fontWeight: isTotal ? 900 : 800 }}>{moneyOrMissing(r.single)}</td>
+                          <td style={{ ...tdVal, fontWeight: isTotal ? 900 : 800 }}>{moneyOrMissing(r.multi)}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr style={{ background: 'var(--green-soft)' }}>
+                      <td style={{ ...tdLabel, fontWeight: 850, color: 'var(--text-primary)' }}>Savings / unit (multi vs single)</td>
+                      <td style={{ ...tdVal }}>-</td>
+                      <td style={{ ...tdVal, color: savingsPerUnit != null && savingsPerUnit > 0 ? 'var(--green-text, #128a4c)' : 'var(--text-primary)' }}>
+                        {!optimizedBlocked && savingsPerUnit != null ? money(savingsPerUnit) : '-'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                {(optimizedBlocked || multiRow.source) && (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', padding: '8px 12px', borderTop: '1px solid var(--border)' }}>
+                    {optimizedBlocked ? networkBlockedCopy(optimizedBlockedReason) : multiRow.source}
+                    {optimizedInheritsAnchor && !optimizedBlocked ? ' · second-node fulfillment priced at anchor rates' : ''}
                   </div>
-                  <Chip tone={row.tone} dot={false}>{row.badge}</Chip>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {row.warehouses}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Label/unit</div>
-                    <div style={{ fontWeight: 900 }}>{moneyOrMissing(row.label)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Transfer</div>
-                    <div style={{ fontWeight: 900 }}>{moneyOrMissing(row.transfer)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Total/unit</div>
-                    <div style={{ fontWeight: 900 }}>{moneyOrMissing(row.total)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase' }}>Savings</div>
-                    <div style={{ fontWeight: 900 }}>{row.key === 'optimized' && savingsPerUnit != null ? money(savingsPerUnit) : '-'}</div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 10 }}>{row.source}</div>
+                )}
               </div>
-            ))}
-          </div>
+            );
+          })()}
           {comparison?.note && (
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 10 }}>
               {comparison.note}

@@ -1,4 +1,4 @@
-import { apiUrl, TOKEN_KEY } from './api';
+import { apiUrl, TOKEN_KEY, authFetch } from './api';
 
 export type AmazonAccount = {
   id: string;
@@ -272,11 +272,10 @@ export async function fetchAmazonCatalogItems(params: {
 }
 
 export async function fetchSuppliers() {
-  const res = await fetch(apiUrl('/api/v1/suppliers'), {
-    headers: {
-      ...authHeaders(),
-      Accept: 'application/json',
-    },
+  // authFetch sends the session cookie + retries once without a stale Bearer, so supplier reads
+  // survive an expired/missing localStorage token (was a bare Bearer fetch → 401).
+  const res = await authFetch(apiUrl('/api/v1/suppliers'), {
+    headers: { Accept: 'application/json' },
   });
   return readJson<Supplier[]>(res);
 }
@@ -304,21 +303,17 @@ export type SupplierProductsResponse = {
 };
 
 export async function fetchSupplierProducts(supplierId: string) {
-  const res = await fetch(apiUrl(`/api/v1/suppliers/${encodeURIComponent(supplierId)}/products`), {
-    headers: {
-      ...authHeaders(),
-      Accept: 'application/json',
-    },
+  const res = await authFetch(apiUrl(`/api/v1/suppliers/${encodeURIComponent(supplierId)}/products`), {
+    headers: { Accept: 'application/json' },
   });
   if (!res.ok) throw new Error('Failed to fetch supplier products');
   return readJson<SupplierProductsResponse>(res);
 }
 
 export async function createSupplier(body: Record<string, unknown>) {
-  const res = await fetch(apiUrl('/api/v1/suppliers'), {
+  const res = await authFetch(apiUrl('/api/v1/suppliers'), {
     method: 'POST',
     headers: {
-      ...authHeaders(),
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
@@ -328,10 +323,9 @@ export async function createSupplier(body: Record<string, unknown>) {
 }
 
 export async function updateSupplier(id: string, body: Record<string, unknown>) {
-  const res = await fetch(apiUrl(`/api/v1/suppliers/${encodeURIComponent(id)}`), {
+  const res = await authFetch(apiUrl(`/api/v1/suppliers/${encodeURIComponent(id)}`), {
     method: 'PATCH',
     headers: {
-      ...authHeaders(),
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
@@ -341,12 +335,9 @@ export async function updateSupplier(id: string, body: Record<string, unknown>) 
 }
 
 export async function deleteSupplier(id: string) {
-  const res = await fetch(apiUrl(`/api/v1/suppliers/${encodeURIComponent(id)}`), {
+  const res = await authFetch(apiUrl(`/api/v1/suppliers/${encodeURIComponent(id)}`), {
     method: 'DELETE',
-    headers: {
-      ...authHeaders(),
-      Accept: 'application/json',
-    },
+    headers: { Accept: 'application/json' },
   });
   return readJson<{ success: boolean }>(res);
 }
@@ -354,20 +345,16 @@ export async function deleteSupplier(id: string) {
 export async function fetchShipFromLocations(params?: { supplierId?: string }) {
   const url = new URL(apiUrl('/api/v1/ship-from-locations'));
   if (params?.supplierId) url.searchParams.set('supplierId', params.supplierId);
-  const res = await fetch(url.toString(), {
-    headers: {
-      ...authHeaders(),
-      Accept: 'application/json',
-    },
+  const res = await authFetch(url.toString(), {
+    headers: { Accept: 'application/json' },
   });
   return readJson<ShipFromLocation[]>(res);
 }
 
 export async function createShipFromLocation(body: Record<string, unknown>) {
-  const res = await fetch(apiUrl('/api/v1/ship-from-locations'), {
+  const res = await authFetch(apiUrl('/api/v1/ship-from-locations'), {
     method: 'POST',
     headers: {
-      ...authHeaders(),
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
@@ -377,10 +364,9 @@ export async function createShipFromLocation(body: Record<string, unknown>) {
 }
 
 export async function updateShipFromLocation(id: string, body: Record<string, unknown>) {
-  const res = await fetch(apiUrl(`/api/v1/ship-from-locations/${encodeURIComponent(id)}`), {
+  const res = await authFetch(apiUrl(`/api/v1/ship-from-locations/${encodeURIComponent(id)}`), {
     method: 'PATCH',
     headers: {
-      ...authHeaders(),
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
@@ -390,12 +376,9 @@ export async function updateShipFromLocation(id: string, body: Record<string, un
 }
 
 export async function deleteShipFromLocation(id: string) {
-  const res = await fetch(apiUrl(`/api/v1/ship-from-locations/${encodeURIComponent(id)}`), {
+  const res = await authFetch(apiUrl(`/api/v1/ship-from-locations/${encodeURIComponent(id)}`), {
     method: 'DELETE',
-    headers: {
-      ...authHeaders(),
-      Accept: 'application/json',
-    },
+    headers: { Accept: 'application/json' },
   });
   return readJson<{ success: boolean }>(res);
 }
