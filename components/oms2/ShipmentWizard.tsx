@@ -1091,15 +1091,26 @@ export const ShipmentWizard = ({
                       {(s.name || '?').slice(0, 2).toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700 }}>{s.name}</span>
-                        {matchCount > 0 && <Chip tone="purple" dot={false}>Match · {matchCount}</Chip>}
-                      </div>
-                      <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>
-                        {[s.region, s.country].filter(Boolean).join(', ')}
-                        {s.leadTime ? ` · ${s.leadTime}d lead` : ''}
-                        {s.onTime != null ? ` · ${Math.round(s.onTime * 100)}% on-time` : ''}
-                      </div>
+                      {(() => {
+                        const cityState = [s.city, s.state].map((v) => String(v || '').trim()).filter(Boolean).join(', ');
+                        const isOnline = !cityState;
+                        return (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 13, fontWeight: 700 }}>{s.name}</span>
+                              {isOnline && <Chip tone="blue" dot={false}>Online supplier</Chip>}
+                              {matchCount > 0 && <Chip tone="purple" dot={false}>Match · {matchCount}</Chip>}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>
+                              {isOnline
+                                ? 'No pickup address · ships online'
+                                : [cityState, s.country].filter(Boolean).join(' · ')}
+                              {s.leadTime ? ` · ${s.leadTime}d lead` : ''}
+                              {s.onTime != null ? ` · ${Math.round(s.onTime * 100)}% on-time` : ''}
+                            </div>
+                          </>
+                        );
+                      })()}
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
                         {s.paymentTerms || '—'}
                         {s.rating != null ? ` · ★ ${s.rating}` : ''}

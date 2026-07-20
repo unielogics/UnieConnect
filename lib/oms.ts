@@ -415,6 +415,9 @@ export type OmsSupplier = {
   notes?: string | null;
   country?: string;
   region?: string;
+  city?: string | null;
+  state?: string | null;
+  onlineSupplier?: boolean;
   leadTime?: number;
   onTime?: number;
   qualityPass?: number;
