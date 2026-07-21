@@ -134,7 +134,7 @@ export const Suppliers = ({
     const q = query.trim().toLowerCase();
     if (!q) return suppliers;
     return suppliers.filter((s) =>
-      [s.name, s.email, s.phone, s.region, s.country, s.pickupProfile?.hoursOfOperation]
+      [s.name, s.email, s.phone, s.city, s.state, s.region, s.country, s.pickupProfile?.hoursOfOperation]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q)),
     );
@@ -218,12 +218,23 @@ export const Suppliers = ({
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2, gap: 8 }}>
                           <span style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-                          <Chip tone={profile.loadingDock === true ? 'green' : profile.loadingDock === false ? 'amber' : 'default'} dot={false}>
-                            {profile.loadingDock === true ? 'Dock' : profile.loadingDock === false ? 'No dock' : 'Profile'}
-                          </Chip>
+                          {s.onlineSupplier ? (
+                            <Chip tone="blue" dot={false}>Online</Chip>
+                          ) : (
+                            <Chip tone={profile.loadingDock === true ? 'green' : profile.loadingDock === false ? 'amber' : 'default'} dot={false}>
+                              {profile.loadingDock === true ? 'Dock' : profile.loadingDock === false ? 'No dock' : 'Profile'}
+                            </Chip>
+                          )}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                          {[s.region, profile.maxVehicleSize ? pickupVehicleLabels[profile.maxVehicleSize] || profile.maxVehicleSize : null, s.skuCount ? `${s.skuCount} SKUs` : null].filter(Boolean).join(' · ')}
+                          {[
+                            s.onlineSupplier ? 'No pickup address' : [s.city, s.state].filter(Boolean).join(', ') || s.region,
+                            profile.maxVehicleSize ? pickupVehicleLabels[profile.maxVehicleSize] || profile.maxVehicleSize : null,
+                            s.skuCount ? `${s.skuCount} SKUs` : null,
+                          ].filter(Boolean).join(' · ')}
+                        </div>
+                        <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', marginTop: 1 }}>
+                          {s.lastOrderAt ? `Last order ${new Date(s.lastOrderAt).toLocaleDateString()}` : 'No orders yet'}
                         </div>
                         {rec && <div style={{ marginTop: 6 }}><Chip tone="purple" dot={false}>Cortex optimization</Chip></div>}
                       </div>
@@ -327,9 +338,12 @@ const SupplierDetail = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                 <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}>{supplier.name}</span>
                 <Chip tone={ready.tone as any} dot={false}>{ready.label}</Chip>
+                {supplier.onlineSupplier && <Chip tone="blue" dot={false}>Online</Chip>}
               </div>
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                {[supplier.region, supplier.country].filter(Boolean).join(', ') || 'Supplier profile'}
+                {supplier.onlineSupplier
+                  ? 'No pickup address · routes to your primary warehouse'
+                  : [supplier.city, supplier.state].filter(Boolean).join(', ') || [supplier.region, supplier.country].filter(Boolean).join(', ') || 'Supplier profile'}
                 {supplier.contact ? ` · ${supplier.contact}` : ''}
               </div>
             </div>
@@ -362,6 +376,7 @@ const SupplierDetail = ({
             <DetailKv2 label="Phone" value={supplier.phone || '—'} />
             <DetailKv2 label="Hours" value={profile.hoursOfOperation || '—'} />
             <DetailKv2 label="Last activity" value={dateText(summary?.lastActivityAt || supplier.updatedAt)} />
+            <DetailKv2 label="Last order" value={supplier.lastOrderAt ? dateText(supplier.lastOrderAt) : 'No orders yet'} />
             <DetailKv2 label="SKUs linked" value={summary?.skus ?? supplierSkus.length} />
             <DetailKv2 label="Invoice amount" value={summary?.invoiceAmount != null ? fmt.money(summary.invoiceAmount, { compact: true }) : '—'} />
           </div>

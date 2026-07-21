@@ -234,8 +234,18 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                                 <div className="mono muted" style={{ fontSize: 10.5 }}>{asn.asnNumber || asn.shipmentDisplayId || ''}</div>
                               </td>
                               <td>
-                                <div>{asn.supplierName || '—'}</div>
-                                <div className="mono muted" style={{ fontSize: 10.5 }}>{asn.supplierDisplayId || ''}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span>{asn.supplierName || '—'}</span>
+                                  {asn.supplierOnline && <Chip tone="blue" dot={false}>Online</Chip>}
+                                </div>
+                                <div className="mono muted" style={{ fontSize: 10.5 }}>
+                                  {asn.supplierOnline
+                                    ? asn.supplierDisplayId || ''
+                                    : [asn.supplierCity, asn.supplierState].filter(Boolean).join(', ') || asn.supplierDisplayId || ''}
+                                </div>
+                                <div className="muted" style={{ fontSize: 10.5 }}>
+                                  {asn.supplierLastOrderAt ? `Last order ${new Date(asn.supplierLastOrderAt).toLocaleDateString()}` : 'No orders yet'}
+                                </div>
                               </td>
                               <td>
                                 <div>{asn.facilityCode || 'Auto'}</div>

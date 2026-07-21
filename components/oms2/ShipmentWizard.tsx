@@ -1093,7 +1093,7 @@ export const ShipmentWizard = ({
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {(() => {
                         const cityState = [s.city, s.state].map((v) => String(v || '').trim()).filter(Boolean).join(', ');
-                        const isOnline = !cityState;
+                        const isOnline = Boolean(s.onlineSupplier);
                         return (
                           <>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
@@ -1103,8 +1103,10 @@ export const ShipmentWizard = ({
                             </div>
                             <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>
                               {isOnline
-                                ? 'No pickup address · ships online'
-                                : [cityState, s.country].filter(Boolean).join(' · ')}
+                                ? 'No pickup address · routes to your primary warehouse'
+                                : cityState
+                                  ? [cityState, s.country].filter(Boolean).join(' · ')
+                                  : 'No address on file'}
                               {s.leadTime ? ` · ${s.leadTime}d lead` : ''}
                               {s.onTime != null ? ` · ${Math.round(s.onTime * 100)}% on-time` : ''}
                             </div>
@@ -1112,7 +1114,7 @@ export const ShipmentWizard = ({
                         );
                       })()}
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
-                        {s.paymentTerms || '—'}
+                        {s.lastOrderAt ? `Last order ${new Date(s.lastOrderAt).toLocaleDateString()}` : 'No orders yet'}
                         {s.rating != null ? ` · ★ ${s.rating}` : ''}
                       </div>
                     </div>
@@ -1264,10 +1266,18 @@ export const ShipmentWizard = ({
                     {(supplier?.name || '?').slice(0, 2).toUpperCase()}
                   </div>
                   <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 700 }}>{supplier?.name || '—'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 700 }}>{supplier?.name || '—'}</span>
+                      {supplier?.onlineSupplier && <Chip tone="blue" dot={false}>Online</Chip>}
+                    </div>
                     <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>
-                      {supplier?.region || ''}
+                      {supplier?.onlineSupplier
+                        ? 'No pickup address · routes to your primary warehouse'
+                        : [supplier?.city, supplier?.state].filter(Boolean).join(', ') || supplier?.region || ''}
                       {supplier?.leadTime ? ` · ${supplier.leadTime}d lead` : ''}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                      {supplier?.lastOrderAt ? `Last order ${new Date(supplier.lastOrderAt).toLocaleDateString()}` : 'No orders yet'}
                     </div>
                   </div>
                 </div>

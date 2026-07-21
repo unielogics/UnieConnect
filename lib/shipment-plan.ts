@@ -56,7 +56,14 @@ export type ShipmentPlan = {
   orderDate?: string;
   estimatedArrivalDate?: string;
   shipmentTitle?: string;
-  supplier?: { id: string; name: string } | null;
+  supplier?: {
+    id: string;
+    name: string;
+    city?: string | null;
+    state?: string | null;
+    onlineSupplier?: boolean;
+    lastOrderAt?: string | null;
+  } | null;
   createdAt?: string;
   updatedAt?: string;
 };

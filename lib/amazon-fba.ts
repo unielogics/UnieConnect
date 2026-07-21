@@ -29,6 +29,11 @@ export type Supplier = {
   onlineSupplier?: boolean;
   email?: string;
   phone?: string;
+  address?: Record<string, unknown>;
+  city?: string | null;
+  state?: string | null;
+  lastOrderAt?: string | null;
+  lastOrderNumber?: string | null;
   hoursOfOperation?: string;
   website?: string;
   notes?: string;

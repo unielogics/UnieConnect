@@ -263,7 +263,18 @@ export default function ShipmentPlanDetailPage() {
             <div style={{ marginTop: 16, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
               <div>
                 <span className="sta-kicker" style={{ fontSize: 11, textTransform: 'uppercase', opacity: 0.8 }}>Supplier</span>
-                <p style={{ margin: '4px 0 0' }}>{plan.supplier?.name || '—'}</p>
+                <p style={{ margin: '4px 0 0' }}>
+                  {plan.supplier?.name || '—'}
+                  {plan.supplier?.onlineSupplier && <span className="muted" style={{ fontSize: 12 }}> · Online</span>}
+                </p>
+                <p className="muted" style={{ margin: '2px 0 0', fontSize: 12 }}>
+                  {plan.supplier?.onlineSupplier
+                    ? 'No pickup address'
+                    : [plan.supplier?.city, plan.supplier?.state].filter(Boolean).join(', ') || ''}
+                </p>
+                <p className="muted" style={{ margin: '2px 0 0', fontSize: 12 }}>
+                  {plan.supplier?.lastOrderAt ? `Last order ${new Date(plan.supplier.lastOrderAt).toLocaleDateString()}` : 'No orders yet'}
+                </p>
               </div>
               <div>
                 <span className="sta-kicker" style={{ fontSize: 11, textTransform: 'uppercase', opacity: 0.8 }}>Facility</span>

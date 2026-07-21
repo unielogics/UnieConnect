@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Modal } from '../ui';
 import { createSupplier, createShipFromLocation, updateSupplier } from '../../../lib/amazon-fba';
+import { AddressInput } from '../../AddressInput';
 import type { OmsSupplier } from '../../../lib/oms';
 
 const field: React.CSSProperties = {
@@ -98,6 +99,25 @@ export const NewSupplierModal = ({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Online supplier (no physical pickup address) + the ship-from address for everyone else —
+  // required server-side unless onlineSupplier is checked (see supplierAddressSatisfiesOnlineRule
+  // in the backend). This is the canonical place a supplier is created/edited, so this is the ONE
+  // form that must capture both — previously this modal had neither field at all.
+  const existingAddress = (supplier?.address || {}) as Record<string, any>;
+  const [onlineSupplier, setOnlineSupplier] = useState(Boolean(supplier?.onlineSupplier));
+  const [addressSearch, setAddressSearch] = useState('');
+  const [addr, setAddr] = useState({
+    street: String(existingAddress.street || existingAddress.addressLine1 || ''),
+    city: String(existingAddress.city || ''),
+    state: String(existingAddress.state || existingAddress.stateOrProvinceCode || ''),
+    zip: String(existingAddress.zip || existingAddress.zipCode || existingAddress.postalCode || ''),
+    country: String(existingAddress.country || existingAddress.countryCode || 'US'),
+    latitude: typeof existingAddress.latitude === 'number' ? existingAddress.latitude : undefined,
+    longitude: typeof existingAddress.longitude === 'number' ? existingAddress.longitude : undefined,
+  });
+  const addressComplete = Boolean(addr.street.trim() && addr.city.trim() && addr.state.trim());
+  const addressMissing = !onlineSupplier && !addressComplete;
+
   const editing = Boolean(supplier?.id);
   const dockReadiness = useMemo(() => {
     const missing = [
@@ -120,6 +140,10 @@ export const NewSupplierModal = ({
       setErr('Supplier name is required');
       return;
     }
+    if (addressMissing) {
+      setErr('A ship-from address (street, city, state) is required. Check "Online supplier" if this supplier has no physical pickup address.');
+      return;
+    }
     setSaving(true);
     setErr(null);
     try {
@@ -137,12 +161,25 @@ export const NewSupplierModal = ({
         palletExchange,
         pickupInstructions: f.pickupInstructions.trim(),
       };
+      const address = onlineSupplier
+        ? {}
+        : {
+            street: addr.street.trim(),
+            city: addr.city.trim(),
+            state: addr.state.trim(),
+            zip: addr.zip.trim(),
+            country: (addr.country.trim() || 'US').toUpperCase(),
+            ...(addr.latitude != null ? { latitude: addr.latitude } : {}),
+            ...(addr.longitude != null ? { longitude: addr.longitude } : {}),
+          };
       const body = {
         name: f.name.trim(),
         email: f.email.trim() || undefined,
         phone: f.phone.trim() || undefined,
         website: f.website.trim() || undefined,
         notes: f.notes.trim() || undefined,
+        onlineSupplier,
+        address,
         ...pickupProfile,
         metadata: {
           ...(supplier?.metadata || {}),
@@ -242,6 +279,75 @@ export const NewSupplierModal = ({
               <label style={label}>Supplier notes</label>
               <textarea style={{ ...field, height: 64, padding: '8px 10px' }} value={f.notes} onChange={set('notes')} placeholder="Commercial notes, lead-time expectations, exceptions, escalation path." />
             </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">Pickup address</div>
+              <div className="card-subtitle">Required for freight, distance-based warehouse routing, and pickup planning — unless this supplier ships digitally with no physical origin.</div>
+            </div>
+          </div>
+          <div className="card-body">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, cursor: 'pointer', marginBottom: 12 }}>
+              <input type="checkbox" className="row-check" checked={onlineSupplier} onChange={(e) => setOnlineSupplier(e.target.checked)} />
+              Online supplier (no physical pickup address — inbound routes to your primary warehouse)
+            </label>
+            {!onlineSupplier && (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={label}>Search address</label>
+                  <AddressInput
+                    value={addressSearch}
+                    onChange={setAddressSearch}
+                    onSelectSuggestion={(s) => {
+                      setAddr((p) => ({
+                        ...p,
+                        street: s.street || p.street,
+                        city: s.city || p.city,
+                        state: s.stateCode || s.state || p.state,
+                        zip: s.postalCode || p.zip,
+                        country: s.countryCode || s.country || p.country,
+                        latitude: typeof s.latitude === 'number' ? s.latitude : p.latitude,
+                        longitude: typeof s.longitude === 'number' ? s.longitude : p.longitude,
+                      }));
+                      setAddressSearch(s.street || '');
+                    }}
+                  />
+                </div>
+                <Row>
+                  <div>
+                    <label style={label}>Street *</label>
+                    <input style={field} value={addr.street} onChange={(e) => setAddr((p) => ({ ...p, street: e.target.value }))} placeholder="123 Warehouse Way" />
+                  </div>
+                  <div>
+                    <label style={label}>City *</label>
+                    <input style={field} value={addr.city} onChange={(e) => setAddr((p) => ({ ...p, city: e.target.value }))} />
+                  </div>
+                </Row>
+                <Row>
+                  <div>
+                    <label style={label}>State / province *</label>
+                    <input style={field} value={addr.state} onChange={(e) => setAddr((p) => ({ ...p, state: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={label}>Postal code</label>
+                    <input style={field} value={addr.zip} onChange={(e) => setAddr((p) => ({ ...p, zip: e.target.value }))} />
+                  </div>
+                </Row>
+                <Row>
+                  <div>
+                    <label style={label}>Country code</label>
+                    <input style={field} value={addr.country} onChange={(e) => setAddr((p) => ({ ...p, country: e.target.value }))} />
+                  </div>
+                  <div />
+                </Row>
+                {addressMissing && (
+                  <div style={{ fontSize: 11.5, color: 'var(--amber-text)' }}>Street, city, and state are required unless this supplier is marked online.</div>
+                )}
+              </>
+            )}
           </div>
         </div>
 

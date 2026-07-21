@@ -1,48 +1,27 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { FiEdit2, FiTrash2, FiPlus, FiChevronDown, FiChevronUp, FiMapPin, FiMail, FiPhone, FiGlobe, FiFileText } from 'react-icons/fi';
+import { FiEdit2, FiTrash2, FiPlus, FiChevronDown, FiChevronUp, FiMapPin, FiMail, FiPhone, FiGlobe } from 'react-icons/fi';
 import DashboardLayout from '../components/DashboardLayout';
 import { Modal } from '../components/Modal';
 import { Button } from '../components/Button';
 import { AddressInput } from '../components/AddressInput';
 import { validateAddress } from '../lib/address';
+import { NewSupplierModal } from '../components/oms2/modals/NewSupplierModal';
+import type { OmsSupplier } from '../lib/oms';
 import {
   Supplier,
   ShipFromLocation,
   createShipFromLocation,
-  createSupplier,
   deleteShipFromLocation,
   deleteSupplier,
   fetchShipFromLocations,
   fetchSupplierProducts,
   fetchSuppliers,
   updateShipFromLocation,
-  updateSupplier,
   type SupplierProductDirect,
   type SupplierProductHistorical,
 } from '../lib/amazon-fba';
-
-type SupplierForm = {
-  name: string;
-  onlineSupplier: boolean;
-  email: string;
-  phone: string;
-  hoursOfOperation: string;
-  website: string;
-  notes: string;
-};
-
-type SupplierAddressForm = {
-  addressLine1: string;
-  addressLine2: string;
-  city: string;
-  stateOrProvinceCode: string;
-  postalCode: string;
-  countryCode: string;
-  lat?: number;
-  long?: number;
-};
 
 type LocationForm = {
   supplierId: string;
@@ -64,25 +43,6 @@ type LocationForm = {
 };
 
 type FilterType = 'all' | 'online' | 'offline' | 'with_addresses' | 'without_addresses';
-
-const emptySupplierForm: SupplierForm = {
-  name: '',
-  onlineSupplier: false,
-  email: '',
-  phone: '',
-  hoursOfOperation: '',
-  website: '',
-  notes: '',
-};
-
-const emptySupplierAddressForm: SupplierAddressForm = {
-  addressLine1: '',
-  addressLine2: '',
-  city: '',
-  stateOrProvinceCode: '',
-  postalCode: '',
-  countryCode: 'US',
-};
 
 const createEmptyLocationForm = (supplierId = ''): LocationForm => ({
   supplierId,
@@ -117,18 +77,12 @@ function matchesSearch(value: string, searchTerm: string) {
   return value.toLowerCase().includes(searchTerm.toLowerCase());
 }
 
-function isCompleteAddress(address: SupplierAddressForm) {
-  return Boolean(address.addressLine1 && address.city && address.stateOrProvinceCode && address.postalCode && address.countryCode);
-}
-
 export default function SuppliersPage() {
   const router = useRouter();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [locations, setLocations] = useState<ShipFromLocation[]>([]);
   const [expandedSupplierId, setExpandedSupplierId] = useState('');
   const [highlightedLocationId, setHighlightedLocationId] = useState('');
-  const [supplierForm, setSupplierForm] = useState<SupplierForm>(emptySupplierForm);
-  const [supplierAddressForm, setSupplierAddressForm] = useState<SupplierAddressForm>(emptySupplierAddressForm);
   const [locationForm, setLocationForm] = useState<LocationForm>(createEmptyLocationForm());
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -136,20 +90,16 @@ export default function SuppliersPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [supplierModalOpen, setSupplierModalOpen] = useState(false);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
-  const [editingSupplierId, setEditingSupplierId] = useState('');
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [editingLocationId, setEditingLocationId] = useState('');
-  const [supplierAddressSearch, setSupplierAddressSearch] = useState('');
-  const [supplierAddressValidated, setSupplierAddressValidated] = useState(false);
-  const [supplierAddressValidateError, setSupplierAddressValidateError] = useState<string | null>(null);
-  const [supplierAddressValidating, setSupplierAddressValidating] = useState(false);
   const [locationAddressSearch, setLocationAddressSearch] = useState('');
   const [locationAddressValidated, setLocationAddressValidated] = useState(false);
   const [locationAddressValidateError, setLocationAddressValidateError] = useState<string | null>(null);
   const [locationAddressValidating, setLocationAddressValidating] = useState(false);
-  const [showNotesPanel, setShowNotesPanel] = useState(true);
-  const [supplierProducts, setSupplierProducts] = useState<{ direct: SupplierProductDirect[]; historical: SupplierProductHistorical[] } | null>(null);
+  const [supplierProductsBySupplier, setSupplierProductsBySupplier] = useState<
+    Record<string, { direct: SupplierProductDirect[]; historical: SupplierProductHistorical[] } | undefined>
+  >({});
   const [supplierProductsLoading, setSupplierProductsLoading] = useState(false);
-  const [showProductsSection, setShowProductsSection] = useState(true);
 
   const locationCountBySupplier = useMemo(() => {
     const counts = new Map<string, number>();
@@ -179,6 +129,8 @@ export default function SuppliersPage() {
         supplier.phone,
         supplier.website,
         supplier.notes,
+        supplier.city,
+        supplier.state,
         ...supplierLocations.flatMap((location) => [
           location.label,
           location.contactName,
@@ -217,28 +169,6 @@ export default function SuppliersPage() {
     setHighlightedLocationId(location.id);
   }, [router.query.shipFrom, locations]);
 
-  useEffect(() => {
-    if (!supplierModalOpen || !editingSupplierId) {
-      setSupplierProducts(null);
-      return;
-    }
-    let cancelled = false;
-    setSupplierProductsLoading(true);
-    fetchSupplierProducts(editingSupplierId)
-      .then((data) => {
-        if (!cancelled) setSupplierProducts(data);
-      })
-      .catch(() => {
-        if (!cancelled) setSupplierProducts({ direct: [], historical: [] });
-      })
-      .finally(() => {
-        if (!cancelled) setSupplierProductsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [supplierModalOpen, editingSupplierId]);
-
   const loadData = async () => {
     try {
       const [nextSuppliers, nextLocations] = await Promise.all([fetchSuppliers(), fetchShipFromLocations()]);
@@ -249,104 +179,51 @@ export default function SuppliersPage() {
     }
   };
 
+  const loadSupplierProducts = async (supplierId: string) => {
+    if (supplierProductsBySupplier[supplierId]) return;
+    setSupplierProductsLoading(true);
+    try {
+      const data = await fetchSupplierProducts(supplierId);
+      setSupplierProductsBySupplier((current) => ({ ...current, [supplierId]: data }));
+    } catch {
+      setSupplierProductsBySupplier((current) => ({ ...current, [supplierId]: { direct: [], historical: [] } }));
+    } finally {
+      setSupplierProductsLoading(false);
+    }
+  };
+
+  const toggleExpanded = (supplierId: string) => {
+    setExpandedSupplierId((id) => {
+      const next = id === supplierId ? '' : supplierId;
+      if (next) void loadSupplierProducts(next);
+      return next;
+    });
+  };
+
   const openCreateSupplierModal = () => {
-    setEditingSupplierId('');
-    setSupplierForm(emptySupplierForm);
-    setSupplierAddressForm(emptySupplierAddressForm);
-    setSupplierAddressSearch('');
-    setSupplierAddressValidated(false);
-    setSupplierAddressValidateError(null);
+    setEditingSupplier(null);
     setSupplierModalOpen(true);
   };
 
   const openEditSupplierModal = (supplier: Supplier, event?: React.MouseEvent) => {
     event?.stopPropagation();
-    setEditingSupplierId(supplier.id);
-    setSupplierForm({
-      name: supplier.name || '',
-      onlineSupplier: Boolean(supplier.onlineSupplier),
-      email: supplier.email || '',
-      phone: supplier.phone || '',
-      hoursOfOperation: supplier.hoursOfOperation || '',
-      website: supplier.website || '',
-      notes: supplier.notes || '',
-    });
-    const primaryLocation = locations.find((l) => l.supplierId === supplier.id && l.isDefault) || locations.find((l) => l.supplierId === supplier.id);
-    const addr = primaryLocation?.address as any;
-    setSupplierAddressForm(
-      primaryLocation
-        ? {
-            addressLine1: primaryLocation.address.addressLine1 || '',
-            addressLine2: primaryLocation.address.addressLine2 || '',
-            city: primaryLocation.address.city || '',
-            stateOrProvinceCode: primaryLocation.address.stateOrProvinceCode || '',
-            postalCode: primaryLocation.address.postalCode || '',
-            countryCode: primaryLocation.address.countryCode || 'US',
-            lat: addr?.lat,
-            long: addr?.long,
-          }
-        : emptySupplierAddressForm,
-    );
-    setSupplierAddressSearch('');
-    setSupplierAddressValidated(false);
-    setSupplierAddressValidateError(null);
+    setEditingSupplier(supplier);
     setSupplierModalOpen(true);
   };
 
   const closeSupplierModal = () => {
     setSupplierModalOpen(false);
-    setEditingSupplierId('');
-    setSupplierForm(emptySupplierForm);
-    setSupplierAddressForm(emptySupplierAddressForm);
-    setSupplierAddressSearch('');
-    setSupplierAddressValidated(false);
-    setSupplierAddressValidateError(null);
-    setSupplierProducts(null);
+    setEditingSupplier(null);
   };
 
-  const handleValidateSupplierAddress = async () => {
-    const line = [
-      supplierAddressForm.addressLine1,
-      supplierAddressForm.addressLine2,
-      supplierAddressForm.city,
-      supplierAddressForm.stateOrProvinceCode,
-      supplierAddressForm.postalCode,
-      supplierAddressForm.countryCode,
-    ]
-      .filter(Boolean)
-      .join(', ');
-    const toValidate = line.trim() || supplierAddressSearch.trim();
-    if (!toValidate) {
-      setSupplierAddressValidateError('Enter or select an address first.');
-      return;
+  const handleSupplierSaved = (supplier?: OmsSupplier) => {
+    closeSupplierModal();
+    setMessage({ type: 'success', text: editingSupplier ? 'Supplier updated.' : 'Supplier created.' });
+    if (supplier?.id) {
+      setExpandedSupplierId(supplier.id);
+      void loadSupplierProducts(supplier.id);
     }
-    setSupplierAddressValidating(true);
-    setSupplierAddressValidateError(null);
-    try {
-      const res = await validateAddress(toValidate);
-      if (res.found && res.address) {
-        const a = res.address;
-        setSupplierAddressForm((prev) => ({
-          ...prev,
-          addressLine1: a.street || prev.addressLine1,
-          city: a.city || prev.city,
-          stateOrProvinceCode: a.stateCode || a.state || prev.stateOrProvinceCode,
-          postalCode: a.postalCode || prev.postalCode,
-          countryCode: a.country ? (a.country === 'United States' || a.country === 'USA' ? 'US' : a.country) : prev.countryCode,
-          lat: a.latitude,
-          long: a.longitude,
-        }));
-        setSupplierAddressValidated(true);
-      } else {
-        setSupplierAddressValidated(false);
-        setSupplierAddressValidateError(res.warning || 'Address could not be validated. You can still use it.');
-      }
-    } catch (e: any) {
-      setSupplierAddressValidateError(e?.message || 'Validation failed.');
-      setSupplierAddressValidated(false);
-    } finally {
-      setSupplierAddressValidating(false);
-    }
+    void loadData();
   };
 
   const openCreateLocationModal = (supplierId: string, event?: React.MouseEvent) => {
@@ -437,95 +314,6 @@ export default function SuppliersPage() {
       setLocationAddressValidated(false);
     } finally {
       setLocationAddressValidating(false);
-    }
-  };
-
-  const handleSaveSupplier = async (event: FormEvent) => {
-    event.preventDefault();
-
-    const isEditing = Boolean(editingSupplierId);
-    const existingSupplierLocations = isEditing ? locations.filter((l) => l.supplierId === editingSupplierId) : [];
-    const needsAddress = !supplierForm.onlineSupplier && existingSupplierLocations.length === 0;
-    const hasAddressInput = isCompleteAddress(supplierAddressForm);
-
-    if (!supplierForm.name.trim()) {
-      setMessage({ type: 'error', text: 'Supplier name is required.' });
-      return;
-    }
-
-    if (needsAddress && !hasAddressInput) {
-      setMessage({ type: 'error', text: 'A ship-from address is required. Check "Online Supplier" if this supplier has no physical pickup address.' });
-      return;
-    }
-
-    setBusyAction(isEditing ? 'update-supplier' : 'create-supplier');
-    setMessage(null);
-
-    try {
-      if (isEditing) {
-        const updated = await updateSupplier(editingSupplierId, supplierForm);
-        setSuppliers((current) => current.map((s) => (s.id === editingSupplierId ? updated : s)));
-        setExpandedSupplierId(updated.id);
-        if (!updated.onlineSupplier && existingSupplierLocations.length === 0 && hasAddressInput) {
-          const addr: Record<string, unknown> = {
-            addressLine1: supplierAddressForm.addressLine1,
-            addressLine2: supplierAddressForm.addressLine2,
-            city: supplierAddressForm.city,
-            stateOrProvinceCode: supplierAddressForm.stateOrProvinceCode,
-            postalCode: supplierAddressForm.postalCode,
-            countryCode: supplierAddressForm.countryCode.toUpperCase(),
-          };
-          if (supplierAddressForm.lat != null) (addr as any).lat = supplierAddressForm.lat;
-          if (supplierAddressForm.long != null) (addr as any).long = supplierAddressForm.long;
-          const createdLocation = await createShipFromLocation({
-            supplierId: updated.id,
-            label: `${updated.name} Primary`,
-            email: updated.email,
-            phone: updated.phone,
-            hoursOfOperation: updated.hoursOfOperation,
-            website: updated.website,
-            isDefault: true,
-            address: addr,
-          });
-          setLocations((current) => [createdLocation, ...current]);
-          setHighlightedLocationId(createdLocation.id);
-        }
-        setMessage({ type: 'success', text: 'Supplier updated.' });
-      } else {
-        const created = await createSupplier(supplierForm);
-        setSuppliers((current) => [created, ...current]);
-        setExpandedSupplierId(created.id);
-        if (!created.onlineSupplier && hasAddressInput) {
-          const addr: Record<string, unknown> = {
-            addressLine1: supplierAddressForm.addressLine1,
-            addressLine2: supplierAddressForm.addressLine2,
-            city: supplierAddressForm.city,
-            stateOrProvinceCode: supplierAddressForm.stateOrProvinceCode,
-            postalCode: supplierAddressForm.postalCode,
-            countryCode: supplierAddressForm.countryCode.toUpperCase(),
-          };
-          if (supplierAddressForm.lat != null) (addr as any).lat = supplierAddressForm.lat;
-          if (supplierAddressForm.long != null) (addr as any).long = supplierAddressForm.long;
-          const createdLocation = await createShipFromLocation({
-            supplierId: created.id,
-            label: `${created.name} Primary`,
-            email: created.email,
-            phone: created.phone,
-            hoursOfOperation: created.hoursOfOperation,
-            website: created.website,
-            isDefault: true,
-            address: addr,
-          });
-          setLocations((current) => [createdLocation, ...current]);
-          setHighlightedLocationId(createdLocation.id);
-        }
-        setMessage({ type: 'success', text: 'Supplier created.' });
-      }
-      closeSupplierModal();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err?.message || 'Failed to save supplier.' });
-    } finally {
-      setBusyAction(null);
     }
   };
 
@@ -697,16 +485,18 @@ export default function SuppliersPage() {
               .sort((a, b) => Number(Boolean(b.isDefault)) - Number(Boolean(a.isDefault)) || a.label.localeCompare(b.label));
             const primaryLocation = supplierLocations[0];
             const isExpanded = expandedSupplierId === supplier.id;
+            const cityState = [supplier.city, supplier.state].filter(Boolean).join(', ');
+            const products = supplierProductsBySupplier[supplier.id];
 
             return (
               <article
                 key={supplier.id}
                 className={`shipfrom-supplier-card ${isExpanded ? 'expanded' : ''}`}
-                onClick={() => setExpandedSupplierId((id) => (id === supplier.id ? '' : supplier.id))}
+                onClick={() => toggleExpanded(supplier.id)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    setExpandedSupplierId((id) => (id === supplier.id ? '' : supplier.id));
+                    toggleExpanded(supplier.id);
                   }
                 }}
                 role="button"
@@ -744,11 +534,15 @@ export default function SuppliersPage() {
                     <span className="shipfrom-meta-item">
                       {addressCount} {addressCount === 1 ? 'address' : 'addresses'}
                     </span>
+                    {cityState && <span className="shipfrom-meta-item">{cityState}</span>}
                     {(supplier.email || supplier.phone) && (
                       <span className="shipfrom-meta-item">
                         {supplier.email || supplier.phone}
                       </span>
                     )}
+                    <span className="shipfrom-meta-item">
+                      {supplier.lastOrderAt ? `Last order ${new Date(supplier.lastOrderAt).toLocaleDateString()}` : 'No orders yet'}
+                    </span>
                   </div>
                   {primaryLocation && (
                     <div className="shipfrom-card-address">
@@ -847,274 +641,17 @@ export default function SuppliersPage() {
                         {supplier.notes && <p className="shipfrom-notes">{supplier.notes}</p>}
                       </div>
                     )}
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      )}
 
-      {supplierModalOpen && (
-        <Modal
-          isOpen={supplierModalOpen}
-          onClose={closeSupplierModal}
-          title={editingSupplierId ? 'Edit supplier' : 'Add supplier'}
-          size="fullMain"
-          headerActions={
-            <Button
-              variant={showNotesPanel ? 'primary' : 'secondary'}
-              size="sm"
-              onClick={() => setShowNotesPanel((v) => !v)}
-              aria-pressed={showNotesPanel}
-            >
-              <FiFileText size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-              Notes
-            </Button>
-          }
-          footer={
-            <div className="flex gap-3 justify-end">
-              <Button variant="secondary" onClick={closeSupplierModal}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                form="supplier-form"
-                variant="primary"
-                disabled={!!busyAction}
-              >
-                {busyAction === 'create-supplier' || busyAction === 'update-supplier' ? 'Saving...' : editingSupplierId ? 'Save supplier' : 'Create supplier'}
-              </Button>
-            </div>
-          }
-        >
-          <form id="supplier-form" onSubmit={handleSaveSupplier} className="supplier-form-with-notes">
-            <div className="modal-form-layout">
-              <div className="modal-form-main">
-            <div className="form-section">
-              <h3 className="form-section-title">Supplier information</h3>
-              <div className="form-grid">
-                <div className="form-field form-grid-full">
-                  <label>Supplier name *</label>
-                  <input
-                    value={supplierForm.name}
-                    onChange={(e) => setSupplierForm((c) => ({ ...c, name: e.target.value }))}
-                    required
-                    placeholder="Enter supplier name"
-                  />
-                </div>
-                <div className="form-field form-grid-full">
-                  <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={supplierForm.onlineSupplier}
-                      onChange={(e) => setSupplierForm((c) => ({ ...c, onlineSupplier: e.target.checked }))}
-                      style={{ marginTop: 3 }}
-                    />
-                    <span>
-                      <span style={{ fontWeight: 600 }}>Online Supplier</span>
-                      <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-                        Check only for online/dropship suppliers with no physical pickup address. By default we collect a ship-from address.
-                      </span>
-                    </span>
-                  </label>
-                </div>
-                <div className="form-field">
-                  <label>Email</label>
-                  <input
-                    type="email"
-                    value={supplierForm.email}
-                    onChange={(e) => setSupplierForm((c) => ({ ...c, email: e.target.value }))}
-                    placeholder="contact@example.com"
-                  />
-                </div>
-                <div className="form-field">
-                  <label>Phone</label>
-                  <input
-                    value={supplierForm.phone}
-                    onChange={(e) => setSupplierForm((c) => ({ ...c, phone: e.target.value }))}
-                    placeholder="(555) 123-4567"
-                  />
-                </div>
-                <div className="form-field">
-                  <label>Business hours</label>
-                  <input
-                    value={supplierForm.hoursOfOperation}
-                    onChange={(e) => setSupplierForm((c) => ({ ...c, hoursOfOperation: e.target.value }))}
-                    placeholder="e.g. 9am–5pm Mon–Fri"
-                  />
-                </div>
-                <div className="form-field form-grid-full">
-                  <label>Website</label>
-                  <input
-                    value={supplierForm.website}
-                    onChange={(e) => setSupplierForm((c) => ({ ...c, website: e.target.value }))}
-                    placeholder="https://example.com"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {!supplierForm.onlineSupplier && (!editingSupplierId || locations.filter((l) => l.supplierId === editingSupplierId).length === 0) && (
-              <div className="form-section">
-                <h3 className="form-section-title">Ship-from address</h3>
-                <p className="muted" style={{ marginBottom: 16 }}>
-                  Collected by default so we can route inbound to the closest warehouse. Search to auto-fill or enter manually, then validate to capture coordinates. Add more addresses below for a multi-location supplier.
-                </p>
-                <div className="form-field" style={{ marginBottom: 16 }}>
-                  <AddressInput
-                    label="Search address"
-                    value={supplierAddressSearch}
-                    onChange={setSupplierAddressSearch}
-                    onSelectSuggestion={(s) => {
-                      setSupplierAddressForm((prev) => ({
-                        ...prev,
-                        addressLine1: s.street || prev.addressLine1,
-                        city: s.city || prev.city,
-                        stateOrProvinceCode: s.stateCode || s.state || prev.stateOrProvinceCode,
-                        postalCode: s.postalCode || prev.postalCode,
-                        countryCode: s.countryCode || prev.countryCode,
-                        lat: s.latitude,
-                        long: s.longitude,
-                      }));
-                      setSupplierAddressValidated(!!(s.latitude != null && s.longitude != null));
-                    }}
-                  />
-                </div>
-                <div className="form-grid">
-                  <div className="form-field form-grid-full">
-                    <label>Street *</label>
-                    <input
-                      value={supplierAddressForm.addressLine1}
-                      onChange={(e) => {
-                        setSupplierAddressForm((c) => ({ ...c, addressLine1: e.target.value }));
-                        setSupplierAddressValidated(false);
-                      }}
-                      required
-                      placeholder="123 Main St"
-                    />
-                  </div>
-                  <div className="form-field form-grid-full">
-                    <label>Address line 2</label>
-                    <input
-                      value={supplierAddressForm.addressLine2}
-                      onChange={(e) => setSupplierAddressForm((c) => ({ ...c, addressLine2: e.target.value }))}
-                      placeholder="Suite 100"
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label>City *</label>
-                    <input
-                      value={supplierAddressForm.city}
-                      onChange={(e) => {
-                        setSupplierAddressForm((c) => ({ ...c, city: e.target.value }));
-                        setSupplierAddressValidated(false);
-                      }}
-                      required
-                      placeholder="City"
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label>State / province *</label>
-                    <input
-                      value={supplierAddressForm.stateOrProvinceCode}
-                      onChange={(e) => {
-                        setSupplierAddressForm((c) => ({ ...c, stateOrProvinceCode: e.target.value }));
-                        setSupplierAddressValidated(false);
-                      }}
-                      required
-                      placeholder="CA"
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label>Postal code *</label>
-                    <input
-                      value={supplierAddressForm.postalCode}
-                      onChange={(e) => {
-                        setSupplierAddressForm((c) => ({ ...c, postalCode: e.target.value }));
-                        setSupplierAddressValidated(false);
-                      }}
-                      required
-                      placeholder="12345"
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label>Country code *</label>
-                    <input
-                      value={supplierAddressForm.countryCode}
-                      onChange={(e) => setSupplierAddressForm((c) => ({ ...c, countryCode: e.target.value.toUpperCase() }))}
-                      required
-                      placeholder="US"
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-                  <Button
-                    variant="secondary"
-                    onClick={handleValidateSupplierAddress}
-                    disabled={supplierAddressValidating || !supplierAddressForm.addressLine1}
-                  >
-                    {supplierAddressValidating ? (
-                      'Validating...'
-                    ) : (
-                      'Validate address'
-                    )}
-                  </Button>
-                  {supplierAddressValidated && (
-                    <span className="form-validate-success">
-                      <FiMapPin size={14} /> Address validated (lat/long captured)
-                    </span>
-                  )}
-                </div>
-                {supplierAddressValidateError && (
-                  <div className="form-validate-error" style={{ marginTop: 12 }}>
-                    {supplierAddressValidateError}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {supplierForm.onlineSupplier && (
-              <div className="shipfrom-inline-note" style={{ marginBottom: 24 }}>
-                <span className="muted">Online suppliers do not require a ship-from address. Add addresses from the card after saving.</span>
-              </div>
-            )}
-
-            {editingSupplierId && locations.some((l) => l.supplierId === editingSupplierId) && !supplierForm.onlineSupplier && (
-              <div className="shipfrom-inline-note" style={{ marginBottom: 24 }}>
-                <span className="muted">Add or edit additional addresses from the supplier card.</span>
-              </div>
-            )}
-
-            {editingSupplierId && (
-              <div className="form-section" style={{ marginTop: 24 }}>
-                <button
-                  type="button"
-                  className="form-section-title"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                  }}
-                  onClick={() => setShowProductsSection((v) => !v)}
-                >
-                  {showProductsSection ? <FiChevronDown size={18} /> : <FiChevronUp size={18} />}
-                  Products provided by this supplier
-                </button>
-                {showProductsSection && (
-                  <div style={{ marginTop: 12 }}>
-                    {supplierProductsLoading ? (
-                      <div className="muted" style={{ padding: '16px 0' }}>Loading products...</div>
-                    ) : supplierProducts ? (
+                    <div className="shipfrom-expanded-header" style={{ marginTop: 16 }}>
+                      <h4>Products provided by this supplier</h4>
+                    </div>
+                    {supplierProductsLoading && !products ? (
+                      <div className="muted" style={{ padding: '12px 0' }}>Loading products...</div>
+                    ) : products ? (
                       <div className="supplier-products-section">
                         <div className="supplier-products-subsection">
                           <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600 }}>Directly assigned</h4>
-                          {supplierProducts.direct.length === 0 ? (
+                          {products.direct.length === 0 ? (
                             <div className="muted" style={{ fontSize: 13 }}>No items directly linked to this supplier.</div>
                           ) : (
                             <div style={{ overflowX: 'auto' }}>
@@ -1127,7 +664,7 @@ export default function SuppliersPage() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {supplierProducts.direct.map((p) => (
+                                  {products.direct.map((p) => (
                                     <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                       <td style={{ padding: '8px 0', fontWeight: 500 }}>{p.sku}</td>
                                       <td style={{ padding: '8px 0' }}>{p.title || '—'}</td>
@@ -1135,6 +672,7 @@ export default function SuppliersPage() {
                                         <Link
                                           href={`/catalog`}
                                           className="inline-flex items-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-800 shadow-sm hover:bg-gray-50"
+                                          onClick={(e) => e.stopPropagation()}
                                         >
                                           View
                                         </Link>
@@ -1148,7 +686,7 @@ export default function SuppliersPage() {
                         </div>
                         <div className="supplier-products-subsection" style={{ marginTop: 16 }}>
                           <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600 }}>Used in plans / shipments</h4>
-                          {supplierProducts.historical.length === 0 ? (
+                          {products.historical.length === 0 ? (
                             <div className="muted" style={{ fontSize: 13 }}>No products found in shipment plans or inbound workflows for this supplier.</div>
                           ) : (
                             <div style={{ overflowX: 'auto' }}>
@@ -1162,7 +700,7 @@ export default function SuppliersPage() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {supplierProducts.historical.map((p) => (
+                                  {products.historical.map((p) => (
                                     <tr key={`${p.sku}-${p.source}-${p.lastUsedAt}`} style={{ borderBottom: '1px solid var(--border)' }}>
                                       <td style={{ padding: '8px 0', fontWeight: 500 }}>{p.sku}</td>
                                       <td style={{ padding: '8px 0' }}>{p.title || '—'}</td>
@@ -1179,24 +717,18 @@ export default function SuppliersPage() {
                     ) : null}
                   </div>
                 )}
-              </div>
-            )}
-              </div>
-              {showNotesPanel && (
-                <aside className="modal-notes-panel">
-                  <h3 className="form-section-title">Internal notes</h3>
-                  <textarea
-                    value={supplierForm.notes}
-                    onChange={(e) => setSupplierForm((c) => ({ ...c, notes: e.target.value }))}
-                    rows={12}
-                    placeholder="Internal notes, tasks, or reminders..."
-                    style={{ resize: 'vertical', minHeight: 120 }}
-                  />
-                </aside>
-              )}
-            </div>
-          </form>
-        </Modal>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {supplierModalOpen && (
+        <NewSupplierModal
+          supplier={editingSupplier as unknown as OmsSupplier | null}
+          onClose={closeSupplierModal}
+          onSuccess={handleSupplierSaved}
+        />
       )}
 
       {locationModalOpen && (

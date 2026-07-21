@@ -345,6 +345,10 @@ export type OmsAsn = {
   supplierId?: string | null;
   supplierDisplayId?: string | null;
   supplierName?: string | null;
+  supplierCity?: string | null;
+  supplierState?: string | null;
+  supplierOnline?: boolean;
+  supplierLastOrderAt?: string | null;
   facilityCode?: string | null;
   facilityName?: string | null;
   estimatedArrivalDate?: string;
@@ -411,6 +415,7 @@ export type OmsSupplier = {
   email?: string | null;
   phone?: string | null;
   status?: string;
+  address?: Record<string, unknown>;
   website?: string | null;
   notes?: string | null;
   country?: string;
@@ -418,6 +423,8 @@ export type OmsSupplier = {
   city?: string | null;
   state?: string | null;
   onlineSupplier?: boolean;
+  lastOrderAt?: string | null;
+  lastOrderNumber?: string | null;
   leadTime?: number;
   onTime?: number;
   qualityPass?: number;
