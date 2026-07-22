@@ -859,7 +859,12 @@ export const ShipmentWizard = ({
       const body = {
         supplierId,
         assignSupplierToSkus,
-        facilityId: primaryFacilityId,
+        // Deliberately NOT sending facilityId here. warehouses[0] is just "most recently
+        // connected", not "the account's warehouse" — sending it as facilityId made the backend
+        // treat it as an explicit user override (resolveShipmentWarehouse's requestedFacilityId),
+        // which wins over the online-supplier/distance routing rule and silently mis-routed
+        // online-supplier shipments to whichever warehouse connected last. The backend resolver
+        // picks the correct owner/closest warehouse on its own when no override is sent.
         warehouseRoutingMode: routingMode,
         connectedWarehouseCodes,
         requiresBol: !!needsLTL,
