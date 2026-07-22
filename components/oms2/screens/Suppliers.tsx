@@ -20,6 +20,16 @@ import { CortexInlineBadge, CortexRowAction, useInlineRecommendations } from '..
 const initials = (n: string) =>
   (n || '?').split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase();
 
+const formatSupplierAddress = (address?: Record<string, unknown> | null): string => {
+  const a = (address || {}) as Record<string, any>;
+  const street = a.street || a.addressLine1 || '';
+  const city = a.city || '';
+  const state = a.state || a.stateOrProvinceCode || '';
+  const zip = a.zip || a.zipCode || a.postalCode || '';
+  const cityStateZip = [city, [state, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  return [street, cityStateZip].filter(Boolean).join(', ');
+};
+
 const DetailKv2 = ({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) => (
   <div>
     <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>{label}</div>
@@ -372,6 +382,16 @@ const SupplierDetail = ({
             <button className="btn ghost sm" onClick={() => setEditOpen(true)}>Edit profile</button>
           </div>
           <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <DetailKv2
+                label="Pickup address"
+                value={
+                  supplier.onlineSupplier
+                    ? 'No physical pickup address (online supplier)'
+                    : formatSupplierAddress(supplier.address) || 'No address on file'
+                }
+              />
+            </div>
             <DetailKv2 label="Email" value={supplier.email || '—'} />
             <DetailKv2 label="Phone" value={supplier.phone || '—'} />
             <DetailKv2 label="Hours" value={profile.hoursOfOperation || '—'} />

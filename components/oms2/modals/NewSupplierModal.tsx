@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal } from '../ui';
-import { createSupplier, createShipFromLocation, updateSupplier } from '../../../lib/amazon-fba';
+import { createSupplier, updateSupplier } from '../../../lib/amazon-fba';
 import { AddressInput } from '../../AddressInput';
 import type { OmsSupplier } from '../../../lib/oms';
 
@@ -94,8 +94,6 @@ export const NewSupplierModal = ({
   const [liftgateRequired, setLiftgateRequired] = useState(Boolean(profile.liftgateRequired));
   const [insidePickup, setInsidePickup] = useState(Boolean(profile.insidePickup));
   const [palletExchange, setPalletExchange] = useState(Boolean(profile.palletExchange));
-  const [addLoc, setAddLoc] = useState(false);
-  const [loc, setLoc] = useState({ label: '', addressLine1: '', city: '', state: '', postal: '', country: 'US' });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -130,8 +128,6 @@ export const NewSupplierModal = ({
 
   const set = (k: keyof SupplierForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }));
-  const setL = (k: keyof typeof loc) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setLoc((p) => ({ ...p, [k]: e.target.value }));
   const toggleEquipment = (id: string) =>
     setEquipmentRequired((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
 
@@ -190,25 +186,6 @@ export const NewSupplierModal = ({
         },
       };
       const s = editing && supplier?.id ? await updateSupplier(supplier.id, body) : await createSupplier(body);
-      if (addLoc && loc.label.trim() && loc.addressLine1.trim()) {
-        await createShipFromLocation({
-          supplierId: s.id,
-          name: loc.label.trim(),
-          label: loc.label.trim(),
-          contactName: f.contactName.trim() || undefined,
-          email: f.email.trim() || undefined,
-          phone: f.phone.trim() || undefined,
-          isDefault: true,
-          address: {
-            addressLine1: loc.addressLine1.trim(),
-            city: loc.city.trim(),
-            stateOrProvinceCode: loc.state.trim(),
-            postalCode: loc.postal.trim(),
-            countryCode: loc.country.trim() || 'US',
-          },
-          metadata: { pickupProfile },
-        });
-      }
       onSuccess(s as unknown as OmsSupplier);
     } catch (e: any) {
       setErr(e.message || `Failed to ${editing ? 'update' : 'create'} supplier`);
@@ -436,52 +413,6 @@ export const NewSupplierModal = ({
           </div>
         </div>
 
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Default ship-from location</div>
-              <div className="card-subtitle">Optional, but recommended for ASNs, BOLs, labels, and pickup routing.</div>
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
-              <input type="checkbox" className="row-check" checked={addLoc} onChange={(e) => setAddLoc(e.target.checked)} />
-              {editing ? 'Add another location' : 'Add now'}
-            </label>
-          </div>
-          {addLoc && (
-            <div className="card-body">
-              <Row>
-                <div>
-                  <label style={label}>Label *</label>
-                  <input style={field} value={loc.label} onChange={setL('label')} placeholder="Main dock" />
-                </div>
-                <div>
-                  <label style={label}>Address line 1 *</label>
-                  <input style={field} value={loc.addressLine1} onChange={setL('addressLine1')} />
-                </div>
-              </Row>
-              <Row>
-                <div>
-                  <label style={label}>City</label>
-                  <input style={field} value={loc.city} onChange={setL('city')} />
-                </div>
-                <div>
-                  <label style={label}>State / province</label>
-                  <input style={field} value={loc.state} onChange={setL('state')} />
-                </div>
-              </Row>
-              <Row>
-                <div>
-                  <label style={label}>Postal code</label>
-                  <input style={field} value={loc.postal} onChange={setL('postal')} />
-                </div>
-                <div>
-                  <label style={label}>Country code</label>
-                  <input style={field} value={loc.country} onChange={setL('country')} />
-                </div>
-              </Row>
-            </div>
-          )}
-        </div>
       </div>
     </Modal>
   );
