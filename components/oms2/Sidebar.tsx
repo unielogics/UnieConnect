@@ -24,6 +24,7 @@ export const CORE_SCREEN_IDS = new Set([
   'connections',
   'marketplace',
   'support',
+  'inbox',
   'profile',
 ]);
 
@@ -102,6 +103,7 @@ export const SIDEBAR_NAV: NavCat[] = [
     icon: 'settings',
     items: [
       { id: 'support', label: 'Support', icon: 'support', desc: 'Tickets', badge: { type: 'danger', value: '3' } },
+      { id: 'inbox', label: 'Inbox', icon: 'bell', desc: 'Emails sent to your account' },
       { id: 'connections', label: 'Connections', icon: 'plug', desc: 'Marketplaces, WMS, carriers' },
       { id: 'profile', label: 'Profile Settings', icon: 'settings', desc: 'Account and billing profile' },
       { id: 'ledger', label: 'Intelligence Ledger', icon: 'ledger', desc: 'Source to finding to action', featureId: 'advanced-analytics' },

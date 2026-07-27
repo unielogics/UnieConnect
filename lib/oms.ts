@@ -1547,6 +1547,33 @@ export const addTicketMessage = (
     body: JSON.stringify(body),
   });
 
+export type InboxMessage = {
+  id: string;
+  subject: string;
+  body?: string;
+  fromEmail?: string;
+  threadId?: string;
+  eventType?: string;
+  warehouseCode?: string;
+  read: boolean;
+  readAt?: string;
+  createdAt?: string;
+};
+
+export const fetchInboxMessages = (opts: { limit?: number; offset?: number; unreadOnly?: boolean } = {}) => {
+  const params = new URLSearchParams();
+  if (opts.limit) params.set('limit', String(opts.limit));
+  if (opts.offset) params.set('offset', String(opts.offset));
+  if (opts.unreadOnly) params.set('unreadOnly', 'true');
+  const qs = params.toString();
+  return apiFetch<{ messages: InboxMessage[]; total: number; limit: number; offset: number }>(
+    `/inbox${qs ? `?${qs}` : ''}`,
+  );
+};
+
+export const markInboxMessageRead = (id: string) =>
+  apiFetch<{ message: InboxMessage }>(`/inbox/${encodeURIComponent(id)}/read`, { method: 'PATCH' });
+
 // Cortex placement plans relayed from the owning warehouse for the client's final approval.
 export type CortexPlan = {
   id: string;

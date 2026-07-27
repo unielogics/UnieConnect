@@ -27,6 +27,7 @@ import { Billing } from './screens/Billing';
 import { Audits } from './screens/Audits';
 import { Marketplace } from './screens/Marketplace';
 import { Support } from './screens/Support';
+import { Inbox } from './screens/Inbox';
 import { Connections } from './screens/Connections';
 import { Ledger } from './screens/Ledger';
 import { ProfileSettings } from './screens/ProfileSettings';
@@ -341,6 +342,7 @@ export default function UnieConnectApp() {
     audits: <Audits {...sp} />,
     marketplace: <Marketplace {...sp} />,
     support: <Support {...sp} />,
+    inbox: <Inbox {...sp} />,
     connections: <Connections {...sp} />,
     ledger: <Ledger {...sp} />,
     profile: <ProfileSettings {...sp} />,
