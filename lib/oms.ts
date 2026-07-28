@@ -1119,6 +1119,21 @@ export const fetchInvoicePdf = async (invoiceNumber: string): Promise<Blob> => {
   return res.blob();
 };
 
+export interface PayInvoiceResult {
+  outcome: 'charged' | 'processing' | 'failed';
+  paidAmount?: number;
+  paymentReference?: string;
+  reason?: string;
+}
+
+// Plain /api/v1 path (not /api/v1/oms) — proxies to the warehouse's own Stripe Connect account
+// via WMS's on-demand charge endpoint. See UnieConnectBackend sql-mode.routes.ts POST /invoices/:invoiceId/pay.
+export const payInvoice = (invoiceNumber: string) =>
+  apiFetch<PayInvoiceResult>(`/invoices/${encodeURIComponent(invoiceNumber)}/pay`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+
 export const fetchOmsOrder = (orderId: string) => omsFetch<{ order: OmsOrder }>(`/orders/${encodeURIComponent(orderId)}`);
 
 export const fetchOmsAsn = (asnId: string) => omsFetch<{ asn: OmsAsnDetail }>(`/asns/${encodeURIComponent(asnId)}`);

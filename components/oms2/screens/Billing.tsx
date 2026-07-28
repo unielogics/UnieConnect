@@ -6,6 +6,7 @@ import {
   fetchBillingInvoices,
   fetchBillingStatementPdf,
   downloadBlob,
+  payInvoice,
   BillingProfitResponse,
   BillingRange,
   BillingInvoiceRow,
@@ -64,6 +65,8 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
   const [search, setSearch] = useState('');
   const [offset, setOffset] = useState(0);
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
+  const [payingInvoice, setPayingInvoice] = useState<string | null>(null);
+  const [payError, setPayError] = useState<{ invoiceNumber: string; message: string } | null>(null);
 
   const ledgerRef = useRef<HTMLDivElement>(null);
   // Pass `load` so approving/rejecting a billing plan immediately refetches the profit + hero.
@@ -160,6 +163,24 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
       /* noop — Export stays clickable for retry */
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handlePayInvoice = async (invoiceNumber: string) => {
+    if (!window.confirm(`Charge your card/ACH on file for invoice ${invoiceNumber}? This will move real money.`)) return;
+    setPayError(null);
+    setPayingInvoice(invoiceNumber);
+    try {
+      const result = await payInvoice(invoiceNumber);
+      if (result.outcome === 'failed') {
+        setPayError({ invoiceNumber, message: result.reason || 'Payment failed' });
+      } else {
+        loadLedger();
+      }
+    } catch (e: any) {
+      setPayError({ invoiceNumber, message: e?.message || 'Payment failed' });
+    } finally {
+      setPayingInvoice(null);
     }
   };
 
@@ -613,14 +634,28 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                       <td className="num mono strong">{fmt.money(r.amount)}</td>
                       <td><Chip tone={r.status === 'paid' ? 'green' : r.status === 'void' ? 'red' : 'default'} dot={false}>{r.status}</Chip></td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          {r.linkedOrder ? (
-                            <button className="btn ghost sm" onClick={() => onOpenOrderById?.(r.linkedOrder!.omsId)}>Order →</button>
-                          ) : null}
-                          {r.linkedAsn ? (
-                            <button className="btn ghost sm" onClick={() => onOpenAsnById?.(r.linkedAsn!.omsId)}>ASN →</button>
-                          ) : null}
-                          {!r.linkedOrder && !r.linkedAsn && <span className="muted">—</span>}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {r.status !== 'paid' && r.status !== 'void' ? (
+                              <button
+                                className="btn sm primary"
+                                disabled={payingInvoice === r.invoiceNumber}
+                                onClick={() => handlePayInvoice(r.invoiceNumber)}
+                              >
+                                {payingInvoice === r.invoiceNumber ? 'Paying…' : 'Pay now'}
+                              </button>
+                            ) : null}
+                            {r.linkedOrder ? (
+                              <button className="btn ghost sm" onClick={() => onOpenOrderById?.(r.linkedOrder!.omsId)}>Order →</button>
+                            ) : null}
+                            {r.linkedAsn ? (
+                              <button className="btn ghost sm" onClick={() => onOpenAsnById?.(r.linkedAsn!.omsId)}>ASN →</button>
+                            ) : null}
+                            {r.status === 'paid' && !r.linkedOrder && !r.linkedAsn && <span className="muted">—</span>}
+                          </div>
+                          {payError?.invoiceNumber === r.invoiceNumber && (
+                            <span style={{ fontSize: 10.5, color: 'var(--red-text)', maxWidth: 200, textAlign: 'right' }}>{payError.message}</span>
+                          )}
                         </div>
                       </td>
                     </tr>
