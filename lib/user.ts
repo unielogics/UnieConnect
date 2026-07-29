@@ -9,6 +9,9 @@ export interface CurrentUser {
   firstName?: string;
   lastName?: string;
   avatarUrl?: string;
+  fulfillmentStatus?: 'active' | 'paused' | 'blocked';
+  fulfillmentStatusNote?: string;
+  fulfillmentStatusAt?: string;
 }
 
 const CAN_MANAGE_USERS: UserRole[] = ['super_admin', 'management'];
@@ -56,6 +59,9 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
     if (data.firstName) current.firstName = data.firstName;
     if (data.lastName) current.lastName = data.lastName;
     if (data.avatarUrl) current.avatarUrl = data.avatarUrl;
+    if (data.fulfillmentStatus) current.fulfillmentStatus = data.fulfillmentStatus;
+    if (data.fulfillmentStatusNote) current.fulfillmentStatusNote = data.fulfillmentStatusNote;
+    if (data.fulfillmentStatusAt) current.fulfillmentStatusAt = data.fulfillmentStatusAt;
     return current;
   } catch {
     const role = getRoleFromToken();

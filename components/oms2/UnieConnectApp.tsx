@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { CtxMenuProvider } from './ContextMenu';
 import { Sidebar, buildSidebarNav, featureForScreen, isCoreScreen, SCREEN_FEATURES } from './Sidebar';
 import { TopBar } from './TopBar';
+import { FulfillmentPausedBanner } from './FulfillmentPausedBanner';
 import { SelectionBar, SelSku } from './SelectionBar';
 import { Icon } from './icons';
 import { AICopilot } from './AICopilot';
@@ -370,6 +371,7 @@ export default function UnieConnectApp() {
               onOpenProfile={() => navigate('profile')}
               onNavigate={navigate}
             />
+            <FulfillmentPausedBanner user={currentUser} />
             <React.Fragment key={`${section}-${screenKey}`}>
               {screens[section] || <CommandCenter {...sp} />}
             </React.Fragment>

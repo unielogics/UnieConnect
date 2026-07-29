@@ -639,6 +639,10 @@
 .uc-shell .inline-alert { height: 20px; display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 0 7px; background: var(--amber-soft); color: var(--amber-text); font-size: 10.5px; font-weight: 800; }
 .uc-shell .inline-banner { min-height: 34px; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--accent-border); border-radius: var(--radius); background: var(--accent-soft); color: var(--accent-text); font-size: 12px; font-weight: 700; }
 .uc-shell .inline-banner.warn { border-color: rgba(180,83,9,0.28); background: var(--amber-soft); color: var(--amber-text); }
+.uc-shell .inline-banner.danger { border-color: rgba(180,35,20,0.28); background: var(--red-soft); color: var(--red-text); }
+.uc-shell .inline-banner.app-wide { margin: 0; border-radius: 0; border-left: none; border-right: none; border-top: none; }
+.uc-shell .inline-banner.app-wide .dismiss-x { margin-left: auto; cursor: pointer; opacity: 0.7; }
+.uc-shell .inline-banner.app-wide .dismiss-x:hover { opacity: 1; }
 .uc-shell .cortex-row-action { display: inline-flex; align-items: center; gap: 5px; color: var(--purple-text); }
 .uc-shell table.data tr.row-cortex-signal,
 .uc-shell table.data-table tr.row-cortex-signal {
