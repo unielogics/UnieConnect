@@ -20,6 +20,7 @@ export const CORE_SCREEN_IDS = new Set([
   'suppliers',
   'shipments',
   'orders',
+  'returns',
   'customers',
   'connections',
   'marketplace',
@@ -77,6 +78,7 @@ export const SIDEBAR_NAV: NavCat[] = [
     badge: '12',
     items: [
       { id: 'orders', label: 'Orders', icon: 'orders', desc: 'Marketplace orders + WMS truth', badge: { type: 'warn', value: '12' } },
+      { id: 'returns', label: 'Returns', icon: 'box', desc: 'RMAs + condition-on-arrival evidence' },
       { id: 'customers', label: 'Customers', icon: 'support', desc: 'Buyers, LTV, segments' },
       { id: 'labels', label: 'Carrier Label Audit', icon: 'audit', desc: 'Late, refunds, optimization', featureId: 'label-audit' },
     ],

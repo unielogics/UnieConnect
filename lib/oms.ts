@@ -624,6 +624,43 @@ export type OmsAsnDetail = OmsAsn & {
   items?: unknown;
 };
 
+export type OmsReturnLineItem = {
+  sku: string;
+  itemName: string;
+  quantityExpected: number;
+  quantityReceived: number;
+  quantityRestocked: number;
+  disposition?: string;
+  condition?: string;
+};
+
+export type OmsReturnMediaCapture = {
+  kind: 'video' | 'photo';
+  localCameraCaptureId?: string;
+  capturedAt?: string;
+  capturedBy?: string;
+};
+
+export type OmsReturn = {
+  id: string;
+  publicId?: string;
+  displayId?: string;
+  rmaNumber?: string;
+  status: string;
+  originalOrderNumber?: string | null;
+  customerNumber?: string | null;
+  reason?: string | null;
+  lineItems: OmsReturnLineItem[];
+  totals?: { items: number; quantity: number };
+  mediaCaptures: OmsReturnMediaCapture[];
+  warehouseCode?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export const fetchOmsReturns = () => omsFetch<{ returns: OmsReturn[] }>('/returns');
+export const fetchOmsReturn = (returnId: string) => omsFetch<{ return: OmsReturn }>(`/returns/${encodeURIComponent(returnId)}`);
+
 export type LedgerResponse = {
   events: Array<{
     id: string;

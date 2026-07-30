@@ -19,6 +19,7 @@ import { InventoryNetwork } from './screens/InventoryNetwork';
 import { Warehouses } from './screens/Warehouses';
 import { SkuDetail } from './screens/SkuDetail';
 import { Orders } from './screens/Orders';
+import { Returns } from './screens/Returns';
 import { Shipments } from './screens/Shipments';
 import { Customers } from './screens/Customers';
 import { Suppliers } from './screens/Suppliers';
@@ -334,6 +335,7 @@ export default function UnieConnectApp() {
     warehouses: <Warehouses {...sp} />,
     'sku-detail': <SkuDetail {...sp} skuId={skuDetailId} />,
     orders: <Orders {...sp} />,
+    returns: <Returns {...sp} />,
     customers: <Customers {...sp} />,
     suppliers: <Suppliers {...sp} />,
     shipments: <Shipments {...sp} />,
