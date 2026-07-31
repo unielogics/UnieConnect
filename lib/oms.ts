@@ -1171,6 +1171,30 @@ export const payInvoice = (invoiceNumber: string) =>
     body: JSON.stringify({}),
   });
 
+// Direct-with-UnieLogics platform billing (card/ACH on file, UnieLogics' own Stripe balance —
+// separate from any warehouse's Connect account). See UnieConnectBackend sql-mode.routes.ts
+// GET/POST/DELETE /billing/payment-method + POST /billing/terms-accept.
+export interface OmsPlatformPaymentMethodStatus {
+  stripeCustomerId?: string;
+  defaultPaymentMethodId?: string;
+  paymentMethodType?: 'card' | 'us_bank_account';
+  paymentMethodStatus: 'none' | 'pending_verification' | 'active' | 'failed';
+  paymentMethodLast4?: string;
+  consent?: { termsVersion?: string; acceptedAt?: string; acceptedIp?: string };
+}
+
+export const fetchOmsPlatformPaymentMethod = () =>
+  apiFetch<OmsPlatformPaymentMethodStatus>('/billing/payment-method');
+
+export const createOmsPlatformSetupIntent = () =>
+  apiFetch<{ clientSecret: string }>('/billing/payment-method/setup-intent', { method: 'POST', body: JSON.stringify({}) });
+
+export const detachOmsPlatformPaymentMethod = () =>
+  apiFetch<{ success: boolean }>('/billing/payment-method', { method: 'DELETE' });
+
+export const acceptOmsPlatformTerms = (termsVersion: string) =>
+  apiFetch<{ success: boolean }>('/billing/terms-accept', { method: 'POST', body: JSON.stringify({ termsVersion }) });
+
 export const fetchOmsOrder = (orderId: string) => omsFetch<{ order: OmsOrder }>(`/orders/${encodeURIComponent(orderId)}`);
 
 export const fetchOmsAsn = (asnId: string) => omsFetch<{ asn: OmsAsnDetail }>(`/asns/${encodeURIComponent(asnId)}`);

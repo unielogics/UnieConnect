@@ -3,6 +3,7 @@ import { Icon } from '../icons';
 import { Chip, Loading } from '../ui';
 import { TOKEN_KEY, apiUrl } from '../../../lib/api';
 import { uploadProfileAvatar } from '../../../lib/user';
+import { PlatformPaymentMethod } from '../PlatformPaymentMethod';
 import type { ScreenProps } from '../UnieConnectApp';
 
 type Tab = 'account' | 'billing' | 'security';
@@ -251,6 +252,11 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
               </div>
               <Field label="Country" value={profile.billingAddress.country} onChange={(v) => setProfile((p) => ({ ...p, billingAddress: { ...p.billingAddress, country: v } }))} />
               <button className="btn primary" style={{ justifySelf: 'start' }} onClick={saveProfile} disabled={saving === 'profile'}>{saving === 'profile' ? 'Saving...' : 'Save billing profile'}</button>
+            </div>
+          )}
+          {tab === 'billing' && (
+            <div style={{ borderTop: '1px solid var(--border)', marginTop: 4 }}>
+              <PlatformPaymentMethod />
             </div>
           )}
           {tab === 'security' && (
