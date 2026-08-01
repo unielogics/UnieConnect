@@ -178,6 +178,24 @@ export const OrderModal = ({ order, onClose, onNavigate }: { order: OmsOrder; on
             </div>
           )}
 
+          {order.metadata?.wmsHold?.held && (
+            <div className="card" style={{ borderColor: 'var(--amber-soft)', background: 'linear-gradient(180deg, var(--amber-soft) 0%, var(--bg-elev) 60%)' }}>
+              <div className="card-header">
+                <div className="card-title">
+                  <Icon name="warning" size={15} style={{ color: 'var(--amber)' }} /> Held for shipping approval
+                </div>
+              </div>
+              <div className="card-body" style={{ fontSize: 12.5 }}>
+                {order.metadata.wmsHold.reason || 'This order is on hold at the warehouse pending a shipping-rate decision.'}
+                {order.metadata.wmsHold.at && (
+                  <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-tertiary)' }}>
+                    Held since {new Date(order.metadata.wmsHold.at).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {status === 'exception' && (
             <div className="card" style={{ borderColor: 'var(--red-soft)', background: 'linear-gradient(180deg, var(--red-soft) 0%, var(--bg-elev) 60%)' }}>
               <div className="card-header">

@@ -330,6 +330,13 @@ export type OmsOrder = {
   carrier?: string;
   tracking?: string;
   cost?: number;
+  metadata?: {
+    // Seller-visible "this order needs a WMS shipping decision" signal (rate-shop fee/service-
+    // level approval gate), merged in by WMS's upsertWmsOrder handler. Absent for an order that
+    // has never been through a hold cycle.
+    wmsHold?: { held: boolean; reason?: string | null; at?: string | null };
+    [key: string]: unknown;
+  };
 };
 
 export type OmsAsn = {

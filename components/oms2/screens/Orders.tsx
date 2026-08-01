@@ -54,7 +54,10 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
     ...o,
     _ch: o.ch || o.account_channel || '—',
     _cust: o.customer || o.customer_name || o.display_name || o.customer_email || '—',
-    _status: o.status || 'new',
+    // A WMS-triggered rate-shop approval hold takes precedence over whatever fulfillment-stage
+    // status the order otherwise carries -- surfaces via the existing 'hold' tab/StatusChip
+    // ('hold' -> amber, already wired below) without WMS ever writing to orders.status directly.
+    _status: o.metadata?.wmsHold?.held ? 'hold' : (o.status || 'new'),
     _sla: o.sla || 'on-track',
   });
   const all = useMemo(() => orders.map(norm), [orders]);
