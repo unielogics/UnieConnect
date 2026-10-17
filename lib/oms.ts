@@ -128,6 +128,7 @@ export type CommandCenter = {
     grossProfit: number;
     grossProfitAvailable?: boolean;
     grossProfitDeltaPct?: number | null;
+    grossProfitSoldLines?: number;
     grossProfitMissingCostLines?: number;
     refunds: number;
     units: number;

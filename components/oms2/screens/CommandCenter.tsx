@@ -119,7 +119,11 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           spark: [],
           color: 'var(--green)',
           tone: m.grossProfitAvailable ? 'good' : '',
-          note: m.grossProfitAvailable ? '' : `${m.grossProfitMissingCostLines || 0} sold line${m.grossProfitMissingCostLines === 1 ? '' : 's'} missing cost`,
+          note: m.grossProfitAvailable
+            ? ''
+            : (m.grossProfitSoldLines || 0) === 0
+              ? 'No sold lines in this range'
+              : `${m.grossProfitMissingCostLines || 0} sold line${m.grossProfitMissingCostLines === 1 ? '' : 's'} missing cost`,
         },
         { label: 'Units shipped', value: fmt.num(m.units), delta: m.unitsDeltaPct, spark: [], color: 'var(--accent)', tone: '', note: '' },
       ]
