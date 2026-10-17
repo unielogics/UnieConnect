@@ -58,6 +58,7 @@ export const TopBar = ({
   const [tasksLoading, setTasksLoading] = useState(true);
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [taskNotice, setTaskNotice] = useState<{ tone: 'info' | 'success'; text: string } | null>(null);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<OmsGlobalSearchResult[]>([]);
@@ -185,9 +186,20 @@ export const TopBar = ({
   const updateTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
     setTaskUpdatingId(task.id);
     setTaskError(null);
+    setTaskNotice(null);
     try {
-      if (action === 'done') await completeCortexTask(task.id);
-      else await dismissCortexTask(task.id);
+      if (action === 'done') {
+        const result = await completeCortexTask(task.id);
+        setTaskNotice({
+          tone: result.verified ? 'success' : 'info',
+          text: result.verified
+            ? (result.message || 'Cortex verified the account evidence and completed this task.')
+            : `${result.message || 'Cortex still detects this blocker.'}${task.actionLabel ? ` Next: ${task.actionLabel}.` : ''}`,
+        });
+      } else {
+        await dismissCortexTask(task.id);
+        setTaskNotice({ tone: 'success', text: 'Task dismissed from the active inbox.' });
+      }
       loadTasks(false);
     } catch (error: any) {
       setTaskError(error?.message || 'The task could not be updated.');
@@ -319,6 +331,11 @@ export const TopBar = ({
               </div>
             )}
             {taskError && <div className="task-popover-error" role="alert"><Icon name="warning" size={12} /> {taskError}</div>}
+            {taskNotice && (
+              <div className={`task-popover-notice ${taskNotice.tone}`} role="status">
+                <Icon name={taskNotice.tone === 'success' ? 'check' : 'info'} size={12} /> {taskNotice.text}
+              </div>
+            )}
             <div className="task-popover-list">
               {tasksLoading && tasks.length === 0 ? (
                 <div className="task-empty">Loading account tasks...</div>

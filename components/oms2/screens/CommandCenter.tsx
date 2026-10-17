@@ -38,7 +38,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [optimizing, setOptimizing] = useState(false);
   const [optimizationNotice, setOptimizationNotice] = useState<string | null>(null);
   const optimizationAbortRef = useRef<AbortController | null>(null);
-  const [taskFeedback, setTaskFeedback] = useState<string | null>(null);
+  const [taskFeedback, setTaskFeedback] = useState<{ tone: 'info' | 'success' | 'error'; text: string } | null>(null);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
   const [decisionFeedback, setDecisionFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [decisionUpdatingId, setDecisionUpdatingId] = useState<string | null>(null);
@@ -133,11 +133,21 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
     setTaskUpdatingId(task.id);
     setTaskFeedback(null);
     try {
-      if (action === 'done') await completeCortexTask(task.id);
-      else await dismissCortexTask(task.id);
+      if (action === 'done') {
+        const result = await completeCortexTask(task.id);
+        setTaskFeedback({
+          tone: result.verified ? 'success' : 'info',
+          text: result.verified
+            ? (result.message || 'Cortex verified the account evidence and completed this task.')
+            : `${result.message || 'Cortex still detects this blocker.'}${task.actionLabel ? ` Next: ${task.actionLabel}.` : ''}`,
+        });
+      } else {
+        await dismissCortexTask(task.id);
+        setTaskFeedback({ tone: 'success', text: 'Task dismissed from the active inbox.' });
+      }
       await refreshIntelligencePanels(true);
     } catch (error: any) {
-      setTaskFeedback(error?.message || 'The task could not be updated. Try again.');
+      setTaskFeedback({ tone: 'error', text: error?.message || 'The task could not be updated. Try again.' });
     } finally {
       setTaskUpdatingId(null);
     }
@@ -474,7 +484,7 @@ const CortexTasksPanel = ({
   tasks: CortexTask[];
   onNavigate: (target: string, payload?: string) => void;
   onDecision: (task: CortexTask, action: 'done' | 'dismiss') => void;
-  feedback?: string | null;
+  feedback?: { tone: 'info' | 'success' | 'error'; text: string } | null;
   updatingId?: string | null;
 }) => {
   const highPriority = tasks.filter((task) => task.priority === 'high').length;
@@ -501,7 +511,11 @@ const CortexTasksPanel = ({
         <div className="card-body"><EmptyState>No open Cortex tasks. Readiness blockers and recommendations will appear here.</EmptyState></div>
       ) : (
         <>
-          {feedback && <div className="cortex-task-feedback" role="alert"><Icon name="warning" size={13} /> {feedback}</div>}
+          {feedback && (
+            <div className={`cortex-task-feedback ${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>
+              <Icon name={feedback.tone === 'success' ? 'check' : feedback.tone === 'info' ? 'info' : 'warning'} size={13} /> {feedback.text}
+            </div>
+          )}
           <div className="cortex-task-summary">
             <MiniMetric label="High priority" value={String(highPriority)} sub="needs action" tone={highPriority ? 'red' : 'green'} />
             <MiniMetric label="Work areas" value={String(screens.length)} sub={screens.map((s) => s.replace(/-/g, ' ')).join(', ') || 'none'} />
