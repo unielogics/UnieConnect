@@ -216,33 +216,6 @@ export const LabelAudit = (_: ScreenProps) => {
             </div>
           )}
 
-          <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 60%)' }}>
-            <div className="card-body" style={{ padding: 18, display: 'grid', gridTemplateColumns: '1fr 60px 1fr 1fr', gap: 20, alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>CURRENT — AVG LABEL COST</div>
-                <div style={{ fontSize: 28, fontWeight: 700, marginTop: 4 }}>${findings.length ? (currentTotal / findings.length).toFixed(2) : '0.00'}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>across {findings.length} labels in sample</div>
-              </div>
-              <div style={{ display: 'grid', placeItems: 'center' }}>
-                <Icon name="arrowRight" size={28} style={{ color: 'var(--purple)' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--purple-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>WITH PLAN — OPTIMIZED</div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--purple-text)', marginTop: 4 }}>
-                  ${findings.length ? (optimizedTotal / findings.length).toFixed(2) : '0.00'}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>carrier/service swaps suggested by AI</div>
-              </div>
-              <div style={{ background: 'var(--green-soft)', padding: 14, borderRadius: 10 }}>
-                <div style={{ fontSize: 11, color: 'var(--green-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>OPT. SERVICE SAVINGS</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--green-text)', marginTop: 4 }}>
-                  {fmt.money(num(data.summary?.optimizedServiceSavings) || labelSavings, { compact: true })}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>modeled by Cortex</div>
-              </div>
-            </div>
-          </div>
-
           <div className="table-wrap">
             <div className="table-toolbar">
               <CortexInlineBadge count={recommendations.length} />
