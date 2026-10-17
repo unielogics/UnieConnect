@@ -46,6 +46,8 @@ export const TopBar = ({
   const [tasksOpen, setTasksOpen] = useState(false);
   const [tasks, setTasks] = useState<CortexTask[]>([]);
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
 
   const loadTasks = (refresh = false) => {
     fetchCortexTasks({ status: 'open', refresh, limit: 12 })
@@ -99,9 +101,17 @@ export const TopBar = ({
   }, [section]);
 
   const updateTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
-    if (action === 'done') await completeCortexTask(task.id).catch(() => null);
-    else await dismissCortexTask(task.id).catch(() => null);
-    loadTasks(false);
+    setTaskUpdatingId(task.id);
+    setTaskError(null);
+    try {
+      if (action === 'done') await completeCortexTask(task.id);
+      else await dismissCortexTask(task.id);
+      loadTasks(false);
+    } catch (error: any) {
+      setTaskError(error?.message || 'The task could not be updated.');
+    } finally {
+      setTaskUpdatingId(null);
+    }
   };
   const highTaskCount = tasks.filter((task) => task.priority === 'high').length;
   const workAreas = Array.from(new Set(tasks.map((task) => task.actionTarget || task.screen).filter(Boolean))).slice(0, 3);
@@ -161,6 +171,7 @@ export const TopBar = ({
                 <span>{workAreas.map((area) => String(area).replace(/-/g, ' ')).join(' · ')}</span>
               </div>
             )}
+            {taskError && <div className="task-popover-error" role="alert"><Icon name="warning" size={12} /> {taskError}</div>}
             <div className="task-popover-list">
               {tasks.length === 0 ? (
                 <div className="task-empty">No open Cortex tasks.</div>
@@ -168,6 +179,7 @@ export const TopBar = ({
                 <div key={task.id} className="task-popover-item">
                   <button
                     className="task-popover-main"
+                    disabled={taskUpdatingId === task.id}
                     onClick={() => {
                       if (task.actionTarget && onNavigate) onNavigate(task.actionTarget, task.entityId || undefined);
                       setTasksOpen(false);
@@ -183,8 +195,8 @@ export const TopBar = ({
                     <small className="task-action-copy">{task.actionLabel || 'Open task'}</small>
                   </button>
                   <div className="task-popover-actions">
-                    <button className="icon-btn" data-hint="Done" onClick={() => updateTask(task, 'done')}><Icon name="check" size={13} /></button>
-                    <button className="icon-btn" data-hint="Dismiss" onClick={() => updateTask(task, 'dismiss')}><Icon name="x" size={13} /></button>
+                    <button className="icon-btn" data-hint="Done" disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'done')}><Icon name="check" size={13} /></button>
+                    <button className="icon-btn" data-hint="Dismiss" disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'dismiss')}><Icon name="x" size={13} /></button>
                   </div>
                 </div>
               ))}

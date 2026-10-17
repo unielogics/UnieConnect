@@ -52,6 +52,12 @@ const DEFAULT_TWEAKS: Tweaks = { theme: 'light', accent: '#3157f6', density: 'co
 
 export type NavFn = (target: string, payload?: string) => void;
 
+const OMS_SCREEN_IDS = new Set([
+  'command', 'double', 'plan', 'product-research', 'skus', 'warehouses', 'sku-detail',
+  'orders', 'returns', 'customers', 'suppliers', 'shipments', 'heatmap', 'labels',
+  'billing', 'audits', 'marketplace', 'support', 'inbox', 'connections', 'ledger', 'profile',
+]);
+
 export interface ScreenProps {
   onNavigate: NavFn;
   toggleSelect: (sku: SelSku) => void;
@@ -182,7 +188,8 @@ export default function UnieConnectApp() {
   // Sync section from URL (?view= & ?sku=)
   useEffect(() => {
     if (!router.isReady) return;
-    const v = (router.query.view as string) || 'command';
+    const requestedView = (router.query.view as string) || 'command';
+    const v = OMS_SCREEN_IDS.has(requestedView) ? requestedView : 'command';
     setSection(v);
     if (v === 'sku-detail') setSkuDetailId((router.query.sku as string) || null);
     if (router.query.openCortex === '1') setCopilotOpen(true);
@@ -191,13 +198,14 @@ export default function UnieConnectApp() {
   const navigate: NavFn = useCallback(
     (target, payload) => {
       closeTransientUi();
-      const q: Record<string, string> = { view: target };
-      if (target === 'sku-detail') {
+      const safeTarget = OMS_SCREEN_IDS.has(target) ? target : 'command';
+      const q: Record<string, string> = { view: safeTarget };
+      if (safeTarget === 'sku-detail') {
         const id = payload || skuDetailId || '';
         setSkuDetailId(id);
         if (id) q.sku = id;
       }
-      setSection(target);
+      setSection(safeTarget);
       router.push({ pathname: '/oms', query: q }, undefined, { shallow: true });
     },
     [closeTransientUi, router, skuDetailId]

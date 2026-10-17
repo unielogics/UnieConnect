@@ -126,6 +126,8 @@ export const AICopilot = ({
   const [pending, setPending] = useState(false);
   const [guidanceOpen, setGuidanceOpen] = useState(false);
   const [signalsOpen, setSignalsOpen] = useState(false);
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const loadThreads = () => {
@@ -153,9 +155,17 @@ export const AICopilot = ({
   };
 
   const updateTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
-    if (action === 'done') await completeCortexTask(task.id).catch(() => null);
-    else await dismissCortexTask(task.id).catch(() => null);
-    loadTasks(false);
+    setTaskUpdatingId(task.id);
+    setTaskError(null);
+    try {
+      if (action === 'done') await completeCortexTask(task.id);
+      else await dismissCortexTask(task.id);
+      loadTasks(false);
+    } catch (error: any) {
+      setTaskError(error?.message || 'The task could not be updated.');
+    } finally {
+      setTaskUpdatingId(null);
+    }
   };
 
   const startNewThread = () => {
@@ -370,18 +380,20 @@ export const AICopilot = ({
                     className="btn ghost sm task-action-label"
                     title={task.actionLabel || 'Open'}
                     onClick={() => onNavigate?.(task.actionTarget || task.screen || 'command', task.entityId || undefined)}
+                    disabled={taskUpdatingId === task.id}
                   >
                     <Icon name="arrowRight" size={12} /> {task.actionLabel || 'Open'}
                   </button>
-                  <button className="icon-btn" data-hint="Done" onClick={() => updateTask(task, 'done')}>
+                  <button className="icon-btn" data-hint="Done" disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'done')}>
                     <Icon name="check" size={13} />
                   </button>
-                  <button className="icon-btn" data-hint="Dismiss" onClick={() => updateTask(task, 'dismiss')}>
+                  <button className="icon-btn" data-hint="Dismiss" disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'dismiss')}>
                     <Icon name="x" size={13} />
                   </button>
                 </div>
               </div>
             ))}
+            {guidanceOpen && taskError && <div className="cortex-guidance-error" role="alert"><Icon name="warning" size={12} /> {taskError}</div>}
           </div>
         )}
 

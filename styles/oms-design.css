@@ -839,7 +839,8 @@
 .uc-shell .cortex-task-summary > div + div { border-left: 1px solid var(--border-subtle); padding-left: 18px; }
 .uc-shell .cortex-task-summary div { text-align: left; }
 .uc-shell .cortex-task-panel .table-wrap { padding: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
-.uc-shell .cortex-task-table { table-layout: fixed; min-width: 1180px; }
+.uc-shell .cortex-task-table { table-layout: fixed; min-width: 860px; }
+.uc-shell .cortex-task-feedback { display: flex; align-items: center; gap: 7px; padding: 9px 20px; border-bottom: 1px solid var(--red-soft); background: var(--red-soft); color: var(--red-text); font-size: 12px; font-weight: 650; }
 .uc-shell .cortex-task-table th,
 .uc-shell .cortex-task-table td { text-align: left; vertical-align: middle; padding: 14px 16px; }
 .uc-shell .cortex-task-table th { color: var(--text-tertiary); font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -954,6 +955,8 @@
 .uc-shell .task-popover-summary { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border-subtle); background: var(--bg-active); color: var(--text-secondary); font-size: 11.5px; }
 .uc-shell .task-popover-summary span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .uc-shell .task-popover-summary strong { color: var(--text); font-weight: 800; }
+.uc-shell .task-popover-error,
+.uc-shell .cortex-guidance-error { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--red-soft); background: var(--red-soft); color: var(--red-text); font-size: 11.5px; font-weight: 650; }
 .uc-shell .task-popover-list { max-height: 450px; overflow: auto; }
 .uc-shell .task-empty { padding: 18px; font-size: 12.5px; color: var(--text-secondary); text-align: center; }
 .uc-shell .task-popover-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--border-subtle); }

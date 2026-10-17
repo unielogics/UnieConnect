@@ -35,6 +35,8 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
+  const [taskFeedback, setTaskFeedback] = useState<string | null>(null);
+  const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
 
   const load = (r: Range) => {
     setLoading(true);
@@ -89,13 +91,17 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   };
 
   const decideTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
+    setTaskUpdatingId(task.id);
+    setTaskFeedback(null);
     try {
       if (action === 'done') await completeCortexTask(task.id);
       else await dismissCortexTask(task.id);
       const r = await fetchCortexTasks({ status: 'open', limit: 10 }).catch(() => null);
       if (r) setTasks(r.tasks || []);
-    } catch {
-      /* keep command center stable */
+    } catch (error: any) {
+      setTaskFeedback(error?.message || 'The task could not be updated. Try again.');
+    } finally {
+      setTaskUpdatingId(null);
     }
   };
 
@@ -174,7 +180,13 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           </div>
 
           <div className="command-task-plan-row" style={{ marginBottom: 16 }}>
-            <CortexTasksPanel tasks={tasks} onNavigate={onNavigate} onDecision={decideTask} />
+            <CortexTasksPanel
+              tasks={tasks}
+              onNavigate={onNavigate}
+              onDecision={decideTask}
+              feedback={taskFeedback}
+              updatingId={taskUpdatingId}
+            />
             <AiPlanCard
               bd={bd}
               upside={upside}
@@ -352,10 +364,14 @@ const CortexTasksPanel = ({
   tasks,
   onNavigate,
   onDecision,
+  feedback,
+  updatingId,
 }: {
   tasks: CortexTask[];
   onNavigate: (target: string, payload?: string) => void;
   onDecision: (task: CortexTask, action: 'done' | 'dismiss') => void;
+  feedback?: string | null;
+  updatingId?: string | null;
 }) => {
   const highPriority = tasks.filter((task) => task.priority === 'high').length;
   const screens = Array.from(new Set(tasks.map((task) => task.screen || task.actionTarget || 'command'))).slice(0, 4);
@@ -373,6 +389,7 @@ const CortexTasksPanel = ({
         <div className="card-body"><EmptyState>No open Cortex tasks. Readiness blockers and recommendations will appear here.</EmptyState></div>
       ) : (
         <>
+          {feedback && <div className="cortex-task-feedback" role="alert"><Icon name="warning" size={13} /> {feedback}</div>}
           <div className="cortex-task-summary">
             <MiniMetric label="High priority" value={String(highPriority)} sub="needs action" tone={highPriority ? 'red' : 'green'} />
             <MiniMetric label="Work areas" value={String(screens.length)} sub={screens.map((s) => s.replace(/-/g, ' ')).join(', ') || 'none'} />
@@ -405,12 +422,13 @@ const CortexTasksPanel = ({
                           className="btn ghost sm task-open-btn"
                           title={task.actionLabel || 'Open'}
                           onClick={() => onNavigate(task.actionTarget || task.screen || 'command', task.entityId || undefined)}
+                          disabled={updatingId === task.id}
                         >
                           <Icon name="arrowRight" size={12} /> {task.actionLabel || 'Open'}
                         </button>
                         <div className="task-decision-actions" aria-label="Task decision actions">
-                          <button className="icon-btn" data-hint="Mark done" aria-label="Mark task done" onClick={() => onDecision(task, 'done')}><Icon name="check" size={13} /></button>
-                          <button className="icon-btn" data-hint="Dismiss" aria-label="Dismiss task" onClick={() => onDecision(task, 'dismiss')}><Icon name="x" size={13} /></button>
+                          <button className="icon-btn" data-hint="Mark done" aria-label="Mark task done" disabled={updatingId === task.id} onClick={() => onDecision(task, 'done')}><Icon name="check" size={13} /></button>
+                          <button className="icon-btn" data-hint="Dismiss" aria-label="Dismiss task" disabled={updatingId === task.id} onClick={() => onDecision(task, 'dismiss')}><Icon name="x" size={13} /></button>
                         </div>
                       </div>
                     </td>
