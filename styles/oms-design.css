@@ -1209,41 +1209,24 @@
 .uc-shell .fade-in { animation: uc-fadein 0.18s ease-out; }
 @keyframes uc-pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 .uc-shell .pulsing { animation: uc-pulse-soft 1.8s ease-in-out infinite; }
-.uc-shell [data-hint] { position: relative; }
-.uc-shell [data-hint]:hover::after {
-  content: attr(data-hint); position: absolute; bottom: 100%; left: 50%;
-  transform: translateX(-50%); background: var(--text); color: var(--bg-elev);
-  padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap;
-  margin-bottom: 6px; z-index: 50; pointer-events: none;
-}
-.uc-shell .sidebar-rail [data-hint]:hover::after {
-  top: 50%;
-  bottom: auto;
-  left: calc(100% + 8px);
-  transform: translateY(-50%);
-  margin: 0;
-  max-width: 220px;
-  white-space: normal;
-}
-.uc-shell .topbar [data-hint]:hover::after {
-  top: calc(100% + 6px);
-  bottom: auto;
-  left: auto;
-  right: 0;
-  transform: none;
-  margin: 0;
-  max-width: 220px;
-  white-space: normal;
+.uc-shell .uc-viewport-tooltip {
+  position: fixed;
+  z-index: 1000;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--bg-elev);
+  box-shadow: var(--shadow-md);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
   text-align: left;
-}
-.uc-shell .modal-head [data-hint]:hover::after,
-.uc-shell .sb-panel-head [data-hint]:hover::after {
-  top: calc(100% + 6px);
-  bottom: auto;
-  left: auto;
-  right: 0;
-  transform: none;
-  margin: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
 }
 .uc-shell .order-line-row {
   width: 100%;

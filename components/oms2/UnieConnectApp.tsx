@@ -7,6 +7,7 @@ import { FulfillmentPausedBanner } from './FulfillmentPausedBanner';
 import { SelectionBar, SelSku } from './SelectionBar';
 import { Icon } from './icons';
 import { AICopilot } from './AICopilot';
+import { ViewportTooltip } from './ViewportTooltip';
 import { ShipmentWizard } from './ShipmentWizard';
 import { OrderModal } from './OrderModal';
 import { AsnModal } from './AsnModal';
@@ -464,6 +465,7 @@ export default function UnieConnectApp() {
 
   return (
     <div className="uc-shell" ref={shellRef} data-theme={tweaks.theme} data-density={tweaks.density}>
+      <ViewportTooltip rootRef={shellRef} />
       <CtxMenuProvider>
         <div className={`app ${copilotOpen ? 'copilot-open' : ''} ${sidePanelOpen ? 'nav-panel-open' : ''}`}>
           <Sidebar
