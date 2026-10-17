@@ -17,6 +17,7 @@ export const OptimizationImpact = ({
 }) => {
   const [items, setItems] = useState<OmsRecommendation[]>([]);
   const [busyId, setBusyId] = useState('');
+  const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
   const load = () => {
     fetchRecommendations({ screen, status: 'open', limit })
@@ -30,11 +31,20 @@ export const OptimizationImpact = ({
 
   const act = async (rec: OmsRecommendation, action: 'approve' | 'reject') => {
     setBusyId(rec.id);
+    setFeedback(null);
     try {
       if (action === 'approve') await approveRecommendation(rec.id, { source: screen });
       else await rejectRecommendation(rec.id, 'Rejected from OMS screen context');
+      setFeedback({
+        tone: 'success',
+        text: action === 'approve' ? `Approved: ${rec.title}` : `Denied: ${rec.title}`,
+      });
       await load();
-    } catch {
+    } catch (error: any) {
+      setFeedback({
+        tone: 'error',
+        text: error?.message || `The recommendation could not be ${action === 'approve' ? 'approved' : 'denied'}.`,
+      });
       await load();
     } finally {
       setBusyId('');
@@ -50,6 +60,11 @@ export const OptimizationImpact = ({
         </div>
         <Chip tone="purple" dot={false}>{items.length} signals</Chip>
       </div>
+      {feedback && (
+        <div className={`decision-feedback ${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>
+          <Icon name={feedback.tone === 'success' ? 'check' : 'warning'} size={13} /> {feedback.text}
+        </div>
+      )}
       {items.length === 0 ? (
         <EmptyState>Run Seller Optimization to populate this view with current-vs-optimized impact.</EmptyState>
       ) : (

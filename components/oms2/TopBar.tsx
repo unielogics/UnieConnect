@@ -319,7 +319,7 @@ export const TopBar = ({
                     className="task-popover-main"
                     disabled={taskUpdatingId === task.id}
                     onClick={() => {
-                      if (task.actionTarget && onNavigate) onNavigate(task.actionTarget, taskNavigationPayload(task));
+                      if (onNavigate) onNavigate(task.actionTarget || task.screen || 'command', taskNavigationPayload(task));
                       setTasksOpen(false);
                     }}
                   >
