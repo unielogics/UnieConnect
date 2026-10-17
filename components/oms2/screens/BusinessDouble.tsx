@@ -249,13 +249,17 @@ export const BusinessDouble = (_: ScreenProps) => {
             note="Observed account data for the last 30 days"
           />
           <StrategyCard
-            badge="Recommended"
+            badge={decisionReady ? 'Recommended' : hasModeledPlan ? 'Reference only' : 'Recommended'}
             tone="purple"
             active={accepted}
-            title={hasModeledPlan ? (plan.title || 'Optimized operating model') : 'Optimization not modeled yet'}
-            nodes={hasModeledPlan ? (plan.summary || `${plan.autonomousAfterApproval?.length || 0} autonomous actions`) : 'Run Seller Optimization after completing the required account data.'}
-            cost={totalOpt}
-            sla={hasModeledPlan && num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays) > 0 ? `${num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays).toFixed(1)} days avg` : 'Not modeled'}
+            title={decisionReady ? (plan.title || 'Optimized operating model') : hasModeledPlan ? 'Modeled reference scenario' : 'Optimization not modeled yet'}
+            nodes={decisionReady
+              ? (plan.summary || `${plan.autonomousAfterApproval?.length || 0} autonomous actions`)
+              : hasModeledPlan
+                ? 'Reconcile modeled cost and warehouse assumptions before comparing outcomes.'
+                : 'Run Seller Optimization after completing the required account data.'}
+            cost={decisionReady ? totalOpt : null}
+            sla={decisionReady && num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays) > 0 ? `${num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays).toFixed(1)} days avg` : 'Not traceable'}
             savings={decisionReady ? savings : undefined}
             note={decisionReady
               ? `Cortex · ${plan.forecastHorizonMonths || 6}-month horizon · traceable to account truth`
@@ -268,7 +272,7 @@ export const BusinessDouble = (_: ScreenProps) => {
 
       <div className="row-2-eq" style={{ marginBottom: 16 }}>
         <ScenarioPanel label="Current strategy" accent="default" warehouses={warehouses} activeNodes={curNodes} scenario={cur} />
-        {hasModeledPlan ? (
+        {decisionReady ? (
           <ScenarioPanel
             label="Optimized strategy"
             accent="purple"
@@ -277,6 +281,28 @@ export const BusinessDouble = (_: ScreenProps) => {
             scenario={opt}
             savings={decisionReady ? savings : undefined}
           />
+        ) : hasModeledPlan ? (
+          <div className="card">
+            <div className="card-header">
+              <div className="card-title">Modeled reference scenario</div>
+              <Chip tone="amber" dot={false}>Not decision-ready</Chip>
+            </div>
+            <div className="card-body">
+              <EmptyState>
+                Cortex has a scenario, but its cost and warehouse assumptions do not match observed account truth closely enough to show as an optimized network.
+              </EmptyState>
+              {(plan.grounding?.issues || []).length > 0 && (
+                <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+                  {(plan.grounding?.issues || []).map((issue) => (
+                    <div key={issue} className="inline-banner" style={{ borderColor: 'var(--amber-border)', background: 'var(--amber-soft)', color: 'var(--amber-text)' }}>
+                      <Icon name="warning" size={12} />
+                      <span>{issue}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
           <div className="card">
             <div className="card-header"><div className="card-title">Optimized strategy</div><Chip tone="amber" dot={false}>Awaiting model</Chip></div>
@@ -575,11 +601,15 @@ const ApprovalSurface = ({
           </div>
           <div>
             <div style={{ fontSize: 10.5, color: 'var(--purple-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Suggested</div>
-            <div style={{ fontSize: 15, fontWeight: 800 }}>{plan.title || 'Optimized operating model'}</div>
+            <div style={{ fontSize: 15, fontWeight: 800 }}>
+              {decisionReady ? (plan.title || 'Optimized operating model') : modeled ? 'Modeled reference scenario' : 'No suggested plan yet'}
+            </div>
             <div className="mono" style={{ fontSize: 11.5, color: 'var(--purple-text)', whiteSpace: 'pre-wrap', marginTop: 6, fontWeight: 700 }}>
-              {modeled
+              {decisionReady
                 ? `Cost: ${fmt.money(num(opt.monthlyCost ?? opt.freight))}\nWarehouses: ${num(opt.warehouseNodes)}\nSLA: ${num(opt.averageDeliveryDays ?? opt.sla ?? opt.slaDays).toFixed(1)} days`
-                : 'No executable suggested plan has been modeled yet.'}
+                : modeled
+                  ? 'Reference scenario hidden until modeled costs and warehouses reconcile with observed account data.'
+                  : 'No executable suggested plan has been modeled yet.'}
             </div>
           </div>
           <div>
@@ -625,9 +655,11 @@ const ApprovalSurface = ({
 
         <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--border-subtle)' }}>
           <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: 12 }}>
-            What happens autonomously {accepted ? '(running now)' : 'if you accept'}
+            {decisionReady ? `What happens autonomously ${accepted ? '(running now)' : 'if you accept'}` : 'Autonomous execution'}
           </div>
-          {areas.length === 0 ? (
+          {!decisionReady ? (
+            <EmptyState>Autonomous actions appear here only after the operating plan is traceable and ready for approval.</EmptyState>
+          ) : areas.length === 0 ? (
             <EmptyState>No autonomous actions defined for this plan.</EmptyState>
           ) : (
             <div className="business-autonomy-grid" style={{ gap: 10 }}>
