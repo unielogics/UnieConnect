@@ -86,7 +86,7 @@ export default function FeatureGuard({ featureSlug, children, fallback }: Featur
               </div>
               <button
                 className="button-primary"
-                onClick={() => router.push('/marketplace')}
+                onClick={() => router.push('/oms?view=marketplace')}
               >
                 View in Marketplace
               </button>
