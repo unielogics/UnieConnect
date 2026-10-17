@@ -1932,8 +1932,11 @@ const Billing = ({ data }: { data: OmsSkuDetail }) => {
   return (
     <div className="card">
       <div className="card-header">
-        <div className="card-title">SKU-level cost · last 30 days</div>
-        <Chip dot={false}>WMS-allocated</Chip>
+        <div>
+          <div className="card-title">SKU-level cost · last 30 days</div>
+          {b?.method && <div className="card-subtitle">{b.method}</div>}
+        </div>
+        {b && <Chip dot={false}>WMS-allocated</Chip>}
       </div>
       {!b ? (
         <EmptyState>No billing breakdown available for this SKU.</EmptyState>
@@ -1951,18 +1954,22 @@ const Billing = ({ data }: { data: OmsSkuDetail }) => {
                   <th>WH</th>
                   <th className="num">Storage</th>
                   <th className="num">Handling</th>
+                  <th className="num">Freight</th>
+                  <th className="num">Materials</th>
                   <th className="num">Accessorial</th>
                   <th className="num">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {drivers.map((c, i) => {
-                  const total = num(c.storage) + num(c.handling) + num(c.accessorial);
+                  const total = num(c.storage) + num(c.handling) + num(c.freight) + num(c.materials) + num(c.accessorial);
                   return (
                     <tr key={i}>
                       <td className="mono strong">{c.wh}</td>
                       <td className="num mono">{fmt.money(num(c.storage))}</td>
                       <td className="num mono">{fmt.money(num(c.handling))}</td>
+                      <td className="num mono">{num(c.freight) ? fmt.money(num(c.freight)) : '—'}</td>
+                      <td className="num mono">{num(c.materials) ? fmt.money(num(c.materials)) : '—'}</td>
                       <td className="num mono">{c.accessorial ? fmt.money(num(c.accessorial)) : '—'}</td>
                       <td className="num mono strong">{fmt.money(total)}</td>
                     </tr>

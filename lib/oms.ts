@@ -268,7 +268,14 @@ export type OmsSkuDetail = {
   warehouses: Array<{ code: string; name?: string; region?: string; available: number; inbound: number; daysOfCover: number; storageCost?: number; velocityPerDay?: number; status?: string }>;
   history: Array<{ ts: string; type: string; actor: string; subject: string; impact?: number | null }>;
   channels?: Array<{ channel: string; units30d: number; revenue30d: number; shareOfDemand: number; refundRate: number }>;
-  billing?: { currentMonthly: number; optimizedMonthly: number; drivers?: Array<{ wh: string; storage: number; handling: number; accessorial?: number }> };
+  billing?: {
+    currentMonthly: number;
+    optimizedMonthly: number;
+    drivers?: Array<{ wh: string; storage: number; handling: number; accessorial?: number; freight?: number; materials?: number; optimized?: number }>;
+    source?: string;
+    periodDays?: number;
+    method?: string;
+  } | null;
   relatedSkus?: Array<{ id: string; sku: string; title?: string; daysOfCover: number }>;
 };
 
