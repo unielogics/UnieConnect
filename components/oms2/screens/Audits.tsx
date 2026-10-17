@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
-import { fetchLedger, fetchLabelAudit, LedgerResponse, LabelAuditResponse } from '../../../lib/oms';
+import { Chip, StatusChip, fmt, Loading, EmptyState, downloadCsv } from '../ui';
+import { fetchLedger, fetchLabelAudit } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 
@@ -16,19 +16,21 @@ type Claim = {
 };
 
 export const Audits = (_: ScreenProps) => {
-  const [claims, setClaims] = useState<Claim[]>([]);
+  const [labelClaims, setLabelClaims] = useState<Claim[]>([]);
+  const [ledgerClaims, setLedgerClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const [sourceErrors, setSourceErrors] = useState<string[]>([]);
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
-    setErr(null);
-    Promise.all([
-      fetchLabelAudit().catch(() => ({ findings: [], summary: {} } as LabelAuditResponse)),
-      fetchLedger().catch(() => ({ events: [] } as LedgerResponse)),
-    ])
-      .then(([la, lg]) => {
-        const fromLabels: Claim[] = (la.findings || [])
+    setSourceErrors([]);
+    const [labelResult, ledgerResult] = await Promise.allSettled([
+      fetchLabelAudit(),
+      fetchLedger(),
+    ]);
+    const errors: string[] = [];
+    if (labelResult.status === 'fulfilled') {
+      setLabelClaims((labelResult.value.findings || [])
           .filter((f) => num(f.refundAmount ?? f.refund) > 0)
           .map((f) => ({
             id: f.id,
@@ -38,8 +40,12 @@ export const Audits = (_: ScreenProps) => {
             amount: num(f.refundAmount ?? f.refund),
             filed: f.shipped || '—',
             status: f.auditStatus || f.status || 'evidence-ready',
-          }));
-        const fromLedger: Claim[] = (lg.events || [])
+          })));
+    } else {
+      errors.push('Carrier audit findings could not be loaded.');
+    }
+    if (ledgerResult.status === 'fulfilled') {
+      setLedgerClaims((ledgerResult.value.events || [])
           .filter((e) => /finding|dispute|claim|audit|reclass/i.test(`${e.event_type} ${e.type} ${e.subject} ${e.summary}`))
           .map((e) => ({
             id: e.id || e.entity_id || 'CLM',
@@ -49,13 +55,25 @@ export const Audits = (_: ScreenProps) => {
             amount: num(e.impact),
             filed: e.created_at || e.ts || '—',
             status: e.status || 'submitted',
-          }));
-        setClaims([...fromLabels, ...fromLedger]);
-      })
-      .catch((e) => setErr(e.message || 'Failed to load audits'))
-      .finally(() => setLoading(false));
+          })));
+    } else {
+      errors.push('Intelligence ledger claims could not be loaded.');
+    }
+    setSourceErrors(errors);
+    setLoading(false);
   };
-  useEffect(load, []);
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const claims = useMemo(() => {
+    const unique = new Map<string, Claim>();
+    [...labelClaims, ...ledgerClaims].forEach((claim) => {
+      const key = `${claim.id}|${claim.type}|${claim.amount}`;
+      if (!unique.has(key)) unique.set(key, claim);
+    });
+    return Array.from(unique.values());
+  }, [labelClaims, ledgerClaims]);
 
   const recovered = claims.filter((c) => c.status === 'approved').reduce((s, c) => s + c.amount, 0);
   const inFlight = claims.filter((c) => c.status === 'submitted' || c.status === 'evidence-ready');
@@ -70,14 +88,20 @@ export const Audits = (_: ScreenProps) => {
           <p className="page-subtitle">Cortex audit bot files claims autonomously. You see the recovery, the evidence, and the cycle time.</p>
         </div>
         <div className="page-actions">
-          <Chip tone="purple" dot={false}>Audit bot · 24/7 active</Chip>
+          <Chip tone={sourceErrors.length ? 'amber' : 'purple'} dot={false}>{sourceErrors.length ? 'Audit data · partial' : 'Audit bot · 24/7 active'}</Chip>
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Re-scan invoices</button>
         </div>
       </div>
 
-      {err ? (
-        <div className="card"><ErrorState message={err} onRetry={load} /></div>
-      ) : loading ? (
+      {sourceErrors.length > 0 && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{sourceErrors.join(' ')} Previously loaded claim data is preserved.</span>
+          <button className="btn ghost sm" onClick={load}><Icon name="refresh" size={12} /> Retry sources</button>
+        </div>
+      )}
+
+      {loading && claims.length === 0 ? (
         <div className="card"><Loading rows={6} /></div>
       ) : (
         <>
@@ -114,7 +138,7 @@ export const Audits = (_: ScreenProps) => {
               })))}><Icon name="download" size={12} /> Export</button>
             </div>
             {claims.length === 0 ? (
-              <EmptyState>No audit claims recorded yet. The audit bot files automatically as overcharges are detected.</EmptyState>
+              <EmptyState>{sourceErrors.length ? 'Claim data is unavailable until at least one audit source reconnects.' : 'No audit claims recorded yet. The audit bot files automatically as overcharges are detected.'}</EmptyState>
             ) : (
               <table className="data">
                 <thead>
