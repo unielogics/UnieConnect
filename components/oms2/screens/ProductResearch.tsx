@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, Confidence, EmptyState, ErrorState, Loading, Sparkline, Thumb } from '../ui';
+import { Chip, Confidence, EmptyState, Loading, Sparkline, Thumb } from '../ui';
 import {
   fetchIntelligenceReadiness,
   fetchOmsSkus,
@@ -101,27 +101,36 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
   const [searchFocused, setSearchFocused] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const [loadErrors, setLoadErrors] = useState<string[]>([]);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
-    setErr(null);
-    Promise.all([
+    setLoadErrors([]);
+    const results = await Promise.allSettled([
       fetchIntelligenceReadiness(),
-      fetchProductResearchRuns().catch(() => ({ runs: [] })),
-      fetchOmsSkus().catch(() => ({ skus: [], total: 0 })),
-    ])
-      .then(([r, runData, skuData]) => {
-        setReadiness(r);
-        setRuns(runData.runs || []);
-        setSkus(skuData.skus || []);
-        setSelectedSku((current) => current || skuData.skus?.[0]?.sku || '');
-      })
-      .catch((e) => setErr(e.message || 'Failed to load Product Research'))
-      .finally(() => setLoading(false));
+      fetchProductResearchRuns(),
+      fetchOmsSkus(),
+    ]);
+    const errors: string[] = [];
+    const [readinessResult, runsResult, skuResult] = results;
+    if (readinessResult.status === 'fulfilled') setReadiness(readinessResult.value);
+    else errors.push('Account readiness could not be loaded.');
+    if (runsResult.status === 'fulfilled') setRuns(runsResult.value.runs || []);
+    else errors.push('Research history could not be loaded.');
+    if (skuResult.status === 'fulfilled') {
+      setSkus(skuResult.value.skus || []);
+      setSelectedSku((current) => current || skuResult.value.skus?.[0]?.sku || '');
+    } else {
+      errors.push('SKU catalog could not be loaded. Manual research remains available.');
+    }
+    setLoadErrors(errors);
+    setLoading(false);
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    void load();
+  }, []);
 
   const selected = useMemo(() => skus.find((s) => s.sku === selectedSku || s.id === selectedSku), [skus, selectedSku]);
   const filteredSkus = useMemo(() => {
@@ -198,7 +207,7 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
 
   const runSingle = async () => {
     setBusy(true);
-    setErr(null);
+    setActionError(null);
     try {
       const payload = selected
         ? { sku: selected.sku, itemId: selected.id, title: selected.title }
@@ -220,7 +229,7 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
       if (response.result) setActiveResult(response.result);
       await load();
     } catch (e: any) {
-      setErr(e.message || 'Product Research failed');
+      setActionError(e.message || 'Product Research failed');
     } finally {
       setBusy(false);
     }
@@ -243,14 +252,14 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
     const id = skuSearch.trim();
     if (!id) return;
     setBusy(true);
-    setErr(null);
+    setActionError(null);
     try {
       const response = await runProductResearch({ sku: id, asin: id, identifier: id });
       setResult(response.result);
       if (response.result) setActiveResult(response.result);
       await load();
     } catch (e: any) {
-      setErr(e.message || 'Keepa lookup failed for that identifier');
+      setActionError(e.message || 'Keepa lookup failed for that identifier');
     } finally {
       setBusy(false);
     }
@@ -258,7 +267,7 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
 
   const handleCsv = async (file: File | null) => {
     if (!file) return;
-    setErr(null);
+    setActionError(null);
     setCsvName(file.name);
     const text = await file.text();
     setCsvRows(parseCsv(text));
@@ -267,13 +276,13 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
   const runBulk = async () => {
     if (!csvRows.length) return;
     setBusy(true);
-    setErr(null);
+    setActionError(null);
     try {
       const response = await runBulkProductResearch({ filename: csvName || 'product-research.csv', rows: csvRows });
       setBulkResults(response.results || []);
       await load();
     } catch (e: any) {
-      setErr(e.message || 'Bulk Product Research failed');
+      setActionError(e.message || 'Bulk Product Research failed');
     } finally {
       setBusy(false);
     }
@@ -282,14 +291,14 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
   // Re-open a recent research run in the full view (renders from stored result.keepa.extract).
   const openRun = async (runId: string) => {
     setBusy(true);
-    setErr(null);
+    setActionError(null);
     try {
       const res = await fetchProductResearchRun(runId);
       const first = res.productResearchResults?.[0];
       if (first) setActiveResult(first);
-      else setErr('This run has no stored result to view.');
+      else setActionError('This run has no stored result to view.');
     } catch (e: any) {
-      setErr(e.message || 'Failed to open research run');
+      setActionError(e.message || 'Failed to open research run');
     } finally {
       setBusy(false);
     }
@@ -303,7 +312,7 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
   const runPasted = async () => {
     if (!pastedIdentifiers.length) return;
     setBusy(true);
-    setErr(null);
+    setActionError(null);
     try {
       // Each identifier becomes a row; the backend classifies asin vs upc/ean and looks it up.
       const rows = pastedIdentifiers.map((id) => ({ identifier: id, asin: id }));
@@ -311,13 +320,12 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
       setBulkResults(response.results || []);
       await load();
     } catch (e: any) {
-      setErr(e.message || 'Bulk Product Research failed');
+      setActionError(e.message || 'Bulk Product Research failed');
     } finally {
       setBusy(false);
     }
   };
 
-  if (err) return <div className="page fade-in"><div className="card"><ErrorState message={err} onRetry={load} /></div></div>;
   if (loading) return <div className="page fade-in"><div className="card"><Loading rows={6} /></div></div>;
 
   return (
@@ -331,6 +339,21 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
           <button className="btn" onClick={() => onNavigate('skus')}><Icon name="box" size={13} /> SKU catalog</button>
         </div>
       </div>
+
+      {loadErrors.length > 0 && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{loadErrors.join(' ')}</span>
+          <button className="btn ghost sm" onClick={load}><Icon name="refresh" size={12} /> Retry data</button>
+        </div>
+      )}
+      {actionError && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{actionError}</span>
+          <button className="icon-btn" aria-label="Dismiss error" data-hint="Dismiss" onClick={() => setActionError(null)}><Icon name="x" size={12} /></button>
+        </div>
+      )}
 
       <div className="research-status-strip">
         <div>
