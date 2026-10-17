@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, Sparkline, ProgressBar, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import {
@@ -40,6 +40,21 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [decisionFeedback, setDecisionFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [decisionUpdatingId, setDecisionUpdatingId] = useState<string | null>(null);
 
+  const refreshIntelligencePanels = useCallback(async (refreshTasks = false) => {
+    const [planResult, latestResult, tasksResult] = await Promise.allSettled([
+      fetchBusinessDouble(),
+      fetchLatestOptimization(),
+      fetchCortexTasks({ status: 'open', refresh: refreshTasks, limit: 10 }),
+    ]);
+    if (planResult.status === 'fulfilled') setBd(planResult.value);
+    if (latestResult.status === 'fulfilled') {
+      setReadiness(latestResult.value.readiness);
+      setLatestOpt(latestResult.value.latest || null);
+      setRecommendations(latestResult.value.recommendations || []);
+    }
+    if (tasksResult.status === 'fulfilled') setTasks(tasksResult.value.tasks || []);
+  }, []);
+
   const load = (r: Range) => {
     setLoading(true);
     setErr(null);
@@ -53,18 +68,8 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
     load(range);
   }, [range]);
   useEffect(() => {
-    fetchBusinessDouble().then(setBd).catch(() => {});
-    fetchLatestOptimization()
-      .then((r) => {
-        setReadiness(r.readiness);
-        setLatestOpt(r.latest || null);
-        setRecommendations(r.recommendations || []);
-      })
-      .catch(() => {});
-    fetchCortexTasks({ status: 'open', refresh: true, limit: 10 })
-      .then((r) => setTasks(r.tasks || []))
-      .catch(() => setTasks([]));
-  }, []);
+    void refreshIntelligencePanels(true);
+  }, [refreshIntelligencePanels]);
 
   const triggerOptimization = async () => {
     setOptimizing(true);
@@ -73,7 +78,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
       setReadiness(response.readiness);
       setLatestOpt(response.optimization);
       setRecommendations(response.recommendations || []);
-      fetchBusinessDouble().then(setBd).catch(() => {});
+      await refreshIntelligencePanels(true);
       load(range);
     } catch (e: any) {
       setErr(e.message || 'Seller Optimization failed');
@@ -98,8 +103,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
         text: error?.message || `The recommendation could not be ${action === 'approve' ? 'approved' : 'denied'}.`,
       });
     } finally {
-      const r = await fetchLatestOptimization().catch(() => null);
-      if (r) setRecommendations(r.recommendations || []);
+      await refreshIntelligencePanels(true);
       setDecisionUpdatingId(null);
     }
   };
@@ -110,8 +114,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
     try {
       if (action === 'done') await completeCortexTask(task.id);
       else await dismissCortexTask(task.id);
-      const r = await fetchCortexTasks({ status: 'open', limit: 10 }).catch(() => null);
-      if (r) setTasks(r.tasks || []);
+      await refreshIntelligencePanels(true);
     } catch (error: any) {
       setTaskFeedback(error?.message || 'The task could not be updated. Try again.');
     } finally {
@@ -236,6 +239,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
               upside={upside}
               costRed={costRed}
               slaImp={slaImp}
+              tasks={tasks}
               optimizing={optimizing}
               onRun={triggerOptimization}
               onNavigate={onNavigate}
@@ -263,6 +267,7 @@ const AiPlanCard = ({
   upside,
   costRed,
   slaImp,
+  tasks,
   optimizing,
   onRun,
   onNavigate,
@@ -271,6 +276,7 @@ const AiPlanCard = ({
   upside: number;
   costRed: number;
   slaImp: number;
+  tasks: CortexTask[];
   optimizing: boolean;
   onRun: () => void;
   onNavigate: (target: string, payload?: string) => void;
@@ -278,9 +284,13 @@ const AiPlanCard = ({
   const staged = bd?.plan?.autonomousAfterApproval?.length || 0;
   const approvals = bd?.plan?.approvalRequiredFor?.length || 0;
   const modeled = bd?.plan?.modelStatus === 'modeled';
-  const status = bd?.plan?.status === 'approved' ? 'active' : modeled ? 'proposed' : 'awaiting model';
+  const status = bd?.plan?.status === 'approved' ? 'active' : modeled ? 'proposed' : 'needs data';
   const hasModeledImpact = modeled && Boolean(upside || costRed || slaImp);
   const horizon = bd?.plan?.forecastHorizonMonths || 6;
+  const highPriorityTasks = tasks.filter((task) => task.priority === 'high').length;
+  const warehouseNodes = Number(bd?.plan?.currentMetrics?.warehouseNodes || 0);
+  const sourceConfidence = Number(bd?.plan?.source?.confidence || 0);
+  const sourceGeneratedAt = bd?.plan?.source?.generatedAt;
   return (
     <div className="card ai-plan-card">
       <div className="card-header">
@@ -306,7 +316,16 @@ const AiPlanCard = ({
           <Chip tone={hasModeledImpact ? 'green' : 'amber'} dot={false}>
             {hasModeledImpact ? 'Impact modeled' : modeled ? 'Plan modeled · impact pending' : 'Needs optimization run'}
           </Chip>
-          <span>{horizon}-month plan · {approvals} approval gates · {staged} staged actions</span>
+          <span>
+            {modeled
+              ? `${horizon}-month plan · ${approvals} approval gates · ${staged} staged actions`
+              : `${highPriorityTasks} high-priority task${highPriorityTasks === 1 ? '' : 's'} before traceable impact can be modeled`}
+          </span>
+          <span className="ai-plan-evidence">
+            {warehouseNodes} connected warehouse node{warehouseNodes === 1 ? '' : 's'}
+            {sourceConfidence ? ` · ${Math.round(sourceConfidence * 100)}% latest-run confidence` : ''}
+            {sourceGeneratedAt ? ` · ${timeAgo(sourceGeneratedAt)}` : ''}
+          </span>
         </div>
         <div className="ai-plan-footer">
           <button className="btn ghost sm" onClick={onRun} disabled={optimizing}>
