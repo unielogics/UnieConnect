@@ -308,11 +308,12 @@ const AiPlanCard = ({
   const staged = bd?.plan?.autonomousAfterApproval?.length || 0;
   const approvals = bd?.plan?.approvalRequiredFor?.length || 0;
   const modeled = bd?.plan?.modelStatus === 'modeled';
-  const status = bd?.plan?.status === 'approved' ? 'active' : modeled ? 'proposed' : 'needs data';
-  const hasModeledImpact = modeled && Boolean(upside || costRed || slaImp);
+  const decisionReady = modeled && bd?.plan?.decisionReady === true;
+  const status = bd?.plan?.status === 'approved' ? 'active' : decisionReady ? 'proposed' : modeled ? 'scenario only' : 'needs data';
+  const hasModeledImpact = decisionReady && Boolean(upside || costRed || slaImp);
   const horizon = bd?.plan?.forecastHorizonMonths || 6;
   const highPriorityTasks = tasks.filter((task) => task.priority === 'high').length;
-  const warehouseNodes = Number(bd?.plan?.currentMetrics?.warehouseNodes || 0);
+  const warehouseNodes = Number(bd?.plan?.grounding?.connectedWarehouseNodes ?? bd?.plan?.currentMetrics?.warehouseNodes ?? 0);
   const sourceConfidence = Number(bd?.plan?.source?.confidence || 0);
   const sourceGeneratedAt = bd?.plan?.source?.generatedAt;
   return (
@@ -322,7 +323,7 @@ const AiPlanCard = ({
           <div className="card-title"><Icon name="double" size={15} /> AI plan</div>
           <div className="card-subtitle">{bd?.plan?.title || 'Six-month multi-warehouse operating plan'}</div>
         </div>
-        <Chip tone={status === 'active' ? 'green' : modeled ? 'purple' : 'amber'} dot={false}>{status}</Chip>
+        <Chip tone={status === 'active' ? 'green' : decisionReady ? 'purple' : 'amber'} dot={false}>{status}</Chip>
       </div>
       <div className="card-body ai-plan-body">
         <div>
@@ -332,17 +333,19 @@ const AiPlanCard = ({
           </div>
         </div>
         <div className="ai-plan-metrics">
-          <MiniMetric label="Revenue upside" value={upside ? fmt.money(upside, { compact: true, sign: true }) : '—'} sub="modeled gain" tone={upside ? 'green' : undefined} />
-          <MiniMetric label="Cost reduction" value={costRed ? `−${Math.abs(costRed).toFixed(1)}%` : '—'} sub="network cost" tone={costRed ? 'green' : undefined} />
-          <MiniMetric label="SLA improvement" value={slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'} sub="delivery speed" tone={slaImp ? 'green' : undefined} />
+          <MiniMetric label="Revenue upside" value={hasModeledImpact && upside ? fmt.money(upside, { compact: true, sign: true }) : '—'} sub={decisionReady ? 'modeled gain' : 'awaiting traceable baseline'} tone={hasModeledImpact && upside ? 'green' : undefined} />
+          <MiniMetric label="Cost reduction" value={hasModeledImpact && costRed ? `−${Math.abs(costRed).toFixed(1)}%` : '—'} sub={decisionReady ? 'network cost' : 'awaiting traceable baseline'} tone={hasModeledImpact && costRed ? 'green' : undefined} />
+          <MiniMetric label="SLA improvement" value={hasModeledImpact && slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'} sub={decisionReady ? 'delivery speed' : 'awaiting traceable baseline'} tone={hasModeledImpact && slaImp ? 'green' : undefined} />
         </div>
         <div className="ai-plan-readiness">
           <Chip tone={hasModeledImpact ? 'green' : 'amber'} dot={false}>
-            {hasModeledImpact ? 'Impact modeled' : modeled ? 'Plan modeled · impact pending' : 'Needs optimization run'}
+            {hasModeledImpact ? 'Impact traceable' : modeled ? 'Scenario modeled · baseline mismatch' : 'Needs optimization run'}
           </Chip>
           <span>
-            {modeled
+            {decisionReady
               ? `${horizon}-month plan · ${approvals} approval gates · ${staged} staged actions`
+              : modeled
+                ? 'Approval is blocked until modeled costs and warehouse count reconcile with account truth.'
               : `${highPriorityTasks} high-priority task${highPriorityTasks === 1 ? '' : 's'} before traceable impact can be modeled`}
           </span>
           <span className="ai-plan-evidence">

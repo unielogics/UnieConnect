@@ -151,11 +151,12 @@ export const BusinessDouble = (_: ScreenProps) => {
   const cur = plan.currentMetrics || {};
   const opt = plan.optimizedMetrics || {};
   const hasModeledPlan = plan.modelStatus === 'modeled' && Object.keys(opt).length > 0;
+  const decisionReady = hasModeledPlan && plan.decisionReady === true;
   const sum = (o: Record<string, number>) =>
     ['freight', 'storage', 'handling', 'accessorials', 'materials', 'lostRevenue'].reduce((s, k) => s + num(o[k]), 0);
   const totalCur = num(cur.monthlyCost) || sum(cur);
   const totalOpt = hasModeledPlan ? (num(opt.monthlyCost) || sum(opt)) : null;
-  const savings = hasModeledPlan ? (num(plan.savings?.total) || Math.max(0, totalCur - (totalOpt || 0))) : 0;
+  const savings = decisionReady ? (num(plan.savings?.total) || Math.max(0, totalCur - (totalOpt || 0))) : 0;
 
   const warehouses = (hm?.warehouses || []).map((w) => ({
     code: w.code || w.name || '',
@@ -164,7 +165,7 @@ export const BusinessDouble = (_: ScreenProps) => {
   }));
   const curNodes = warehouses.filter((w) => w.active).map((w) => w.code);
 
-  const impactKeys = hasModeledPlan ? Object.keys(METRIC_LABELS).filter((k) => k in cur || k in opt) : [];
+  const impactKeys = decisionReady ? Object.keys(METRIC_LABELS).filter((k) => k in cur || k in opt) : [];
   const uniqueImpact = impactKeys.filter((k, i) => impactKeys.findIndex((x) => METRIC_LABELS[x].label === METRIC_LABELS[k].label) === i).slice(0, 5);
 
   return (
@@ -194,6 +195,15 @@ export const BusinessDouble = (_: ScreenProps) => {
           <button className="btn ghost sm" onClick={loadSupportingContext}>
             <Icon name="refresh" size={12} /> Retry context
           </button>
+        </div>
+      )}
+
+      {hasModeledPlan && !decisionReady && (
+        <div className="inline-banner" role="status" style={{ marginBottom: 12, borderColor: 'var(--amber-border)', background: 'var(--amber-soft)', color: 'var(--amber-text)' }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>
+            This is a reference scenario, not an approval decision. {(plan.grounding?.issues || []).join(' ')}
+          </span>
         </div>
       )}
 
@@ -233,7 +243,7 @@ export const BusinessDouble = (_: ScreenProps) => {
             tone="default"
             active={!accepted}
             title="Current strategy"
-            nodes={`${curNodes.length || (plan.currentMetrics && plan.currentMetrics.warehouseCount) || 0} active nodes`}
+            nodes={`${curNodes.length || plan.grounding?.connectedWarehouseNodes || cur.warehouseNodes || 0} connected nodes`}
             cost={totalCur}
             sla={num(cur.sla ?? cur.slaDays ?? cur.averageDeliveryDays) > 0 ? `${num(cur.sla ?? cur.slaDays ?? cur.averageDeliveryDays).toFixed(1)} days avg` : 'Not measured'}
             note="Observed account data for the last 30 days"
@@ -246,8 +256,12 @@ export const BusinessDouble = (_: ScreenProps) => {
             nodes={hasModeledPlan ? (plan.summary || `${plan.autonomousAfterApproval?.length || 0} autonomous actions`) : 'Run Seller Optimization after completing the required account data.'}
             cost={totalOpt}
             sla={hasModeledPlan && num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays) > 0 ? `${num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays).toFixed(1)} days avg` : 'Not modeled'}
-            savings={hasModeledPlan ? savings : undefined}
-            note={hasModeledPlan ? `Cortex · ${plan.forecastHorizonMonths || 6}-month horizon` : 'No suggested outcome or financial claim is shown without model evidence'}
+            savings={decisionReady ? savings : undefined}
+            note={decisionReady
+              ? `Cortex · ${plan.forecastHorizonMonths || 6}-month horizon · traceable to account truth`
+              : hasModeledPlan
+                ? 'Reference scenario only · reconcile billing and warehouse baselines before approval'
+                : 'No suggested outcome or financial claim is shown without model evidence'}
           />
         </div>
       </div>
@@ -261,7 +275,7 @@ export const BusinessDouble = (_: ScreenProps) => {
             warehouses={warehouses}
             activeNodes={warehouses.map((w) => w.code)}
             scenario={opt}
-            savings={savings}
+            savings={decisionReady ? savings : undefined}
           />
         ) : (
           <div className="card">
@@ -276,11 +290,13 @@ export const BusinessDouble = (_: ScreenProps) => {
           <div className="card-title">
             <Icon name="bolt" size={15} /> Cash & service impact, next 30 days
           </div>
-          <Chip tone={hasModeledPlan ? 'purple' : 'amber'} dot={false}>{hasModeledPlan ? 'Modeled by Cortex' : 'Awaiting model'}</Chip>
+          <Chip tone={decisionReady ? 'purple' : 'amber'} dot={false}>{decisionReady ? 'Traceable Cortex impact' : hasModeledPlan ? 'Reference scenario' : 'Awaiting model'}</Chip>
         </div>
         <div className="card-body" style={{ paddingTop: 18 }}>
           {uniqueImpact.length === 0 ? (
-            <EmptyState>Cost breakdown not yet returned by the plan model.</EmptyState>
+            <EmptyState>{hasModeledPlan && !decisionReady
+              ? 'Modeled impact is hidden until its cost and warehouse baseline reconciles with observed account data.'
+              : 'Cost breakdown not yet returned by the plan model.'}</EmptyState>
           ) : (
             <div className="business-impact-grid" style={{ gap: 16 }}>
               {uniqueImpact.map((k) => (
@@ -304,10 +320,11 @@ export const BusinessDouble = (_: ScreenProps) => {
         denied={denied}
         accepting={accepting}
         rejecting={rejecting}
-        onAccept={() => { if (hasModeledPlan) accept(); }}
+        onAccept={() => { if (decisionReady) accept(); }}
         onDeny={deny}
         plan={plan}
         modeled={hasModeledPlan}
+        decisionReady={decisionReady}
       />
     </div>
   );
@@ -513,6 +530,7 @@ const ApprovalSurface = ({
   onDeny,
   plan,
   modeled,
+  decisionReady,
 }: {
   savings: number;
   accepted: boolean;
@@ -523,6 +541,7 @@ const ApprovalSurface = ({
   onDeny: () => void;
   plan: BusinessDoubleResponse['plan'];
   modeled: boolean;
+  decisionReady: boolean;
 }) => {
   const areas = (plan.autonomousAfterApproval || []).map((a) => {
     const key = Object.keys(AREA_ICON).find((k) => a.toLowerCase().includes(k)) || 'cortex';
@@ -530,7 +549,7 @@ const ApprovalSurface = ({
   });
   const cur = plan.currentMetrics || {};
   const opt = plan.optimizedMetrics || {};
-  const state = accepted ? 'approved' : denied ? 'denied' : 'no decision';
+  const state = accepted ? 'approved' : denied ? 'denied' : decisionReady ? 'needs decision' : modeled ? 'reference only' : 'not ready';
 
   return (
     <div
@@ -566,13 +585,13 @@ const ApprovalSurface = ({
           <div>
             <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Improvement</div>
             <div style={{ fontSize: 38, fontWeight: 700, color: 'var(--green-text)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              {modeled ? `+${fmt.money(Math.abs(savings))}` : '—'}
+              {decisionReady ? `+${fmt.money(Math.abs(savings))}` : '—'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>30-day upside</div>
           </div>
           <div>
             <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Status</div>
-            <Chip tone={accepted ? 'green' : denied ? 'red' : 'default'} dot={false}>{state}</Chip>
+            <Chip tone={accepted ? 'green' : denied ? 'red' : decisionReady ? 'purple' : 'amber'} dot={false}>{state}</Chip>
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>
               {plan.id} · {plan.status}
             </div>
@@ -581,16 +600,16 @@ const ApprovalSurface = ({
             <button
               className={`btn ${accepted ? '' : 'primary'} lg`}
               onClick={onAccept}
-              disabled={!modeled || accepting || rejecting || accepted || denied}
+              disabled={!decisionReady || accepting || rejecting || accepted || denied}
               style={{ marginTop: 8, height: 44, fontSize: 14 }}
             >
               {accepted ? (
                 <>
                   <Icon name="check" size={15} /> Plan accepted
                 </>
-              ) : !modeled ? (
+              ) : !decisionReady ? (
                 <>
-                  <Icon name="sparkle" size={15} /> Run optimization first
+                  <Icon name="warning" size={15} /> Reconcile baseline first
                 </>
               ) : (
                 <>
@@ -598,7 +617,7 @@ const ApprovalSurface = ({
                 </>
               )}
             </button>
-            <button className="btn lg" disabled={!modeled || accepting || rejecting || accepted || denied} onClick={onDeny} style={{ height: 40, fontSize: 14 }}>
+            <button className="btn lg" disabled={!decisionReady || accepting || rejecting || accepted || denied} onClick={onDeny} style={{ height: 40, fontSize: 14 }}>
               {denied ? 'Plan denied' : rejecting ? 'Denying…' : 'Deny plan'}
             </button>
           </div>

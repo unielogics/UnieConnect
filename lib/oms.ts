@@ -151,6 +151,8 @@ export type BusinessDoubleResponse = {
     id: string;
     status: string;
     modelStatus?: 'modeled' | 'not_modeled';
+    decisionReady?: boolean;
+    impactStatus?: 'traceable' | 'scenario_only' | 'needs_model';
     title: string;
     summary: string;
     forecastHorizonMonths?: number;
@@ -159,6 +161,14 @@ export type BusinessDoubleResponse = {
     savings: Record<string, number>;
     autonomousAfterApproval: string[];
     approvalRequiredFor: string[];
+    grounding?: {
+      observedMonthlyCost?: number;
+      modelBaselineMonthlyCost?: number;
+      connectedWarehouseNodes?: number;
+      modelBaselineWarehouseNodes?: number;
+      costVariancePct?: number | null;
+      issues?: string[];
+    };
     source?: {
       authority?: string;
       cortexRunId?: string | null;
