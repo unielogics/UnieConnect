@@ -67,6 +67,7 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
 
   const cur = plan.current || {};
   const prop = plan.proposed || {};
+  const modeled = plan.modelStatus === 'modeled';
   const diffs = [
     { label: 'Stockout-risk SKUs', current: num(cur.stockoutRiskSkus), proposed: num(prop.stockoutRiskSkus), money: false },
     { label: 'Warehouse nodes', current: num(cur.warehouseCount), proposed: num(prop.warehouseCount), money: false, betterHigher: true },
@@ -91,14 +92,16 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
         <div>
           <h1 className="page-title">Inventory Plan</h1>
           <p className="page-subtitle">
-            Current business vs. proposed plan. AI proposes quantities, placement, and timing over the next 6 months.
+            {modeled
+              ? 'Observed inventory compared with Cortex quantities, placement, and timing.'
+              : 'Observed demand, connected warehouses, and replenishment inputs. No optimized network has been modeled yet.'}
           </p>
         </div>
         <div className="page-actions">
           <Chip tone="purple" dot={false}>
             {intelligenceAuthorityLabel(plan.source?.authority)} · {plan.generatedAt ? new Date(plan.generatedAt).toLocaleDateString() : 'live'}
           </Chip>
-          {plan.source?.authority?.includes('fallback') && <Chip tone="amber" dot={false}>Run Seller Optimization</Chip>}
+          {!modeled && <Chip tone="amber" dot={false}>Optimization required</Chip>}
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Re-forecast</button>
           <button className="btn" onClick={() => downloadCsv('unieconnect-inventory-plan.csv', [
             ...(plan.months || []).map((month) => ({ Type: 'Month', Period: month.month, 'Projected units': month.projectedUnits, 'Proposed replenishment': month.proposedReplenishment, Savings: month.savings })),
@@ -107,29 +110,29 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
         </div>
       </div>
 
-      <div className="card" style={{ background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 60%)' }}>
+      <div className="card" style={{ background: modeled ? 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 60%)' : 'var(--bg-elev)' }}>
         <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr) auto', gap: 18, alignItems: 'center', padding: 18 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <Chip tone="purple" dot={false}>PROPOSED PLAN</Chip>
+              <Chip tone={modeled ? 'purple' : 'amber'} dot={false}>{modeled ? 'PROPOSED PLAN' : 'ACCOUNT BASELINE'}</Chip>
               <span className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{plan.horizon || '6m'}</span>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>6-month inventory &amp; placement plan</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{modeled ? '6-month inventory & placement plan' : 'Observed inventory baseline'}</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
-              {num(cur.skuCount)} SKUs · {num(prop.warehouseCount)} warehouses · {plan.months?.length || 0} planning periods
+              {num(cur.skuCount)} SKUs · {num(cur.warehouseCount)} connected warehouses · {plan.months?.length || 0} baseline periods
             </div>
           </div>
-          <SummaryStat label="Monthly cost (plan)" value={fmt.money(num(prop.estimatedMonthlyCost), { compact: true })} tone="green" sub={`was ${fmt.money(num(cur.estimatedMonthlyCost), { compact: true })}`} />
-          <SummaryStat label="Stockout risk" value={`${num(prop.stockoutRiskSkus)} SKUs`} tone="green" sub={`vs ${num(cur.stockoutRiskSkus)} today`} />
-          <SummaryStat label="Shared pallets" value={String(num(prop.sharedPalletCandidates))} tone="purple" sub="consolidation" />
-          <SummaryStat label="Nodes" value={`${num(prop.warehouseCount)}`} sub={`vs ${num(cur.warehouseCount)}`} />
+          <SummaryStat label={modeled ? 'Monthly cost (plan)' : 'Current monthly cost'} value={fmt.money(num(modeled ? prop.estimatedMonthlyCost : cur.estimatedMonthlyCost), { compact: true })} tone={modeled ? 'green' : undefined} sub={modeled ? `was ${fmt.money(num(cur.estimatedMonthlyCost), { compact: true })}` : 'WMS billing · last 30 days'} />
+          <SummaryStat label="Stockout risk" value={`${num(modeled ? prop.stockoutRiskSkus : cur.stockoutRiskSkus)} SKUs`} tone={modeled ? 'green' : undefined} sub={modeled ? `vs ${num(cur.stockoutRiskSkus)} today` : 'observed today'} />
+          <SummaryStat label={modeled ? 'Shared pallets' : 'Replenishment candidates'} value={String(modeled ? num(prop.sharedPalletCandidates) : plan.skus.filter((item) => num(item.proposedUnits) > 0).length)} tone="purple" sub={modeled ? 'consolidation' : 'calculated from demand'} />
+          <SummaryStat label="Nodes" value={`${num(modeled ? prop.warehouseCount : cur.warehouseCount)}`} sub={modeled ? `vs ${num(cur.warehouseCount)}` : 'connected only'} />
           <button className="btn primary lg" style={{ minWidth: 160 }} onClick={() => onNavigate('double')}>
-            <Icon name="check" size={13} /> Review &amp; accept
+            <Icon name={modeled ? 'check' : 'sparkle'} size={13} /> {modeled ? 'Review & accept' : 'Run optimization'}
           </button>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 14 }}>
+      {modeled ? <div className="card" style={{ marginTop: 14 }}>
         <div className="card-header">
           <div>
             <div className="card-title">Current business vs. proposed plan</div>
@@ -173,7 +176,12 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
             );
           })}
         </div>
-      </div>
+      </div> : (
+        <div className="card" style={{ marginTop: 14 }}>
+          <div className="card-header"><div><div className="card-title">Current vs. proposed plan</div><div className="card-subtitle">A comparison appears only after Cortex returns measurable changes.</div></div><Chip tone="amber" dot={false}>Not modeled</Chip></div>
+          <div className="card-body"><EmptyState>No financial, stockout, or warehouse improvement is claimed from the baseline. Complete readiness work and run Seller Optimization to create a traceable proposal.</EmptyState></div>
+        </div>
+      )}
 
       {!sku ? (
         <div className="card" style={{ marginTop: 16 }}>

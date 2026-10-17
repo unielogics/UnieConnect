@@ -180,6 +180,7 @@ export type CommandCenterFull = {
 
 export type InventoryPlanFull = {
   horizon?: string;
+  modelStatus?: 'modeled' | 'not_modeled';
   generatedAt?: string;
   source?: {
     authority?: string;
@@ -189,8 +190,8 @@ export type InventoryPlanFull = {
     confidence?: number | null;
     generatedAt?: string;
   };
-  current: { skuCount?: number; warehouseCount?: number; stockoutRiskSkus?: number; estimatedMonthlyCost?: number } & Record<string, number>;
-  proposed: { warehouseCount?: number; stockoutRiskSkus?: number; estimatedMonthlyCost?: number; sharedPalletCandidates?: number } & Record<string, number>;
+  current: { skuCount?: number; warehouseCount?: number; stockoutRiskSkus?: number; estimatedMonthlyCost?: number | null } & Record<string, number | string | null | undefined>;
+  proposed: { warehouseCount?: number | null; stockoutRiskSkus?: number | null; estimatedMonthlyCost?: number | null; sharedPalletCandidates?: number | null } & Record<string, number | string | null | undefined>;
   months: Array<{ month: string; projectedUnits: number; proposedReplenishment: number; savings: number }>;
   skus: OmsSku[];
   warehouses: Array<{ id: string; code?: string; name?: string; city?: string; state?: string }>;
