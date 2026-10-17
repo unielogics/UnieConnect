@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Modal } from '../ui';
+import { Icon } from '../icons';
 import { CatalogItemForm } from '../../CatalogItemForm';
 import { ProductResearchFullView } from './ProductResearchFullView';
 import {
@@ -33,6 +34,8 @@ export const NewProductModal = ({
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [supplierLoading, setSupplierLoading] = useState(true);
+  const [supplierError, setSupplierError] = useState<string | null>(null);
 
   const [step, setStep] = useState<'lookup' | 'review' | 'form'>('lookup');
   const [identifier, setIdentifier] = useState('');
@@ -43,11 +46,22 @@ export const NewProductModal = ({
   // The full lookup result, kept so the review step can render the Cortex intelligence dashboard.
   const [lookupResult, setLookupResult] = useState<KeepaLookupResult | null>(null);
 
-  useEffect(() => {
-    fetchOmsSuppliers()
-      .then((d) => setSuppliers((d.suppliers || []).map((s) => ({ id: s.id, name: s.name } as Supplier))))
-      .catch(() => setSuppliers([]));
+  const loadSuppliers = useCallback(async () => {
+    setSupplierLoading(true);
+    setSupplierError(null);
+    try {
+      const data = await fetchOmsSuppliers();
+      setSuppliers((data.suppliers || []).map((supplier) => ({ id: supplier.id, name: supplier.name } as Supplier)));
+    } catch (error: any) {
+      setSupplierError(error?.message || 'Supplier options could not be loaded.');
+    } finally {
+      setSupplierLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadSuppliers();
+  }, [loadSuppliers]);
 
   // Proposed SKU derived from whichever identifier resolved — traceable back to its source and
   // still fully editable (CatalogItemForm only locks the SKU input when isEditing is true).
@@ -225,6 +239,18 @@ export const NewProductModal = ({
           {err && (
             <div style={{ marginBottom: 14, padding: '8px 12px', background: 'var(--red-soft)', color: 'var(--red-text)', borderRadius: 6, fontSize: 12.5, fontWeight: 600 }}>
               {err}
+            </div>
+          )}
+          {supplierLoading && suppliers.length === 0 && (
+            <div className="inline-banner" role="status" style={{ marginBottom: 12 }}>
+              Loading supplier options...
+            </div>
+          )}
+          {supplierError && (
+            <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+              <Icon name="warning" size={13} />
+              <span style={{ flex: 1 }}>{supplierError} You can still create the product without assigning a supplier.</span>
+              <button className="btn ghost sm" onClick={loadSuppliers}><Icon name="refresh" size={12} /> Retry suppliers</button>
             </div>
           )}
           <CatalogItemForm
