@@ -139,7 +139,9 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
               <Chip tone={decisionReady ? 'purple' : 'amber'} dot={false}>{decisionReady ? 'PROPOSED PLAN' : hasModeledScenario ? 'REFERENCE SCENARIO' : 'ACCOUNT BASELINE'}</Chip>
               <span className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{plan.horizon || '6m'}</span>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{decisionReady ? '6-month inventory & placement plan' : 'Observed inventory baseline'}</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>
+              {decisionReady ? '6-month inventory & placement plan' : hasModeledScenario ? 'Cortex reference scenario' : 'Observed inventory baseline'}
+            </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
               {num(cur.skuCount)} SKUs · {num(cur.warehouseCount)} connected warehouses · {plan.months?.length || 0} baseline periods
             </div>
