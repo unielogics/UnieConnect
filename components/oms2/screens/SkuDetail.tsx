@@ -217,7 +217,12 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
   const [amazonOpen, setAmazonOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [intelligenceErrors, setIntelligenceErrors] = useState<string[]>([]);
   const [tab, setTab] = useState<Tab>('overview');
+
+  const recordIntelligenceError = (message: string) => {
+    setIntelligenceErrors((current) => current.includes(message) ? current : [...current, message]);
+  };
 
   const load = () => {
     if (!skuId) {
@@ -227,10 +232,16 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
     }
     setLoading(true);
     setErr(null);
+    setIntelligenceErrors([]);
     fetchOmsSkuDetail(skuId)
       .then((detail) => {
         setData(detail);
-        fetchProductResearchResult(detail.sku).then(setProductIntel).catch(() => setProductIntel(null));
+        fetchProductResearchResult(detail.sku)
+          .then(setProductIntel)
+          .catch(() => {
+            setProductIntel(null);
+            recordIntelligenceError('Product Research enrichment could not be loaded.');
+          });
         setPricingLoading(true);
         setPricingError(null);
         fetchSkuFulfillmentEconomics(detail.id, 'DTC')
@@ -242,7 +253,10 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
             const refreshed = await refreshSkuFulfillmentEconomics(detail.id, skuEconomicsRefreshPayload(detail));
             setSkuEconomics(refreshed.economics || null);
           })
-          .catch(() => setSkuEconomics(null));
+          .catch(() => {
+            setSkuEconomics(null);
+            recordIntelligenceError('Cortex SKU economics could not be loaded.');
+          });
         fetchShipmentPricingPreview({
           workflowType: 'DTC',
           serviceWorkflow: 'dtc_fbm',
@@ -282,7 +296,10 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
             seen.add(key);
             return true;
           }));
-        }).catch(() => setRecommendations([]));
+        }).catch(() => {
+          setRecommendations([]);
+          recordIntelligenceError('Cortex SKU recommendations could not be loaded.');
+        });
       })
       .catch((e) => setErr(e.message || 'Failed to load SKU'))
       .finally(() => setLoading(false));
@@ -333,6 +350,16 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
           )}
         </span>
       </div>
+
+      {intelligenceErrors.length > 0 && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 16 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{intelligenceErrors.join(' ')} Item data remains available.</span>
+          <button className="btn ghost sm" onClick={load}>
+            <Icon name="refresh" size={12} /> Retry intelligence
+          </button>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 18, alignItems: 'center', padding: 20 }}>

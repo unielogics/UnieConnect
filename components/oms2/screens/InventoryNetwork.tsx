@@ -76,18 +76,29 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
   const PAGE_SIZE = 50;
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [recommendationError, setRecommendationError] = useState<string | null>(null);
   const ctx = useCtxMenu();
+
+  const loadRecommendations = async () => {
+    setRecommendationError(null);
+    try {
+      const response = await fetchRecommendations({ screen: 'skus', status: 'open', entityType: 'sku', limit: 100 });
+      setRecommendations(response.recommendations || []);
+    } catch (error: any) {
+      setRecommendations([]);
+      setRecommendationError(error?.message || 'Cortex SKU recommendations could not be loaded.');
+    }
+  };
 
   const load = () => {
     setLoading(true);
     setErr(null);
     Promise.all([
       fetchOmsSkus(marketplaceFilter),
-      fetchRecommendations({ screen: 'skus', status: 'open', entityType: 'sku', limit: 100 }).catch(() => ({ recommendations: [] })),
+      loadRecommendations(),
     ])
-      .then(([d, recs]) => {
+      .then(([d]) => {
         setSkus(d.skus || []);
-        setRecommendations(recs.recommendations || []);
       })
       .catch((e) => setErr(e.message || 'Failed to load SKUs'))
       .finally(() => setLoading(false));
@@ -170,6 +181,16 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           <button className="btn primary" onClick={onNewProduct}><Icon name="plus" size={13} /> New product</button>
         </div>
       </div>
+
+      {recommendationError && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{recommendationError} Catalog data remains available.</span>
+          <button className="btn ghost sm" onClick={loadRecommendations}>
+            <Icon name="refresh" size={12} /> Retry Cortex
+          </button>
+        </div>
+      )}
 
       <div className="stat-grid cols-5">
         <div className="stat">
