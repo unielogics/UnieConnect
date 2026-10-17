@@ -36,6 +36,9 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
   const [filter, setFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'forecast' | 'timeline' | 'network'>('forecast');
   const [detail, setDetail] = useState<OmsSkuDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailAttempt, setDetailAttempt] = useState(0);
   const ctx = useCtxMenu();
 
   const load = () => {
@@ -53,9 +56,24 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
 
   useEffect(() => {
     if (!selectedSku) return;
+    let active = true;
     setDetail(null);
-    fetchOmsSkuDetail(selectedSku).then(setDetail).catch(() => setDetail(null));
-  }, [selectedSku]);
+    setDetailError(null);
+    setDetailLoading(true);
+    fetchOmsSkuDetail(selectedSku)
+      .then((response) => {
+        if (active) setDetail(response);
+      })
+      .catch((error: any) => {
+        if (active) setDetailError(error?.message || 'SKU shipment details could not be loaded.');
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedSku, detailAttempt]);
 
   const sku = useMemo(
     () => plan?.skus?.find((s) => s.id === selectedSku) ?? plan?.skus?.[0],
@@ -291,7 +309,14 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
           {viewMode === 'timeline' && <PlanTimeline months={plan.months} />}
           {viewMode === 'network' && <NetworkBreakdown warehouses={plan.warehouses} sku={sku} />}
 
-          <PlanNextSixShipments detail={detail} skuLabel={sku.sku} onNavigate={onNavigate} />
+          <PlanNextSixShipments
+            detail={detail}
+            loading={detailLoading}
+            error={detailError}
+            skuLabel={sku.sku}
+            onNavigate={onNavigate}
+            onRetry={() => setDetailAttempt((attempt) => attempt + 1)}
+          />
 
           <div className="card">
             <div className="card-header">
@@ -542,7 +567,14 @@ const NetworkBreakdown = ({ warehouses, sku }: { warehouses: InventoryPlanFull['
   </div>
 );
 
-const PlanNextSixShipments = ({ detail, skuLabel, onNavigate }: { detail: OmsSkuDetail | null; skuLabel: string; onNavigate: ScreenProps['onNavigate'] }) => {
+const PlanNextSixShipments = ({ detail, loading, error, skuLabel, onNavigate, onRetry }: {
+  detail: OmsSkuDetail | null;
+  loading: boolean;
+  error: string | null;
+  skuLabel: string;
+  onNavigate: ScreenProps['onNavigate'];
+  onRetry: () => void;
+}) => {
   const ships = detail?.nextShipments || [];
   return (
     <div className="card">
@@ -555,8 +587,12 @@ const PlanNextSixShipments = ({ detail, skuLabel, onNavigate }: { detail: OmsSku
         </div>
         <button className="btn ghost sm" onClick={() => onNavigate('shipments')}>View all shipments</button>
       </div>
-      {!detail ? (
+      {loading ? (
         <Loading rows={3} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={onRetry} />
+      ) : !detail ? (
+        <EmptyState>Shipment details are unavailable for this SKU.</EmptyState>
       ) : ships.length === 0 ? (
         <EmptyState>No inbound shipments planned for this SKU yet.</EmptyState>
       ) : (
