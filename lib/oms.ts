@@ -124,10 +124,15 @@ export type CommandCenter = {
     orders: number;
     ordersDeltaPct: number;
     aov: number;
+    aovDeltaPct?: number;
     grossProfit: number;
+    grossProfitAvailable?: boolean;
+    grossProfitDeltaPct?: number | null;
+    grossProfitMissingCostLines?: number;
     refunds: number;
     units: number;
     unitsDeltaPct: number;
+    revenueSeries?: Array<{ at: string; revenue: number }>;
   };
   warnings: Array<{ severity: string; title: string; detail: string }>;
   autonomousActivity: Array<{ system: string; action: string; status: string; confidence: number; at: string }>;
@@ -138,6 +143,7 @@ export type BusinessDoubleResponse = {
   plan: {
     id: string;
     status: string;
+    modelStatus?: 'modeled' | 'not_modeled';
     title: string;
     summary: string;
     forecastHorizonMonths?: number;

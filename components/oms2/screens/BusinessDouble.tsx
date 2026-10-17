@@ -102,11 +102,12 @@ export const BusinessDouble = (_: ScreenProps) => {
   const plan = bd.plan;
   const cur = plan.currentMetrics || {};
   const opt = plan.optimizedMetrics || {};
+  const hasModeledPlan = plan.modelStatus === 'modeled' && Object.keys(opt).length > 0;
   const sum = (o: Record<string, number>) =>
-    ['freight', 'storage', 'handling', 'accessorials', 'lostRevenue'].reduce((s, k) => s + num(o[k]), 0);
-  const totalCur = sum(cur);
-  const totalOpt = sum(opt);
-  const savings = num(plan.savings?.total) || totalCur - totalOpt;
+    ['freight', 'storage', 'handling', 'accessorials', 'materials', 'lostRevenue'].reduce((s, k) => s + num(o[k]), 0);
+  const totalCur = num(cur.monthlyCost) || sum(cur);
+  const totalOpt = hasModeledPlan ? (num(opt.monthlyCost) || sum(opt)) : null;
+  const savings = hasModeledPlan ? (num(plan.savings?.total) || Math.max(0, totalCur - (totalOpt || 0))) : 0;
 
   const warehouses = (hm?.warehouses || []).map((w) => ({
     code: w.code || w.name || '',
@@ -115,7 +116,7 @@ export const BusinessDouble = (_: ScreenProps) => {
   }));
   const curNodes = warehouses.filter((w) => w.active).map((w) => w.code);
 
-  const impactKeys = Object.keys(METRIC_LABELS).filter((k) => k in cur || k in opt);
+  const impactKeys = hasModeledPlan ? Object.keys(METRIC_LABELS).filter((k) => k in cur || k in opt) : [];
   const uniqueImpact = impactKeys.filter((k, i) => impactKeys.findIndex((x) => METRIC_LABELS[x].label === METRIC_LABELS[k].label) === i).slice(0, 5);
 
   return (
@@ -171,41 +172,48 @@ export const BusinessDouble = (_: ScreenProps) => {
             title="Current strategy"
             nodes={`${curNodes.length || (plan.currentMetrics && plan.currentMetrics.warehouseCount) || 0} active nodes`}
             cost={totalCur}
-            sla={`${num(cur.sla ?? cur.slaDays).toFixed(1)} days avg`}
-            note="What you'd have done without UnieConnect"
+            sla={num(cur.sla ?? cur.slaDays ?? cur.averageDeliveryDays) > 0 ? `${num(cur.sla ?? cur.slaDays ?? cur.averageDeliveryDays).toFixed(1)} days avg` : 'Not measured'}
+            note="Observed account data for the last 30 days"
           />
           <StrategyCard
             badge="Recommended"
             tone="purple"
             active={accepted}
-            title={plan.title || 'Optimized operating model'}
-            nodes={plan.summary || `${plan.autonomousAfterApproval?.length || 0} autonomous actions`}
+            title={hasModeledPlan ? (plan.title || 'Optimized operating model') : 'Optimization not modeled yet'}
+            nodes={hasModeledPlan ? (plan.summary || `${plan.autonomousAfterApproval?.length || 0} autonomous actions`) : 'Run Seller Optimization after completing the required account data.'}
             cost={totalOpt}
-            sla={`${num(opt.sla ?? opt.slaDays).toFixed(1)} days avg`}
-            savings={savings}
-            note={`Cortex · ${plan.forecastHorizonMonths || 6}-month horizon`}
+            sla={hasModeledPlan && num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays) > 0 ? `${num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays).toFixed(1)} days avg` : 'Not modeled'}
+            savings={hasModeledPlan ? savings : undefined}
+            note={hasModeledPlan ? `Cortex · ${plan.forecastHorizonMonths || 6}-month horizon` : 'No suggested outcome or financial claim is shown without model evidence'}
           />
         </div>
       </div>
 
       <div className="row-2-eq" style={{ marginBottom: 16 }}>
         <ScenarioPanel label="Current strategy" accent="default" warehouses={warehouses} activeNodes={curNodes} scenario={cur} />
-        <ScenarioPanel
-          label="Optimized strategy"
-          accent="purple"
-          warehouses={warehouses}
-          activeNodes={warehouses.map((w) => w.code)}
-          scenario={opt}
-          savings={savings}
-        />
+        {hasModeledPlan ? (
+          <ScenarioPanel
+            label="Optimized strategy"
+            accent="purple"
+            warehouses={warehouses}
+            activeNodes={warehouses.map((w) => w.code)}
+            scenario={opt}
+            savings={savings}
+          />
+        ) : (
+          <div className="card">
+            <div className="card-header"><div className="card-title">Optimized strategy</div><Chip tone="amber" dot={false}>Awaiting model</Chip></div>
+            <div className="card-body"><EmptyState>Run Seller Optimization after resolving readiness gaps to generate a traceable warehouse and cost scenario.</EmptyState></div>
+          </div>
+        )}
       </div>
 
       <div className="card">
         <div className="card-header">
           <div className="card-title">
-            <Icon name="bolt" size={15} /> Cash & service impact, projected over next 30 days
+            <Icon name="bolt" size={15} /> Cash & service impact, next 30 days
           </div>
-          <Chip tone="purple" dot={false}>Modeled by Cortex Net-Opt</Chip>
+          <Chip tone={hasModeledPlan ? 'purple' : 'amber'} dot={false}>{hasModeledPlan ? 'Modeled by Cortex' : 'Awaiting model'}</Chip>
         </div>
         <div className="card-body" style={{ paddingTop: 18 }}>
           {uniqueImpact.length === 0 ? (
@@ -232,12 +240,13 @@ export const BusinessDouble = (_: ScreenProps) => {
         accepted={accepted}
         denied={denied}
         accepting={accepting}
-        onAccept={accept}
+        onAccept={() => { if (hasModeledPlan) accept(); }}
         onDeny={() => {
           setAccepted(false);
           setDenied(true);
         }}
         plan={plan}
+        modeled={hasModeledPlan}
       />
     </div>
   );
@@ -259,7 +268,7 @@ const StrategyCard = ({
   tone: string;
   title: string;
   nodes: string;
-  cost: number;
+  cost: number | null;
   sla: string;
   savings?: number;
   note: string;
@@ -281,7 +290,7 @@ const StrategyCard = ({
     <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nodes}</div>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
       <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>30d total</span>
-      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{fmt.money(cost)}</span>
+      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{cost == null ? '—' : fmt.money(cost)}</span>
     </div>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
       <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>SLA</span>
@@ -441,6 +450,7 @@ const ApprovalSurface = ({
   onAccept,
   onDeny,
   plan,
+  modeled,
 }: {
   savings: number;
   accepted: boolean;
@@ -449,6 +459,7 @@ const ApprovalSurface = ({
   onAccept: () => void;
   onDeny: () => void;
   plan: BusinessDoubleResponse['plan'];
+  modeled: boolean;
 }) => {
   const areas = (plan.autonomousAfterApproval || []).map((a) => {
     const key = Object.keys(AREA_ICON).find((k) => a.toLowerCase().includes(k)) || 'cortex';
@@ -484,13 +495,15 @@ const ApprovalSurface = ({
             <div style={{ fontSize: 10.5, color: 'var(--purple-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Suggested</div>
             <div style={{ fontSize: 15, fontWeight: 800 }}>{plan.title || 'Optimized operating model'}</div>
             <div className="mono" style={{ fontSize: 11.5, color: 'var(--purple-text)', whiteSpace: 'pre-wrap', marginTop: 6, fontWeight: 700 }}>
-              {`Cost: ${fmt.money(num(opt.monthlyCost ?? opt.freight))}\nWarehouses: ${num(opt.warehouseNodes)}\nSLA: ${num(opt.averageDeliveryDays ?? opt.sla ?? opt.slaDays).toFixed(1)} days`}
+              {modeled
+                ? `Cost: ${fmt.money(num(opt.monthlyCost ?? opt.freight))}\nWarehouses: ${num(opt.warehouseNodes)}\nSLA: ${num(opt.averageDeliveryDays ?? opt.sla ?? opt.slaDays).toFixed(1)} days`
+                : 'No executable suggested plan has been modeled yet.'}
             </div>
           </div>
           <div>
             <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Improvement</div>
             <div style={{ fontSize: 38, fontWeight: 700, color: 'var(--green-text)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              +{fmt.money(Math.abs(savings))}
+              {modeled ? `+${fmt.money(Math.abs(savings))}` : '—'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>30-day upside</div>
           </div>
@@ -505,12 +518,16 @@ const ApprovalSurface = ({
             <button
               className={`btn ${accepted ? '' : 'primary'} lg`}
               onClick={onAccept}
-              disabled={accepting || accepted || denied}
+              disabled={!modeled || accepting || accepted || denied}
               style={{ marginTop: 8, height: 44, fontSize: 14 }}
             >
               {accepted ? (
                 <>
                   <Icon name="check" size={15} /> Plan accepted
+                </>
+              ) : !modeled ? (
+                <>
+                  <Icon name="sparkle" size={15} /> Run optimization first
                 </>
               ) : (
                 <>
@@ -518,7 +535,7 @@ const ApprovalSurface = ({
                 </>
               )}
             </button>
-            <button className="btn lg" disabled={accepting || accepted || denied} onClick={onDeny} style={{ height: 40, fontSize: 14 }}>
+            <button className="btn lg" disabled={!modeled || accepting || accepted || denied} onClick={onDeny} style={{ height: 40, fontSize: 14 }}>
               {denied ? 'Plan denied' : 'Deny plan'}
             </button>
           </div>

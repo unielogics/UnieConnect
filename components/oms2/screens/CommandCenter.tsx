@@ -18,7 +18,7 @@ import {
   OmsRecommendation,
   SellerOptimizationSummary,
 } from '../../../lib/oms';
-import { sparkFrom, deltaDir, severityTone, severityIcon, timeAgo } from '../../../lib/oms-adapters';
+import { deltaDir, severityTone, severityIcon, timeAgo } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 import { DecisionComparison, isActionableDecisionRecommendation } from '../DecisionComparison';
 
@@ -106,13 +106,22 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   };
 
   const m = data?.metrics;
+  const revenueSpark = m?.revenueSeries?.map((point) => point.revenue) || [];
   const tiles = m
     ? [
-        { label: 'Revenue', value: fmt.money(m.revenue, { compact: true }), delta: m.revenueDeltaPct, spark: sparkFrom(m.revenue, m.revenueDeltaPct), color: 'var(--accent)', tone: '' },
-        { label: 'Orders', value: fmt.num(m.orders), delta: m.ordersDeltaPct, spark: sparkFrom(m.orders, m.ordersDeltaPct), color: 'var(--blue)', tone: '' },
-        { label: 'Avg order value', value: `$${(m.aov || 0).toFixed(2)}`, delta: m.revenueDeltaPct - m.ordersDeltaPct, spark: sparkFrom(m.aov, 2), color: 'var(--text-secondary)', tone: '' },
-        { label: 'Gross profit', value: fmt.money(m.grossProfit, { compact: true }), delta: m.revenueDeltaPct, spark: sparkFrom(m.grossProfit, m.revenueDeltaPct), color: 'var(--green)', tone: 'good' },
-        { label: 'Units shipped', value: fmt.num(m.units), delta: m.unitsDeltaPct, spark: sparkFrom(m.units, m.unitsDeltaPct), color: 'var(--accent)', tone: '' },
+        { label: 'Revenue', value: fmt.money(m.revenue, { compact: true }), delta: m.revenueDeltaPct, spark: revenueSpark, color: 'var(--accent)', tone: '', note: '' },
+        { label: 'Orders', value: fmt.num(m.orders), delta: m.ordersDeltaPct, spark: [], color: 'var(--blue)', tone: '', note: '' },
+        { label: 'Avg order value', value: `$${(m.aov || 0).toFixed(2)}`, delta: m.aovDeltaPct ?? null, spark: [], color: 'var(--text-secondary)', tone: '', note: '' },
+        {
+          label: 'Product gross profit',
+          value: m.grossProfitAvailable ? fmt.money(m.grossProfit, { compact: true }) : '—',
+          delta: m.grossProfitAvailable ? (m.grossProfitDeltaPct ?? null) : null,
+          spark: [],
+          color: 'var(--green)',
+          tone: m.grossProfitAvailable ? 'good' : '',
+          note: m.grossProfitAvailable ? '' : `${m.grossProfitMissingCostLines || 0} sold line${m.grossProfitMissingCostLines === 1 ? '' : 's'} missing cost`,
+        },
+        { label: 'Units shipped', value: fmt.num(m.units), delta: m.unitsDeltaPct, spark: [], color: 'var(--accent)', tone: '', note: '' },
       ]
     : [];
 
@@ -167,14 +176,20 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
               <div key={t.label} className={`stat ${t.tone}`}>
                 <div className="stat-label">{t.label}</div>
                 <div className="stat-value">{t.value}</div>
-                <div className={`stat-delta ${deltaDir(t.delta)}`}>
-                  <span className="arrow">{t.delta >= 0 ? '▲' : '▼'}</span>
-                  {t.delta >= 0 ? '+' : ''}
-                  {t.delta.toFixed(1)}% vs prior
-                </div>
-                <div className="stat-spark">
-                  <Sparkline data={t.spark} color={t.color} width={80} height={28} fill />
-                </div>
+                {t.delta == null ? (
+                  <div className="stat-delta">{t.note || 'No comparable prior data'}</div>
+                ) : (
+                  <div className={`stat-delta ${deltaDir(t.delta)}`}>
+                    <span className="arrow">{t.delta >= 0 ? '▲' : '▼'}</span>
+                    {t.delta >= 0 ? '+' : ''}
+                    {t.delta.toFixed(1)}% vs prior
+                  </div>
+                )}
+                {t.spark.length >= 2 && (
+                  <div className="stat-spark">
+                    <Sparkline data={t.spark} color={t.color} width={80} height={28} fill />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -238,8 +253,9 @@ const AiPlanCard = ({
 }) => {
   const staged = bd?.plan?.autonomousAfterApproval?.length || 0;
   const approvals = bd?.plan?.approvalRequiredFor?.length || 0;
-  const status = bd?.plan?.status === 'approved' ? 'active' : 'proposed';
-  const hasModeledImpact = Boolean(upside || costRed || slaImp);
+  const modeled = bd?.plan?.modelStatus === 'modeled';
+  const status = bd?.plan?.status === 'approved' ? 'active' : modeled ? 'proposed' : 'awaiting model';
+  const hasModeledImpact = modeled && Boolean(upside || costRed || slaImp);
   const horizon = bd?.plan?.forecastHorizonMonths || 6;
   return (
     <div className="card ai-plan-card">
@@ -248,7 +264,7 @@ const AiPlanCard = ({
           <div className="card-title"><Icon name="double" size={15} /> AI plan</div>
           <div className="card-subtitle">{bd?.plan?.title || 'Six-month multi-warehouse operating plan'}</div>
         </div>
-        <Chip tone={status === 'active' ? 'green' : 'purple'} dot={false}>{status}</Chip>
+        <Chip tone={status === 'active' ? 'green' : modeled ? 'purple' : 'amber'} dot={false}>{status}</Chip>
       </div>
       <div className="card-body ai-plan-body">
         <div>
@@ -264,7 +280,7 @@ const AiPlanCard = ({
         </div>
         <div className="ai-plan-readiness">
           <Chip tone={hasModeledImpact ? 'green' : 'amber'} dot={false}>
-            {hasModeledImpact ? 'Impact modeled' : 'Needs optimization run'}
+            {hasModeledImpact ? 'Impact modeled' : modeled ? 'Plan modeled · impact pending' : 'Needs optimization run'}
           </Chip>
           <span>{horizon}-month plan · {approvals} approval gates · {staged} staged actions</span>
         </div>
@@ -283,22 +299,28 @@ const AiPlanCard = ({
 
 const RevenueTrendCard = ({ data, bd, compact = false }: { data: CommandCenterFull; bd: BusinessDoubleResponse | null; compact?: boolean }) => {
   const revenue = data.metrics.revenue || 0;
-  const optMult = 1 + Math.abs(Number(bd?.plan?.savings?.costPct ?? 8)) / 100;
-  const N = data.range === 'today' ? 24 : data.range === '7d' ? 8 : 6;
-  const labels =
-    data.range === 'today'
-      ? Array.from({ length: 8 }, (_, i) => `${i * 3}:00`)
-      : data.range === '7d'
-      ? ['Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed']
-      : Array.from({ length: 6 }, (_, i) => `W${i + 1}`);
-  const actualRaw = sparkFrom(revenue / N, data.metrics.revenueDeltaPct, N).map((v) => Math.max(0, v));
-  const actual = actualRaw.length >= 2 ? actualRaw : Array.from({ length: N }, () => 0);
+  const series = data.metrics.revenueSeries || [];
+  const actual = series.map((point) => Math.max(0, Number(point.revenue) || 0));
+  const N = actual.length;
+  const labels = series.map((point) => {
+    const date = new Date(point.at);
+    if (Number.isNaN(date.getTime())) return '';
+    if (data.range === 'today') return date.toLocaleTimeString('en-US', { hour: 'numeric' });
+    if (data.range === '7d') return date.toLocaleDateString('en-US', { weekday: 'short' });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
+  const modeled = bd?.plan?.modelStatus === 'modeled';
+  const revenueUpside = modeled ? Number(bd?.plan?.savings?.revenue ?? bd?.plan?.savings?.revenueUpside ?? 0) : 0;
+  const revenueUpsidePct = modeled ? Number(bd?.plan?.savings?.revenuePct ?? 0) : 0;
+  const totalOpt = revenue + (revenueUpside || (revenue * revenueUpsidePct) / 100);
+  const hasOptimizedRevenue = modeled && revenue > 0 && totalOpt > revenue;
+  const optMult = hasOptimizedRevenue ? totalOpt / revenue : 1;
   const optimized = actual.map((v) => v * optMult);
 
   const W = 720;
   const H = compact ? 170 : 220;
   const P = { l: 50, r: 12, t: 16, b: 28 };
-  const max = Math.max(1, ...optimized.filter(Number.isFinite)) * 1.05;
+  const max = Math.max(1, ...actual.filter(Number.isFinite), ...(hasOptimizedRevenue ? optimized.filter(Number.isFinite) : [])) * 1.05;
   const xStep = (W - P.l - P.r) / Math.max(1, N - 1);
   const yScale = (v: number) => {
     const n = Number.isFinite(v) ? v : 0;
@@ -308,10 +330,9 @@ const RevenueTrendCard = ({ data, bd, compact = false }: { data: CommandCenterFu
     vals.length >= 2 ? vals.map((v, i) => `${i ? 'L' : 'M'}${P.l + i * xStep} ${yScale(v)}`).join(' ') : '';
   const areaPath = (vals: number[]) => {
     const line = linePath(vals);
-    return line ? `${line} L${P.l + (N - 1) * xStep} ${H - P.b} L${P.l} ${H - P.b} Z` : '';
+    return line ? `${line} L${P.l + Math.max(0, N - 1) * xStep} ${H - P.b} L${P.l} ${H - P.b} Z` : '';
   };
   const totalActual = revenue;
-  const totalOpt = revenue * optMult;
 
   return (
     <div className="card">
@@ -320,21 +341,28 @@ const RevenueTrendCard = ({ data, bd, compact = false }: { data: CommandCenterFu
           <div className="card-title">Revenue trend</div>
           <div className="card-subtitle">
             Actual <span style={{ color: 'var(--text)', fontWeight: 600 }}>{fmt.money(totalActual, { compact: true })}</span>
-            {' · '}Projected if optimized plan applied{' '}
-            <span style={{ color: 'var(--green-text)', fontWeight: 600 }}>{fmt.money(totalOpt, { compact: true })}</span>
-            <span style={{ color: 'var(--green-text)', marginLeft: 6 }}>+{fmt.money(totalOpt - totalActual, { compact: true })}</span>
+            {hasOptimizedRevenue ? (
+              <>
+                {' · '}Cortex projection <span style={{ color: 'var(--green-text)', fontWeight: 600 }}>{fmt.money(totalOpt, { compact: true })}</span>
+                <span style={{ color: 'var(--green-text)', marginLeft: 6 }}>+{fmt.money(totalOpt - totalActual, { compact: true })}</span>
+              </>
+            ) : ' · No modeled revenue uplift yet'}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 12, fontSize: 11, alignItems: 'center' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 10, height: 2, background: 'var(--accent)', borderRadius: 1 }} /> Actual
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 10, height: 2, background: 'var(--green)', borderRadius: 1 }} /> If optimized
-          </span>
+          {hasOptimizedRevenue && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 10, height: 2, background: 'var(--green)', borderRadius: 1 }} /> Cortex projection
+            </span>
+          )}
         </div>
       </div>
-      <div style={{ padding: compact ? '4px 0 0' : '8px 0 0' }}>
+      {actual.length < 2 ? (
+        <div className="card-body"><EmptyState>No revenue activity is available for this range.</EmptyState></div>
+      ) : <div style={{ padding: compact ? '4px 0 0' : '8px 0 0' }}>
         <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} preserveAspectRatio="none">
           {[0, 0.25, 0.5, 0.75, 1].map((p) => {
             const y = yScale(max * p);
@@ -347,8 +375,8 @@ const RevenueTrendCard = ({ data, bd, compact = false }: { data: CommandCenterFu
               </g>
             );
           })}
-          <path d={areaPath(optimized)} fill="var(--green)" opacity="0.08" />
-          <path d={linePath(optimized)} fill="none" stroke="var(--green)" strokeWidth="1.5" strokeDasharray="4 3" />
+          {hasOptimizedRevenue && <path d={areaPath(optimized)} fill="var(--green)" opacity="0.08" />}
+          {hasOptimizedRevenue && <path d={linePath(optimized)} fill="none" stroke="var(--green)" strokeWidth="1.5" strokeDasharray="4 3" />}
           <path d={areaPath(actual)} fill="var(--accent)" opacity="0.12" />
           <path d={linePath(actual)} fill="none" stroke="var(--accent)" strokeWidth="2" />
           {labels.map((l, i) => {
@@ -360,7 +388,7 @@ const RevenueTrendCard = ({ data, bd, compact = false }: { data: CommandCenterFu
             );
           })}
         </svg>
-      </div>
+      </div>}
     </div>
   );
 };
