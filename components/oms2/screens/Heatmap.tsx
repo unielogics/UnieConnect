@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Icon } from '../icons';
-import { Chip, ProgressBar, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, ProgressBar, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import { fetchHeatmap, HeatmapResponse } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -94,7 +94,9 @@ export const Heatmap = ({ onSelectState }: ScreenProps) => {
             <button className={metric === 'orders' ? 'active' : ''} onClick={() => setMetric('orders')}>Orders</button>
             <button className={metric === 'revenue' ? 'active' : ''} onClick={() => setMetric('revenue')}>Revenue</button>
           </div>
-          <button className="btn"><Icon name="download" size={13} /> Export</button>
+          <button className="btn" onClick={() => downloadCsv('unieconnect-demand-by-state.csv', Object.entries(byState).map(([state, values]) => ({
+            State: state, Demand: values.demand, Orders: values.orders, Revenue: values.revenue,
+          })))}><Icon name="download" size={13} /> Export</button>
         </div>
       </div>
 

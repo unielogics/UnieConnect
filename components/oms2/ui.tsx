@@ -8,6 +8,42 @@ export function emitOmsNavigationStart() {
   window.dispatchEvent(new Event(OMS_NAVIGATION_START_EVENT));
 }
 
+const csvValue = (value: unknown) => {
+  if (value == null) return '';
+  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+export function downloadCsv(filename: string, rows: Array<Record<string, unknown>>) {
+  if (typeof document === 'undefined') return;
+  const normalizedRows = rows.length ? rows : [{ Status: 'No records' }];
+  const headers = Array.from(new Set(normalizedRows.flatMap((row) => Object.keys(row))));
+  const csv = [
+    headers.map(csvValue).join(','),
+    ...normalizedRows.map((row) => headers.map((header) => csvValue(row[header])).join(',')),
+  ].join('\r\n');
+  const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename.toLowerCase().endsWith('.csv') ? filename : `${filename}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadJson(filename: string, value: unknown) {
+  if (typeof document === 'undefined') return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename.toLowerCase().endsWith('.json') ? filename : `${filename}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function useCloseOnOmsNavigation(onClose: () => void, enabled = true) {
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return;

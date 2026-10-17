@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import {
   cancelAsn,
   fetchCopilotContext,
@@ -87,7 +87,10 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
         </div>
         <div className="page-actions">
           <button className="btn ghost"><Icon name="filter" size={13} /> Filter</button>
-          <button className="btn"><Icon name="download" size={13} /> Export</button>
+          <button className="btn" onClick={() => downloadCsv('unieconnect-shipment-plans.csv', [
+            ...asns.map((asn) => ({ Type: 'ASN', ID: asn.displayId || asn.publicId || asn.asnNumber || asn.id, Status: asn.status, Supplier: asn.supplierName || asn.supplierId || '', Warehouse: asn.facilityName || asn.facilityCode || '', Units: asn.units ?? '', 'Estimated arrival': asn.estimatedArrivalDate || '', Created: asn.createdAt || '' })),
+            ...inbound.map((sku) => ({ Type: 'Planned inbound SKU', ID: sku.sku, Title: sku.title || '', Status: sku.risk, Supplier: sku.supplierId || '', Units: sku.proposedUnits, Inbound: sku.inbound, 'Service tier': sku.serviceTier, Recommendation: sku.recommendation })),
+          ])}><Icon name="download" size={13} /> Export</button>
           <button className="btn primary" onClick={() => onNavigate('skus')}><Icon name="plus" size={13} /> Create ASN</button>
         </div>
       </div>

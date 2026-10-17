@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation } from '../ui';
+import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation, downloadCsv } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
 import { CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
 import { cancelOrder, fetchOmsOrders, OmsOrder, publicEntityId } from '../../../lib/oms';
@@ -107,7 +107,12 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
           <button className="btn" onClick={() => onImportCsv?.('orders')}>
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
           </button>
-          <button className="btn"><Icon name="download" size={13} /> Export CSV</button>
+          <button className="btn" onClick={() => downloadCsv('unieconnect-orders.csv', filtered.map((order) => ({
+            'Order ID': order.displayId || order.publicId || order.chOrderId || order.id,
+            Channel: order._ch, Customer: order._cust, State: order.state || '', Items: order.items ?? order.itemCount ?? '',
+            Quantity: order.qty ?? '', Total: order.total ?? '', Cost: order.cost ?? '', Status: order._status,
+            SLA: order._sla, Warehouse: order.wh || '', Tracking: order.tracking || '', Date: order.date || '', Promised: order.promised || '',
+          })))}><Icon name="download" size={13} /> Export CSV</button>
           <button className="btn primary" onClick={onNewOrder}><Icon name="plus" size={13} /> Manual order</button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, Sparkline, Loading, ErrorState, EmptyState, Thumb, useCloseOnOmsNavigation } from '../ui';
+import { Chip, Sparkline, Loading, ErrorState, EmptyState, Thumb, useCloseOnOmsNavigation, downloadCsv } from '../ui';
 import { DecisionComparison } from '../DecisionComparison';
 import { CortexPlanApprovals } from '../CortexPlanApprovals';
 import { useCtxMenu } from '../ContextMenu';
@@ -149,7 +149,12 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           <button className="btn" onClick={() => onImportCsv?.('skus')}>
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
           </button>
-          <button className="btn"><Icon name="download" size={13} /> Export</button>
+          <button className="btn" onClick={() => downloadCsv('unieconnect-skus.csv', filtered.map((sku) => ({
+            SKU: sku.sku, Title: sku.title || '', 'Supplier ID': sku.supplierId || '', Available: sku.available,
+            Inbound: sku.inbound, '30-day velocity': sku.velocity30d, 'Days of cover': sku.daysOfCover,
+            Risk: sku.risk, 'Warehouse count': sku.currentWarehouseCount, 'Pallet fill %': sku.fillPercent,
+            'Service tier': sku.serviceTier, Recommendation: sku.recommendation,
+          })))}><Icon name="download" size={13} /> Export</button>
           <button className="btn primary" onClick={onNewProduct}><Icon name="plus" size={13} /> New product</button>
         </div>
       </div>
@@ -293,7 +298,12 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
                           { icon: 'tag', title: 'View supplier', onClick: () => onNavigate('suppliers') },
                           { divider: true },
                           { icon: 'refresh', title: 'Re-sync from WMS', shortcut: '⌘R', onClick: load },
-                          { icon: 'download', title: 'Export CSV row' },
+                          { icon: 'download', title: 'Export CSV row', onClick: () => downloadCsv(`${s.sku || 'sku'}.csv`, [{
+                            SKU: s.sku, Title: s.title || '', 'Supplier ID': s.supplierId || '', Available: s.available,
+                            Inbound: s.inbound, '30-day velocity': s.velocity30d, 'Days of cover': s.daysOfCover,
+                            Risk: s.risk, 'Warehouse count': s.currentWarehouseCount, 'Pallet fill %': s.fillPercent,
+                            'Service tier': s.serviceTier, Recommendation: s.recommendation,
+                          }]) },
                         ])
                       }
                     >

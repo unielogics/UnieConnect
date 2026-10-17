@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, StatusChip, Avatar, Loading, EmptyState, Modal } from '../ui';
+import { Chip, StatusChip, Avatar, Loading, EmptyState, Modal, downloadCsv } from '../ui';
 import {
   addTicketMessage,
   entityPrefix,
@@ -308,7 +308,12 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
           <p className="page-subtitle">Ticketing tied to OMS entities, customer responses, evidence attachments, and Cortex triage.</p>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon name="download" size={13} /> Export</button>
+          <button className="btn" onClick={() => downloadCsv('unieconnect-support-tickets.csv', tickets.map((ticket) => ({
+            'Ticket ID': displayTicketId(ticket), Subject: ticket.subject, Status: ticket.status, Priority: ticket.priority,
+            Channel: ticket.channel || '', Owner: ticket.owner || '', 'Entity type': ticket.entityType || '',
+            'Entity ID': displayEntityId(ticket), Messages: ticket.messagesCount ?? '', Attachments: ticket.attachmentsCount ?? '',
+            Created: ticket.createdAt || ticket.opened || '', Updated: ticket.updatedAt || '',
+          })))}><Icon name="download" size={13} /> Export</button>
           <button className="btn primary" onClick={onNewTicket}><Icon name="plus" size={13} /> New ticket</button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import {
   fetchOmsSupplierActivity,
   fetchOmsSuppliers,
@@ -166,7 +166,12 @@ export const Suppliers = ({
           <button className="btn" onClick={() => onImportCsv?.('suppliers')}>
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
           </button>
-          <button className="btn"><Icon name="download" size={13} /> Export</button>
+          <button className="btn" onClick={() => downloadCsv('unieconnect-suppliers.csv', filtered.map((supplier) => ({
+            Name: supplier.name, Email: supplier.email || '', Phone: supplier.phone || '', Status: supplier.status || '',
+            Address: formatSupplierAddress(supplier.address), City: supplier.city || '', State: supplier.state || '', Country: supplier.country || '',
+            'Lead time days': supplier.leadTime ?? '', 'On-time %': supplier.onTime ?? '', 'Quality pass %': supplier.qualityPass ?? '',
+            'Payment terms': supplier.paymentTerms || '', 'Spend 90d': supplier.spend90d ?? '', 'Last order': supplier.lastOrderAt || '',
+          })))}><Icon name="download" size={13} /> Export</button>
           <button className="btn primary" onClick={() => onNewSupplier?.()}><Icon name="plus" size={13} /> Add supplier</button>
         </div>
       </div>

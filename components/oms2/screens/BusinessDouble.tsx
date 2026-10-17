@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, fmt, Loading, ErrorState, EmptyState, downloadJson } from '../ui';
 import {
   fetchBusinessDouble,
   approveBusinessDouble,
@@ -129,8 +129,9 @@ export const BusinessDouble = (_: ScreenProps) => {
           </p>
         </div>
         <div className="page-actions">
-          <button className="btn ghost"><Icon name="save" size={13} /> Save snapshot</button>
-          <button className="btn"><Icon name="download" size={13} /> Export deck</button>
+          <button className="btn" onClick={() => downloadJson(`unieconnect-business-plan-${new Date().toISOString().slice(0, 10)}.json`, {
+            exportedAt: new Date().toISOString(), plan: bd.plan, latestOptimization: latestOpt, heatmap: hm,
+          })}><Icon name="download" size={13} /> Export plan</button>
           <button className="btn primary" onClick={runOptimization} disabled={running}>
             <Icon name="sparkle" size={13} /> {running ? 'Running...' : 'Run Seller Optimization'}
           </button>

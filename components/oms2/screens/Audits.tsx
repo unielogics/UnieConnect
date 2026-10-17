@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import { fetchLedger, fetchLabelAudit, LedgerResponse, LabelAuditResponse } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -110,7 +110,10 @@ export const Audits = (_: ScreenProps) => {
               <button className="filter-chip">Counterparty</button>
               <button className="filter-chip">Status</button>
               <div className="spacer" />
-              <button className="btn ghost sm"><Icon name="download" size={12} /> Export</button>
+              <button className="btn ghost sm" onClick={() => downloadCsv('unieconnect-audit-claims.csv', claims.map((claim) => ({
+                'Claim ID': claim.id, Type: claim.type, Counterparty: claim.counterparty,
+                Basis: claim.basis, Amount: claim.amount, Filed: claim.filed, Status: claim.status,
+              })))}><Icon name="download" size={12} /> Export</button>
             </div>
             {claims.length === 0 ? (
               <EmptyState>No audit claims recorded yet. The audit bot files automatically as overcharges are detected.</EmptyState>

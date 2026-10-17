@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
 import {
   fetchInventoryPlan,
@@ -100,7 +100,10 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
           </Chip>
           {plan.source?.authority?.includes('fallback') && <Chip tone="amber" dot={false}>Run Seller Optimization</Chip>}
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Re-forecast</button>
-          <button className="btn"><Icon name="download" size={13} /> Export plan</button>
+          <button className="btn" onClick={() => downloadCsv('unieconnect-inventory-plan.csv', [
+            ...(plan.months || []).map((month) => ({ Type: 'Month', Period: month.month, 'Projected units': month.projectedUnits, 'Proposed replenishment': month.proposedReplenishment, Savings: month.savings })),
+            ...(plan.skus || []).map((item) => ({ Type: 'SKU', SKU: item.sku, Title: item.title || '', Available: item.available, Inbound: item.inbound, 'Proposed units': item.proposedUnits, 'Days of cover': item.daysOfCover, Risk: item.risk, Recommendation: item.recommendation })),
+          ])}><Icon name="download" size={13} /> Export plan</button>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, Avatar, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, Avatar, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
 import { fetchOmsCustomers, OmsCustomer } from '../../../lib/oms';
 import { num, channelColor } from '../../../lib/oms-adapters';
@@ -86,9 +86,12 @@ export const Customers = ({ onNavigate, onNewCustomer, onImportCsv }: ScreenProp
           <button className="btn" onClick={() => onImportCsv?.('customers')}>
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
           </button>
-          <button className="btn"><Icon name="download" size={13} /> Export</button>
+          <button className="btn" onClick={() => downloadCsv('unieconnect-customers.csv', filtered.map((customer) => ({
+            Name: customer.name, Email: customer.email || '', Phone: customer.phone || '', City: customer.city || '', State: customer.state || '',
+            'Primary channel': customer.primaryChannel || '', Orders: customer.orders, LTV: customer.ltv, AOV: customer.aov,
+            Segment: customer.segment || '', 'Last order': customer.lastOrder || '',
+          })))}><Icon name="download" size={13} /> Export</button>
           <button className="btn" onClick={onNewCustomer}><Icon name="plus" size={13} /> Add customer</button>
-          <button className="btn primary"><Icon name="sparkle" size={13} /> Generate segments</button>
         </div>
       </div>
 

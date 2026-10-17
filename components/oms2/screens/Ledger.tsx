@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { StatusChip, Confidence, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { StatusChip, Confidence, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import { fetchLedger, LedgerResponse } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -51,7 +51,12 @@ export const Ledger = (_: ScreenProps) => {
               </button>
             ))}
           </div>
-          <button className="btn"><Icon name="download" size={13} /> Export</button>
+          <button className="btn" onClick={() => downloadCsv('unieconnect-intelligence-ledger.csv', filtered.map((event) => ({
+            Timestamp: event.created_at || event.ts || '', Actor: event.actor || event.source_system || '',
+            Type: event.event_type || event.type || '', Subject: event.subject || event.summary || '',
+            'Entity type': event.entity_type || '', 'Entity ID': event.entity_id || '', Confidence: event.confidence ?? '',
+            Impact: event.impact ?? '', Evidence: event.evidence ?? '', Status: event.status || '', Payload: event.payload || {},
+          })))}><Icon name="download" size={13} /> Export</button>
         </div>
       </div>
 
