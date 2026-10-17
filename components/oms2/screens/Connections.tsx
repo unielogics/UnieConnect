@@ -15,7 +15,16 @@ type Conn = {
   lastSync: string;
   entities: string[];
   owner: Owner;
+  issue?: string;
+  needsRepair?: boolean;
   raw?: Record<string, any>;
+};
+type ChannelSyncState = {
+  status?: string;
+  count?: number;
+  error?: string;
+  metadata?: { warning?: string; degraded?: boolean; [key: string]: unknown };
+  lastSyncedAt?: string;
 };
 type ChannelAccount = {
   id: string;
@@ -27,6 +36,8 @@ type ChannelAccount = {
   marketplaceId?: string;
   lastSyncAt?: string;
   scopes?: string[];
+  metadata?: Record<string, any>;
+  sync?: Record<string, ChannelSyncState>;
 };
 
 const channelEntities: Record<string, string[]> = {
@@ -38,7 +49,7 @@ const channelEntities: Record<string, string[]> = {
 const statusTone = (status: string) =>
   status === 'healthy' || status === 'live' || status === 'connected'
     ? 'green'
-    : status === 'warn' || status === 'needs_configuration' || status === 'needs_authorization'
+    : status === 'warn' || status === 'degraded' || status === 'needs_configuration' || status === 'needs_authorization'
       ? 'amber'
       : status === 'idle'
         ? 'default'
@@ -68,11 +79,13 @@ const missingFieldLabels: Record<string, string> = {
 const ConnectionCard = ({
   c,
   onRefresh,
+  onRepair,
   onRemove,
   busy,
 }: {
   c: Conn;
   onRefresh: (c: Conn) => void;
+  onRepair: (c: Conn) => void;
   onRemove: (c: Conn) => void;
   busy?: boolean;
 }) => (
@@ -88,6 +101,7 @@ const ConnectionCard = ({
           )}
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{c.region}</div>
+        {c.issue && <div style={{ marginTop: 4, maxWidth: 420, fontSize: 11.5, lineHeight: 1.35, color: 'var(--amber-text)' }}>{c.issue}</div>}
       </div>
     </td>
     <td><Chip tone={statusTone(c.status) as any}>{c.status.replace(/_/g, ' ')}</Chip></td>
@@ -104,6 +118,11 @@ const ConnectionCard = ({
     </td>
     <td className="num">
       <div style={{ display: 'inline-flex', gap: 4 }}>
+        {c.needsRepair && (
+          <button className="btn ghost sm" onClick={() => onRepair(c)} disabled={busy} data-hint="Repair authorization">
+            <Icon name="plug" size={11} /> Repair
+          </button>
+        )}
         <button className="btn ghost sm" onClick={() => onRefresh(c)} disabled={busy} data-hint={c.owner === 'wms' ? 'Test connection' : 'Refresh'}>
           <Icon name="refresh" size={11} />
         </button>
@@ -390,14 +409,29 @@ export const Connections = (_: ScreenProps) => {
       .then(([cc, _hm, la, accounts, warehouseData]) => {
         const out: Conn[] = [];
         (accounts || []).forEach((a) => {
+          const syncEntries = Object.entries(a.sync || {});
+          const syncIssue = syncEntries
+            .map(([entity, state]) => state?.error || state?.metadata?.warning
+              ? `${entity.replace(/_/g, ' ')}: ${state.error || state.metadata?.warning}`
+              : null)
+            .filter(Boolean)
+            .join('; ');
+          const missingLocationScope = a.channel === 'shopify'
+            && !(a.scopes || []).some((scope) => scope === 'read_locations' || scope === 'write_locations');
+          const degraded = Boolean(syncIssue || syncEntries.some(([, state]) => state?.metadata?.degraded));
+          const entities = syncEntries.length
+            ? syncEntries.map(([entity, state]) => `${entity.replace(/_/g, ' ')}${state?.count == null ? '' : ` ${state.count}`}`)
+            : channelEntities[a.channel] || ['Orders', 'Inventory'];
           out.push({
             id: `marketplace-${a.id}`,
             name: a.label || a.displayName || a.shopDomain || a.channel.toUpperCase(),
             region: a.shopDomain || a.marketplaceId || a.channel,
-            status: a.status || 'connected',
+            status: degraded ? 'degraded' : a.status || 'connected',
             lastSync: a.lastSyncAt ? timeAgo(a.lastSyncAt) : 'pending',
-            entities: channelEntities[a.channel] || ['Orders', 'Inventory'],
+            entities,
             owner: 'marketplace',
+            issue: syncIssue || (missingLocationScope ? 'Location inventory access is missing. Reconnect Shopify to authorize warehouse-level inventory.' : undefined),
+            needsRepair: a.status === 'needs_authorization' || a.status === 'needs_configuration' || missingLocationScope,
             raw: a,
           });
         });
@@ -461,6 +495,36 @@ export const Connections = (_: ScreenProps) => {
     } catch (err: any) {
       setNotice(err?.message || 'Connection action failed');
     } finally {
+      setBusy(null);
+    }
+  };
+
+  const repairConnection = async (c: Conn) => {
+    if (c.owner !== 'marketplace' || c.raw?.channel !== 'shopify' || !c.raw?.shopDomain) {
+      setNotice('This connection does not expose a self-service repair flow yet.');
+      return;
+    }
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setNotice('Session expired. Please sign in again.');
+      return;
+    }
+    setBusy(c.id);
+    setNotice(null);
+    try {
+      const url = new URL(oauthApiUrl('/api/v1/auth/shopify/start'));
+      url.searchParams.set('format', 'json');
+      url.searchParams.set('shop', normalizeShop(String(c.raw.shopDomain)));
+      url.searchParams.set('redirectTo', `${window.location.origin}/oms?view=connections`);
+      const response = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        credentials: 'include',
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.url) throw new Error(payload?.message || payload?.error || `Repair failed (${response.status})`);
+      window.location.href = String(payload.url);
+    } catch (error: any) {
+      setNotice(error?.message || 'Shopify authorization repair failed.');
       setBusy(null);
     }
   };
@@ -565,7 +629,7 @@ export const Connections = (_: ScreenProps) => {
                     </thead>
                     <tbody>
                       {items.map((c) => (
-                        <ConnectionCard key={c.id} c={c} onRefresh={refreshConnection} onRemove={removeConnection} busy={busy === c.id || busy === 'all'} />
+                        <ConnectionCard key={c.id} c={c} onRefresh={refreshConnection} onRepair={repairConnection} onRemove={removeConnection} busy={busy === c.id || busy === 'all'} />
                       ))}
                     </tbody>
                   </table>
