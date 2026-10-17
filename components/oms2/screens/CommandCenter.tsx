@@ -413,6 +413,8 @@ const CortexTasksPanel = ({
   const highPriority = tasks.filter((task) => task.priority === 'high').length;
   const screens = Array.from(new Set(tasks.map((task) => task.screen || task.actionTarget || 'command'))).slice(0, 4);
   const sources = Array.from(new Set(tasks.map((task) => task.source || 'readiness'))).slice(0, 3);
+  const completionLabel = (task: CortexTask) =>
+    task.source === 'readiness' || task.source === 'connection_health' ? 'Verify completion' : 'Mark done';
   return (
     <div className="card cortex-task-panel">
       <div className="card-header">
@@ -464,7 +466,7 @@ const CortexTasksPanel = ({
                           <Icon name="arrowRight" size={12} /> {task.actionLabel || 'Open'}
                         </button>
                         <div className="task-decision-actions" aria-label="Task decision actions">
-                          <button className="icon-btn" data-hint="Mark done" aria-label="Mark task done" disabled={updatingId === task.id} onClick={() => onDecision(task, 'done')}><Icon name="check" size={13} /></button>
+                          <button className="icon-btn" data-hint={completionLabel(task)} aria-label={completionLabel(task)} disabled={updatingId === task.id} onClick={() => onDecision(task, 'done')}><Icon name="check" size={13} /></button>
                           <button className="icon-btn" data-hint="Dismiss" aria-label="Dismiss task" disabled={updatingId === task.id} onClick={() => onDecision(task, 'dismiss')}><Icon name="x" size={13} /></button>
                         </div>
                       </div>

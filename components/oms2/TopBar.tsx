@@ -186,6 +186,8 @@ export const TopBar = ({
       setTaskUpdatingId(null);
     }
   };
+  const completionLabel = (task: CortexTask) =>
+    task.source === 'readiness' || task.source === 'connection_health' ? 'Verify completion' : 'Mark done';
   const highTaskCount = tasks.filter((task) => task.priority === 'high').length;
   const workAreas = Array.from(new Set(tasks.map((task) => task.actionTarget || task.screen).filter(Boolean))).slice(0, 3);
   const systemStatusCopy = cortexHealth === 'online'
@@ -325,7 +327,7 @@ export const TopBar = ({
                     <small className="task-action-copy">{task.actionLabel || 'Open task'}</small>
                   </button>
                   <div className="task-popover-actions">
-                    <button className="icon-btn" data-hint="Done" disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'done')}><Icon name="check" size={13} /></button>
+                    <button className="icon-btn" data-hint={completionLabel(task)} aria-label={completionLabel(task)} disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'done')}><Icon name="check" size={13} /></button>
                     <button className="icon-btn" data-hint="Dismiss" disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'dismiss')}><Icon name="x" size={13} /></button>
                   </div>
                 </div>

@@ -1328,7 +1328,7 @@ export const refreshCortexTasks = () =>
   });
 
 export const completeCortexTask = (id: string) =>
-  omsFetch<{ task: CortexTask }>(`/intelligence/tasks/${encodeURIComponent(id)}/complete`, {
+  omsFetch<{ task: CortexTask; verified: boolean; message?: string }>(`/intelligence/tasks/${encodeURIComponent(id)}/complete`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
