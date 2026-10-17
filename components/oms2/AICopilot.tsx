@@ -141,15 +141,20 @@ export const AICopilot = ({
   const [history, setHistory] = useState<Msg[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [threads, setThreads] = useState<CortexChatThread[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [threadListError, setThreadListError] = useState<string | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [pending, setPending] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const loadThreads = () => {
+    setThreadsLoading(true);
+    setThreadListError(null);
     fetchCortexChatThreads(section, entityType, entityId)
       .then((r) => setThreads((r.threads || []).slice(0, 5)))
-      .catch(() => setThreads([]));
+      .catch((error: any) => setThreadListError(error?.message || 'Chat history could not be loaded.'))
+      .finally(() => setThreadsLoading(false));
   };
 
   const startNewThread = () => {
@@ -302,6 +307,13 @@ export const AICopilot = ({
             {thread.title || 'Cortex thread'}
           </button>
         ))}
+        {threadsLoading && threads.length === 0 ? (
+          <span className="copilot-thread-pill" aria-live="polite">Loading history...</span>
+        ) : threadListError ? (
+          <button className="copilot-thread-pill" onClick={loadThreads} title={threadListError}>
+            <Icon name="warning" size={11} /> Retry history
+          </button>
+        ) : null}
       </div>
 
       <div className="copilot-body">

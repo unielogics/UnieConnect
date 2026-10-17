@@ -55,6 +55,7 @@ export const TopBar = ({
   const [title] = TITLE_MAP[section] || ['', ''];
   const [tasksOpen, setTasksOpen] = useState(false);
   const [tasks, setTasks] = useState<CortexTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
@@ -68,20 +69,28 @@ export const TopBar = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const loadTasks = (refresh = false) => {
+    setTasksLoading(true);
+    setTaskError(null);
     fetchCortexTasks({ status: 'open', refresh, limit: 12 })
       .then((r) => setTasks(r.tasks || []))
-      .catch(() => setTasks([]));
+      .catch((error: any) => setTaskError(error?.message || 'Cortex tasks could not be loaded.'))
+      .finally(() => setTasksLoading(false));
   };
 
   useEffect(() => {
     let cancelled = false;
     const refreshTasks = (refresh = false) => {
+      setTasksLoading(true);
+      setTaskError(null);
       fetchCortexTasks({ status: 'open', refresh, limit: 12 })
         .then((r) => {
           if (!cancelled) setTasks(r.tasks || []);
         })
-        .catch(() => {
-          if (!cancelled) setTasks([]);
+        .catch((error: any) => {
+          if (!cancelled) setTaskError(error?.message || 'Cortex tasks could not be loaded.');
+        })
+        .finally(() => {
+          if (!cancelled) setTasksLoading(false);
         });
     };
     const onFocus = () => refreshTasks(false);
@@ -298,7 +307,7 @@ export const TopBar = ({
             <div className="task-popover-head">
               <div>
                 <strong>Cortex tasks</strong>
-                <span>{tasks.length} open</span>
+                <span>{tasksLoading && tasks.length === 0 ? 'Loading...' : `${tasks.length} open`}</span>
               </div>
               <button className="icon-btn" data-hint="Refresh" onClick={() => loadTasks(true)}><Icon name="refresh" size={13} /></button>
             </div>
@@ -311,7 +320,14 @@ export const TopBar = ({
             )}
             {taskError && <div className="task-popover-error" role="alert"><Icon name="warning" size={12} /> {taskError}</div>}
             <div className="task-popover-list">
-              {tasks.length === 0 ? (
+              {tasksLoading && tasks.length === 0 ? (
+                <div className="task-empty">Loading account tasks...</div>
+              ) : taskError && tasks.length === 0 ? (
+                <div className="task-empty">
+                  Task status is unavailable.
+                  <button className="btn ghost sm" onClick={() => loadTasks(false)}><Icon name="refresh" size={11} /> Retry</button>
+                </div>
+              ) : tasks.length === 0 ? (
                 <div className="task-empty">No open Cortex tasks.</div>
               ) : tasks.map((task) => (
                 <div key={task.id} className="task-popover-item">
