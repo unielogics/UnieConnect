@@ -60,12 +60,14 @@ const TicketModal = ({
   ticket,
   messages,
   loading,
+  loadError,
   onClose,
   onReload,
 }: {
   ticket: TicketRow;
   messages: SupportTicketMessage[];
   loading: boolean;
+  loadError?: string | null;
   onClose: () => void;
   onReload: () => Promise<void>;
 }) => {
@@ -129,6 +131,12 @@ const TicketModal = ({
             <Chip dot={false}>{messages.length} messages</Chip>
           </div>
           <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {loadError && (
+              <div style={{ padding: 10, border: '1px solid var(--red-border)', borderRadius: 8, color: 'var(--red-text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12 }}>
+                <span>{loadError}</span>
+                <button className="btn sm" onClick={() => void onReload()}>Retry conversation</button>
+              </div>
+            )}
             {loading ? (
               <Loading rows={3} />
             ) : messages.length === 0 ? (
@@ -217,12 +225,17 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
   const [selected, setSelected] = useState<TicketRow | null>(null);
   const [messages, setMessages] = useState<SupportTicketMessage[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sourceNotice, setSourceNotice] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
   const [ticketFilter, setTicketFilter] = useState<'all' | 'open' | 'resolved'>('all');
 
   const load = () => {
     setLoading(true);
+    setLoadError(null);
+    setSourceNotice(null);
     fetchTickets()
       .then((d) => {
         setTickets(
@@ -231,8 +244,9 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
             opened: t.createdAt || '-',
           })),
         );
+        setSourceNotice(null);
       })
-      .catch(() =>
+      .catch((ticketError) =>
         fetchLedger()
           .then((lg: LedgerResponse) => {
             const t = (lg.events || [])
@@ -253,8 +267,9 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
                 opened: e.created_at || e.ts || '-',
               }));
             setTickets(t as TicketRow[]);
+            setSourceNotice('Support tickets are temporarily unavailable. Showing read-only operational exceptions from the account ledger.');
           })
-          .catch(() => setTickets([])),
+          .catch(() => setLoadError(ticketError?.message || 'Support tickets and operational exceptions could not be loaded.')),
       )
       .finally(() => setLoading(false));
   };
@@ -264,10 +279,13 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
   const reloadSelected = async () => {
     if (!selected || selected.id.startsWith('fallback-')) return;
     setDetailLoading(true);
+    setDetailError(null);
     try {
       const d = await fetchTicketDetail(selected.id);
       setSelected({ ...d.ticket, opened: d.ticket.createdAt || '-' });
       setMessages(d.messages || []);
+    } catch (error: any) {
+      setDetailError(error?.message || 'The ticket conversation could not be loaded.');
     } finally {
       setDetailLoading(false);
     }
@@ -278,10 +296,13 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
     setMessages([]);
     if (ticket.id.startsWith('fallback-')) return;
     setDetailLoading(true);
+    setDetailError(null);
     try {
       const d = await fetchTicketDetail(ticket.id);
       setSelected({ ...d.ticket, opened: d.ticket.createdAt || '-' });
       setMessages(d.messages || []);
+    } catch (error: any) {
+      setDetailError(error?.message || 'The ticket conversation could not be loaded.');
     } finally {
       setDetailLoading(false);
     }
@@ -324,6 +345,15 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
           <button className="btn primary" onClick={onNewTicket}><Icon name="plus" size={13} /> New ticket</button>
         </div>
       </div>
+
+      {(sourceNotice || loadError) && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', color: loadError ? 'var(--red-text)' : 'var(--amber-text)' }}>
+            <span style={{ fontSize: 12.5 }}><Icon name="warning" size={14} /> {loadError || sourceNotice}</span>
+            <button className="btn sm" onClick={load}>Retry support</button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="card"><Loading rows={6} /></div>
@@ -443,6 +473,7 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
           ticket={selected}
           messages={messages}
           loading={detailLoading}
+          loadError={detailError}
           onClose={() => setSelected(null)}
           onReload={reloadSelected}
         />

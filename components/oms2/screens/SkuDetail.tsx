@@ -1415,8 +1415,11 @@ const CategoryEditor = ({
 }) => {
   const current = splitCategory(value);
   const [accountNodes, setAccountNodes] = useState<{ category: string; subcategories: string[] }[]>([]);
+  const [nodesError, setNodesError] = useState(false);
+  const [nodesRetry, setNodesRetry] = useState(0);
   useEffect(() => {
     let alive = true;
+    setNodesError(false);
     fetchOmsSkus({ limit: 500 } as any)
       .then((result) => {
         if (!alive) return;
@@ -1430,11 +1433,13 @@ const CategoryEditor = ({
         }
         setAccountNodes(Array.from(map.entries()).map(([category, subs]) => ({ category, subcategories: Array.from(subs) })));
       })
-      .catch(() => setAccountNodes([]));
+      .catch(() => {
+        if (alive) setNodesError(true);
+      });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [nodesRetry]);
   const customNodes = useMemo(loadCustomCategories, []);
   const customCategoryNames = [...customNodes, ...accountNodes].map((node) => node.category);
   const categories = Array.from(new Set([...amazonCategoryNames, ...customCategoryNames, current.category].filter(Boolean))).sort();
@@ -1472,7 +1477,11 @@ const CategoryEditor = ({
       <datalist id="uc-amazon-subcategory-list">
         {subcategories.map((sub) => <option key={sub} value={sub} />)}
       </datalist>
-      <div className="sku-field-help">Amazon category tree suggestions plus custom account values. Enter saves.</div>
+      <div className="sku-field-help">
+        {nodesError ? (
+          <>Account category suggestions are unavailable. Static category suggestions still work. <button type="button" className="btn ghost sm" onClick={() => setNodesRetry((value) => value + 1)}>Retry</button></>
+        ) : 'Amazon category tree suggestions plus custom account values. Enter saves.'}
+      </div>
     </div>
   );
 };
