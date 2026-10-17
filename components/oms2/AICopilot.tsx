@@ -35,6 +35,7 @@ type Msg = {
 };
 
 const sourceLabel = (source: Record<string, unknown>) => {
+  if (source.label) return String(source.label);
   const name = String(source.source || 'oms').replace(/^oms_/, '').replace(/_/g, ' ');
   if (source.source === 'oms_data_readiness') return `readiness ${source.readinessScore ?? '—'}%`;
   if (source.source === 'oms_cortex_tasks') return `tasks ${source.count ?? 0}`;
@@ -48,6 +49,11 @@ const sourceLabel = (source: Record<string, unknown>) => {
     return parts.length ? parts.join(' · ') : 'OMS context';
   }
   return name;
+};
+
+const sourceTarget = (source: Record<string, unknown>) => {
+  const target = String(source.screen || '').trim();
+  return target || null;
 };
 
 const cortexDisplayText = (text?: string | null) =>
@@ -435,9 +441,19 @@ export const AICopilot = ({
               {m.body}
               {m.role === 'ai' && m.sources?.length ? (
                 <div className="ai-sources">
-                  {m.sources.slice(0, 4).map((source, idx) => (
-                    <span key={idx}>{sourceLabel(source)}</span>
-                  ))}
+                  {m.sources.slice(0, 4).map((source, idx) => {
+                    const target = sourceTarget(source);
+                    return target ? (
+                      <button
+                        key={idx}
+                        type="button"
+                        title={`Open ${sourceLabel(source)}`}
+                        onClick={() => onNavigate?.(target)}
+                      >
+                        <Icon name="arrowRight" size={10} /> {sourceLabel(source)}
+                      </button>
+                    ) : <span key={idx}>{sourceLabel(source)}</span>;
+                  })}
                 </div>
               ) : null}
               {m.role === 'ai' && m.actions?.length ? (
