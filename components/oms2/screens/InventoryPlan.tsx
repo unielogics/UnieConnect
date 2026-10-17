@@ -12,11 +12,11 @@ import {
 import { num, docTone, monthShort } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 
-const actionFor = (s: OmsSku): { action: string; tone: 'blue' | 'purple' | 'green' | 'amber' | 'default' } => {
+const actionFor = (s: OmsSku, decisionReady: boolean): { action: string; tone: 'blue' | 'purple' | 'green' | 'amber' | 'default' } => {
   const r = (s.recommendation || '').toLowerCase();
   if (s.risk === 'high' || r.includes('reorder') || r.includes('po')) return { action: 'reorder', tone: 'blue' };
-  if (r.includes('rebalance') || r.includes('consolidate') || r.includes('pallet')) return { action: 'rebalance', tone: 'purple' };
-  if (s.proposedWarehouseCount > s.currentWarehouseCount) return { action: 'expand', tone: 'green' };
+  if (decisionReady && (r.includes('rebalance') || r.includes('consolidate') || r.includes('pallet'))) return { action: 'rebalance', tone: 'purple' };
+  if (decisionReady && s.proposedWarehouseCount > s.currentWarehouseCount) return { action: 'expand', tone: 'green' };
   return { action: 'hold', tone: 'amber' };
 };
 
@@ -103,7 +103,7 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
     },
   ];
 
-  const enriched = plan.skus.map((s) => ({ ...s, ...actionFor(s) }));
+  const enriched = plan.skus.map((s) => ({ ...s, ...actionFor(s, decisionReady) }));
   const filtered = filter === 'all' ? enriched : enriched.filter((e) => e.action === filter);
 
   return (
@@ -305,7 +305,7 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                   <span className="mono" style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600 }}>{sku.sku}</span>
-                  <Chip tone="purple" dot={false}>AI-planned</Chip>
+                  <Chip tone={decisionReady ? 'purple' : 'amber'} dot={false}>{decisionReady ? 'AI plan' : 'Observed baseline'}</Chip>
                 </div>
                 <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em' }}>{sku.title || sku.sku}</div>
               </div>
@@ -320,14 +320,14 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
               <DetailKv label="Inbound" value={`${num(sku.inbound).toLocaleString()}u`} />
               <DetailKv label="Days of cover" value={`${Math.round(num(sku.daysOfCover))}d`} tone={docTone(num(sku.daysOfCover))} />
               <DetailKv label="Velocity / 30d" value={`${num(sku.velocity30d).toLocaleString()}u`} />
-              <DetailKv label="Proposed units" value={`${num(sku.proposedUnits).toLocaleString()}u`} tone="purple" />
+              <DetailKv label={decisionReady ? 'Plan units' : 'Replenishment candidate'} value={`${num(sku.proposedUnits).toLocaleString()}u`} tone={decisionReady ? 'purple' : 'amber'} />
               <DetailKv label="Pallet fill" value={`${num(sku.fillPercent)}%`} />
             </div>
           </div>
 
-          {viewMode === 'forecast' && <ForecastChart months={plan.months} sku={sku} />}
-          {viewMode === 'timeline' && <PlanTimeline months={plan.months} />}
-          {viewMode === 'network' && <NetworkBreakdown warehouses={plan.warehouses} sku={sku} />}
+          {viewMode === 'forecast' && <ForecastChart months={plan.months} sku={sku} decisionReady={decisionReady} />}
+          {viewMode === 'timeline' && <PlanTimeline months={plan.months} decisionReady={decisionReady} />}
+          {viewMode === 'network' && <NetworkBreakdown warehouses={plan.warehouses} sku={sku} decisionReady={decisionReady} />}
 
           <PlanNextSixShipments
             detail={detail}
@@ -341,13 +341,13 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
           <div className="card">
             <div className="card-header">
               <div className="card-title">
-                <Icon name="sparkle" size={15} style={{ color: 'var(--purple)' }} /> Why the plan looks like this
+                <Icon name="sparkle" size={15} style={{ color: 'var(--purple)' }} /> {decisionReady ? 'Why the plan looks like this' : 'Why this baseline looks like this'}
               </div>
               <button className="btn ghost sm" onClick={() => onNavigate('ledger')}><Icon name="eye" size={12} /> Full evidence</button>
             </div>
             <div className="card-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
               <p style={{ margin: 0, color: 'var(--text)' }}>
-                <span className="mono" style={{ fontWeight: 600 }}>{sku.sku}</span> — {sku.recommendation || 'Cortex maintains target days-of-cover with the lowest landed cost across the network.'}{' '}
+                <span className="mono" style={{ fontWeight: 600 }}>{sku.sku}</span> — {sku.recommendation || (decisionReady ? 'Cortex maintains target days-of-cover with the lowest landed cost across the network.' : 'Observed demand and inventory define this replenishment baseline.')}{' '}
                 Service tier <strong>{sku.serviceTier}</strong>; minimum viable order <strong>{num(sku.minViableUnits).toLocaleString()}u</strong> at{' '}
                 <strong>{num(sku.fillPercent)}%</strong> pallet fill ({num(sku.palletCubeFt)} ft³, {num(sku.palletWeightLbs)} lb).
               </p>
@@ -375,7 +375,7 @@ const DetailKv = ({ label, value, tone }: { label: string; value: string; tone?:
   </div>
 );
 
-const ForecastChart = ({ months, sku }: { months: InventoryPlanFull['months']; sku: OmsSku }) => {
+const ForecastChart = ({ months, sku, decisionReady }: { months: InventoryPlanFull['months']; sku: OmsSku; decisionReady: boolean }) => {
   if (!months || months.length === 0) {
     return (
       <div className="card">
@@ -407,7 +407,7 @@ const ForecastChart = ({ months, sku }: { months: InventoryPlanFull['months']; s
     p -= finite(m.projectedUnits) * 0.97;
     planSeries.push(Number.isFinite(p) ? p : 0);
   });
-  const max = Math.max(1, ...current, ...planSeries, ...demand) * 1.1;
+  const max = Math.max(1, ...current, ...(decisionReady ? planSeries : []), ...demand) * 1.1;
   const min = Math.min(0, ...current.filter(Number.isFinite));
   const xStep = (W - P.l - P.r) / Math.max(1, N - 1);
   const yScale = (v: number) => {
@@ -427,12 +427,12 @@ const ForecastChart = ({ months, sku }: { months: InventoryPlanFull['months']; s
       <div className="card-header">
         <div>
           <div className="card-title">6-month projection</div>
-          <div className="card-subtitle">Demand forecast + projected stock with and without the AI plan. Plan recalculates daily.</div>
+          <div className="card-subtitle">{decisionReady ? 'Demand forecast and projected stock with and without the approved-ready plan.' : 'Demand forecast and stock trajectory from observed inventory. No optimized series is shown.'}</div>
         </div>
         <div style={{ display: 'flex', gap: 14, fontSize: 11.5 }}>
           <LegendDot color="var(--accent)" label="Demand fcst" />
           <LegendDot color="var(--red)" label="Current trajectory" dashed />
-          <LegendDot color="var(--green)" label="With AI plan" />
+          {decisionReady && <LegendDot color="var(--green)" label="With AI plan" />}
         </div>
       </div>
       <div style={{ padding: '8px 0 0' }}>
@@ -456,10 +456,10 @@ const ForecastChart = ({ months, sku }: { months: InventoryPlanFull['months']; s
           })}
           <line x1={P.l} x2={W - P.r} y1={yZero} y2={yZero} stroke="var(--red)" strokeWidth="1" strokeDasharray="4 4" opacity="0.55" />
           <text x={W - P.r - 6} y={yZero - 4} textAnchor="end" fontSize="10" fill="var(--red-text)" fontWeight="600">Stockout</text>
-          <path d={areaPath(planSeries)} fill="url(#uc-planGrad)" />
+          {decisionReady && <path d={areaPath(planSeries)} fill="url(#uc-planGrad)" />}
           <path d={linePath(demand)} fill="none" stroke="var(--accent)" strokeWidth="1.5" opacity="0.85" />
           <path d={linePath(current)} fill="none" stroke="var(--red)" strokeWidth="2" strokeDasharray="5 3" />
-          <path d={linePath(planSeries)} fill="none" stroke="var(--green)" strokeWidth="2.5" />
+          {decisionReady && <path d={linePath(planSeries)} fill="none" stroke="var(--green)" strokeWidth="2.5" />}
           {months.map((m, i) => {
             const x = P.l + i * xStep;
             return (
@@ -480,16 +480,16 @@ const ForecastChart = ({ months, sku }: { months: InventoryPlanFull['months']; s
                   alignItems: 'center',
                   gap: 6,
                   padding: '5px 10px',
-                  border: '1px solid var(--purple-soft)',
+                  border: `1px solid var(--${decisionReady ? 'purple' : 'amber'}-soft)`,
                   borderRadius: 999,
-                  background: 'var(--purple-soft)',
-                  color: 'var(--purple-text)',
+                  background: `var(--${decisionReady ? 'purple' : 'amber'}-soft)`,
+                  color: `var(--${decisionReady ? 'purple' : 'amber'}-text)`,
                   fontSize: 11.5,
                   fontWeight: 600,
                 }}
               >
                 <span className="mono" style={{ fontSize: 10 }}>{monthShort(m.month)}</span>
-                +{num(m.proposedReplenishment).toLocaleString()}u replenishment
+                +{num(m.proposedReplenishment).toLocaleString()}u {decisionReady ? 'planned replenishment' : 'replenishment candidate'}
               </div>
             ))}
         </div>
@@ -505,19 +505,19 @@ const LegendDot = ({ color, label, dashed }: { color: string; label: string; das
   </span>
 );
 
-const PlanTimeline = ({ months }: { months: InventoryPlanFull['months'] }) => (
+const PlanTimeline = ({ months, decisionReady }: { months: InventoryPlanFull['months']; decisionReady: boolean }) => (
   <div className="card">
     <div className="card-header">
       <div>
-        <div className="card-title">Plan timeline · next 6 months</div>
-        <div className="card-subtitle">Every event executes autonomously once the plan is accepted.</div>
+        <div className="card-title">{decisionReady ? 'Plan timeline' : 'Inventory outlook'} · next 6 months</div>
+        <div className="card-subtitle">{decisionReady ? 'Events become eligible for execution after the plan is accepted.' : 'Observed demand and replenishment candidates only. Nothing is scheduled for autonomous execution.'}</div>
       </div>
     </div>
     <div style={{ padding: 0 }}>
       {(!months || months.length === 0) && <EmptyState>No timeline events.</EmptyState>}
       {months.map((m, i) => {
         const repl = num(m.proposedReplenishment);
-        const tone = repl > 0 ? 'green' : 'blue';
+        const tone = repl > 0 ? (decisionReady ? 'green' : 'amber') : 'blue';
         return (
           <div
             className="inventory-plan-timeline-row"
@@ -541,12 +541,12 @@ const PlanTimeline = ({ months }: { months: InventoryPlanFull['months'] }) => (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                 <span style={{ fontSize: 13.5, fontWeight: 600 }}>
-                  {repl > 0 ? 'Auto-replenishment' : 'Demand checkpoint'}
+                  {repl > 0 ? (decisionReady ? 'Planned replenishment' : 'Replenishment candidate') : 'Demand checkpoint'}
                 </span>
                 <Chip tone={tone} dot={false}>{repl > 0 ? `${repl.toLocaleString()}u` : '—'}</Chip>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                Projected demand {num(m.projectedUnits).toLocaleString()}u · saves {fmt.money(num(m.savings), { compact: true })}
+                Projected demand {num(m.projectedUnits).toLocaleString()}u{decisionReady && num(m.savings) > 0 ? ` · ${fmt.money(num(m.savings), { compact: true })} traceable savings` : ''}
               </div>
             </div>
           </div>
@@ -556,19 +556,19 @@ const PlanTimeline = ({ months }: { months: InventoryPlanFull['months'] }) => (
   </div>
 );
 
-const NetworkBreakdown = ({ warehouses, sku }: { warehouses: InventoryPlanFull['warehouses']; sku: OmsSku }) => (
+const NetworkBreakdown = ({ warehouses, sku, decisionReady }: { warehouses: InventoryPlanFull['warehouses']; sku: OmsSku; decisionReady: boolean }) => (
   <div className="card">
     <div className="card-header">
       <div>
-        <div className="card-title">Placement plan by warehouse</div>
-        <div className="card-subtitle">Network nodes that participate in this plan.</div>
+        <div className="card-title">{decisionReady ? 'Placement plan by warehouse' : 'Connected warehouse baseline'}</div>
+        <div className="card-subtitle">{decisionReady ? 'Network nodes that participate in this plan.' : 'Current account nodes only; no optimized placement is claimed.'}</div>
       </div>
-      <Chip dot={false}>{sku.proposedWarehouseCount} of {warehouses.length} nodes</Chip>
+      <Chip dot={false}>{decisionReady ? sku.proposedWarehouseCount : sku.currentWarehouseCount} of {warehouses.length} nodes</Chip>
     </div>
     <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {warehouses.length === 0 && <EmptyState>No warehouse network returned.</EmptyState>}
       {warehouses.map((w, i) => {
-        const active = i < (sku.proposedWarehouseCount || 0);
+        const active = i < ((decisionReady ? sku.proposedWarehouseCount : sku.currentWarehouseCount) || 0);
         return (
           <div key={w.id} className="inventory-plan-warehouse-row" style={{ display: 'grid', gridTemplateColumns: '160px minmax(0, 1fr) auto', gap: 14, alignItems: 'center' }}>
             <div>
@@ -580,7 +580,7 @@ const NetworkBreakdown = ({ warehouses, sku }: { warehouses: InventoryPlanFull['
             <div className="bar" style={{ height: 14 }}>
               <div style={{ height: '100%', width: active ? '100%' : '12%', background: active ? 'var(--purple)' : 'var(--text-tertiary)', borderRadius: 4, opacity: active ? 1 : 0.4 }} />
             </div>
-            <Chip tone={active ? 'purple' : 'default'} dot={false}>{active ? 'In plan' : 'Not used'}</Chip>
+            <Chip tone={active ? (decisionReady ? 'purple' : 'blue') : 'default'} dot={false}>{active ? (decisionReady ? 'In plan' : 'Current node') : 'Not used'}</Chip>
           </div>
         );
       })}
@@ -604,7 +604,7 @@ const PlanNextSixShipments = ({ detail, loading, error, skuLabel, onNavigate, on
           <div className="card-title">
             <Icon name="shipments" size={15} /> Next 6 shipments for {skuLabel}
           </div>
-          <div className="card-subtitle">Confirmed + AI-planned inbound to your network.</div>
+          <div className="card-subtitle">Confirmed and planned inbound to your network.</div>
         </div>
         <button className="btn ghost sm" onClick={() => onNavigate('shipments')}>View all shipments</button>
       </div>
