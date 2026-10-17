@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiUrl, authFetch } from '../../lib/api';
+import { Icon } from './icons';
 
 export type MarketplaceFilterValue = {
   channel?: string;
@@ -41,22 +42,38 @@ const accountLabel = (account: Account) =>
 
 export function MarketplaceFilter({ value, onChange, includeUnmapped = false }: Props) {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadAccounts = useCallback(() => {
     let live = true;
+    setLoading(true);
+    setError(null);
     authFetch(apiUrl('/api/v1/channel-accounts'))
-      .then((res) => (res.ok ? res.json() : []))
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.message || data?.error || `Marketplace accounts could not be loaded (${res.status}).`);
+        return data;
+      })
       .then((data) => {
         if (!live) return;
         setAccounts(Array.isArray(data) ? data : []);
       })
-      .catch(() => {
-        if (live) setAccounts([]);
+      .catch((nextError: any) => {
+        if (live) setError(nextError?.message || 'Marketplace accounts could not be loaded.');
+      })
+      .finally(() => {
+        if (live) setLoading(false);
       });
     return () => {
       live = false;
     };
   }, []);
+
+  useEffect(() => {
+    const cancel = loadAccounts();
+    return cancel;
+  }, [loadAccounts]);
 
   const options = useMemo(() => {
     const connected = accounts.filter((account) => account.status !== 'archived' && account.status !== 'disconnected');
@@ -84,32 +101,51 @@ export function MarketplaceFilter({ value, onChange, includeUnmapped = false }: 
   };
 
   return (
-    <select
-      value={selected}
-      onChange={(event) => select(event.target.value)}
-      style={{
-        height: 28,
-        padding: '0 28px 0 10px',
-        borderRadius: 6,
-        border: '1px solid var(--border)',
-        background: 'var(--bg)',
-        color: 'var(--text)',
-        fontSize: 12,
-        maxWidth: 260,
-      }}
-      aria-label="Marketplace filter"
-    >
-      <option value="">All marketplaces</option>
-      <option value="channel:shopify">All Shopify stores</option>
-      <option value="channel:amazon">Amazon</option>
-      <option value="channel:ebay">eBay</option>
-      {includeUnmapped && <option value="channel:unmapped">Unmapped</option>}
-      {options.length > 0 && <option disabled>──────────</option>}
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+      <select
+        value={selected}
+        onChange={(event) => select(event.target.value)}
+        style={{
+          height: 28,
+          padding: '0 28px 0 10px',
+          borderRadius: 6,
+          border: `1px solid ${error ? 'var(--red-border)' : 'var(--border)'}`,
+          background: 'var(--bg)',
+          color: 'var(--text)',
+          fontSize: 12,
+          maxWidth: 260,
+          minWidth: 0,
+        }}
+        aria-label="Marketplace filter"
+        aria-busy={loading}
+        title={error || undefined}
+      >
+        <option value="">All marketplaces</option>
+        <option value="channel:shopify">All Shopify stores</option>
+        <option value="channel:amazon">Amazon</option>
+        <option value="channel:ebay">eBay</option>
+        {includeUnmapped && <option value="channel:unmapped">Unmapped</option>}
+        {options.length > 0 && <option disabled>──────────</option>}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+        {loading && options.length === 0 && <option disabled>Loading connected stores...</option>}
+        {error && options.length === 0 && <option disabled>Store list unavailable</option>}
+      </select>
+      {error && (
+        <button
+          type="button"
+          className="icon-btn"
+          style={{ width: 28, height: 28, minWidth: 28, color: 'var(--red-text)' }}
+          aria-label="Retry marketplace accounts"
+          title={error}
+          onClick={() => loadAccounts()}
+        >
+          <Icon name="refresh" size={12} />
+        </button>
+      )}
+    </div>
   );
 }
