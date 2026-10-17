@@ -49,6 +49,7 @@ export const BusinessDouble = (_: ScreenProps) => {
   const [latestOpt, setLatestOpt] = useState<SellerOptimizationSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [accepted, setAccepted] = useState(false);
@@ -69,10 +70,23 @@ export const BusinessDouble = (_: ScreenProps) => {
       .catch((e) => setErr(e.message || 'Failed to load business double'))
       .finally(() => setLoading(false));
   };
+  const loadSupportingContext = async () => {
+    setContextError(null);
+    const [heatmapResult, optimizationResult] = await Promise.allSettled([
+      fetchHeatmap(),
+      fetchLatestOptimization(),
+    ]);
+    if (heatmapResult.status === 'fulfilled') setHm(heatmapResult.value);
+    if (optimizationResult.status === 'fulfilled') setLatestOpt(optimizationResult.value.latest || null);
+    const failures = [
+      heatmapResult.status === 'rejected' ? 'warehouse network' : '',
+      optimizationResult.status === 'rejected' ? 'latest Cortex optimization' : '',
+    ].filter(Boolean);
+    if (failures.length) setContextError(`Could not load ${failures.join(' and ')} context. Plan comparisons may be incomplete.`);
+  };
   useEffect(() => {
     load();
-    fetchHeatmap().then(setHm).catch(() => {});
-    fetchLatestOptimization().then((r) => setLatestOpt(r.latest || null)).catch(() => {});
+    void loadSupportingContext();
   }, []);
   useEffect(() => () => runAbortRef.current?.abort(), []);
 
@@ -172,6 +186,16 @@ export const BusinessDouble = (_: ScreenProps) => {
           </button>
         </div>
       </div>
+
+      {contextError && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{contextError}</span>
+          <button className="btn ghost sm" onClick={loadSupportingContext}>
+            <Icon name="refresh" size={12} /> Retry context
+          </button>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, alignItems: 'center', padding: 16 }}>

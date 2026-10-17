@@ -20,6 +20,8 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
   const [plan, setPlan] = useState<InventoryPlanFull | null>(null);
   const [asns, setAsns] = useState<OmsAsn[]>([]);
   const [ctx, setCtx] = useState<CopilotContext | null>(null);
+  const [ctxLoading, setCtxLoading] = useState(true);
+  const [ctxError, setCtxError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
   const load = () => {
     setLoading(true);
     setErr(null);
-    Promise.all([fetchInventoryPlan('6m'), fetchOmsAsns().catch(() => ({ asns: [] }))])
+    Promise.all([fetchInventoryPlan('6m'), fetchOmsAsns()])
       .then(([nextPlan, asnPayload]) => {
         setPlan(nextPlan);
         setAsns(asnPayload.asns || []);
@@ -38,9 +40,17 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
       .catch((e) => setErr(e.message || 'Failed to load shipments'))
       .finally(() => setLoading(false));
   };
+  const loadGuidance = () => {
+    setCtxLoading(true);
+    setCtxError(null);
+    fetchCopilotContext('shipments')
+      .then(setCtx)
+      .catch((error: any) => setCtxError(error?.message || 'Cortex shipment guidance could not be loaded.'))
+      .finally(() => setCtxLoading(false));
+  };
   useEffect(() => {
     load();
-    fetchCopilotContext('shipments').then(setCtx).catch(() => {});
+    loadGuidance();
   }, []);
 
   const inbound = (plan?.skus || []).filter((s) => num(s.inbound) > 0 || num(s.proposedUnits) > 0);
@@ -330,10 +340,18 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                   </div>
                 </div>
                 <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {!ctx?.recommendedPrompts?.length && !ctx?.latestSignals?.length && (
+                  {ctxLoading ? (
+                    <Loading rows={2} />
+                  ) : ctxError ? (
+                    <div className="inline-banner danger" role="alert">
+                      <Icon name="warning" size={13} />
+                      <span style={{ flex: 1 }}>{ctxError}</span>
+                      <button className="btn ghost sm" onClick={loadGuidance}><Icon name="refresh" size={12} /> Retry</button>
+                    </div>
+                  ) : !ctx?.recommendedPrompts?.length && !ctx?.latestSignals?.length ? (
                     <EmptyState>No AI suggestions for this screen.</EmptyState>
-                  )}
-                  {(ctx?.latestSignals || []).map((s, i) => (
+                  ) : null}
+                  {!ctxLoading && !ctxError && (ctx?.latestSignals || []).map((s, i) => (
                     <div
                       key={i}
                       style={{
