@@ -230,7 +230,7 @@ export const LabelAudit = (_: ScreenProps) => {
                 </div>
                 <button className="btn sm" onClick={() => openRun(latestRun)}><Icon name="eye" size={12} /> View run</button>
               </div>
-              <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+              <div className="card-body label-audit-run-grid" style={{ gap: 12 }}>
                 <MiniRunStat label="Findings" value={latestRun.findingsCount} />
                 <MiniRunStat label="Refunds" value={fmt.money(latestRun.estimatedRefunds)} />
                 <MiniRunStat label="Service savings" value={fmt.money(latestRun.optimizedServiceSavings)} />

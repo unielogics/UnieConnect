@@ -563,7 +563,7 @@ const ChannelMixCard = ({ data }: { data: CommandCenterFull }) => {
         <Chip dot={false}>{data.range === 'today' ? 'Today' : data.range === '7d' ? 'Last 7d' : 'Last 30d'}</Chip>
       </div>
       <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        <div className="command-mini-metrics" style={{ gap: 10 }}>
           <MiniMetric label="Connected channels" value={String(channels)} sub="marketplace feeds" />
           <MiniMetric label="Orders" value={fmt.num(data.metrics.orders)} sub={`${data.range}`} tone="green" />
           <MiniMetric label="Refunds" value={fmt.money(data.metrics.refunds || 0, { compact: true })} sub="captured" tone={data.metrics.refunds ? 'red' : undefined} />
@@ -607,7 +607,7 @@ const IntelligenceReadinessPanel = ({
         <Chip tone={tone as any} dot={false}>{score}%</Chip>
       </div>
       <div className="card-body" style={{ display: 'grid', gap: 12 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        <div className="command-mini-metrics" style={{ gap: 10 }}>
           <MiniMetric label="Primary feed" value={(readiness?.sourceMode || 'manual').replace(/_/g, ' ')} sub={readiness?.primarySource?.replace(/_/g, ' ') || 'setup needed'} />
           <MiniMetric label="Open recs" value={String(recommendations.length)} sub="current vs optimized" tone="green" />
           <MiniMetric label="Last run" value={latest ? 'Available' : 'Not run'} sub={latest?.publicId || 'run optimization'} tone={latest ? 'green' : 'red'} />
@@ -739,7 +739,7 @@ const AutonomousActivityRail = ({ activity }: { activity: CommandCenterFull['aut
         {activity.map((e, i) => {
           const tone = e.status === 'complete' ? 'green' : e.status === 'pending' ? 'amber' : 'blue';
           return (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '44px 24px 1fr auto', gap: 12, padding: '11px 16px', borderBottom: '1px solid var(--border-subtle)', alignItems: 'center' }}>
+            <div key={i} className="command-activity-row" style={{ gap: 12, padding: '11px 16px', borderBottom: '1px solid var(--border-subtle)', alignItems: 'center' }}>
               <span className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{timeAgo(e.at)}</span>
               <div style={{ width: 22, height: 22, borderRadius: 4, background: `var(--${tone}-soft)`, color: `var(--${tone})`, display: 'grid', placeItems: 'center' }}>
                 <Icon name="bolt" size={12} />

@@ -446,7 +446,7 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
                     <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 500, marginBottom: 4 }}>Issue</div>
                     <div style={{ fontSize: 13.5, fontWeight: 600 }}>{featured.subject}</div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="support-triage-grid" style={{ gap: 12 }}>
                     <div className="kv"><div className="kv-label">Linked entity</div><div className="kv-value mono">{displayEntityId(featured)}</div></div>
                     <div className="kv"><div className="kv-label">Channel</div><div className="kv-value mono">{featured.channel || 'internal'}</div></div>
                     <div className="kv"><div className="kv-label">Owner</div><div className="kv-value">{featured.owner || 'Cortex'}</div></div>

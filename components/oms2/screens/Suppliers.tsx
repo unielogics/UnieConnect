@@ -421,7 +421,7 @@ const SupplierDetail = ({
             </button>
           </div>
         </div>
-        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, paddingTop: 16 }}>
+        <div className="card-body supplier-summary-grid" style={{ gap: 12, paddingTop: 16 }}>
           <InfoTile label="Pickup readiness" value={ready.label} sub={ready.detail} tone={ready.tone} />
           <InfoTile label="Vehicle limit" value={profile.maxVehicleSize ? pickupVehicleLabels[profile.maxVehicleSize] || profile.maxVehicleSize : 'Unknown'} sub={`Loading dock: ${boolText(profile.loadingDock)}`} />
           <InfoTile label="Supplier units" value={fmt.num(summary?.shipmentUnits || 0)} sub={`${fmt.num(summary?.orderUnits || 0)} order units linked`} />
@@ -435,7 +435,7 @@ const SupplierDetail = ({
             <div className="card-title">Supplier summary</div>
             <button className="btn ghost sm" onClick={() => setEditOpen(true)}>Edit profile</button>
           </div>
-          <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+          <div className="card-body supplier-detail-grid" style={{ gap: 14 }}>
             <div style={{ gridColumn: '1 / -1' }}>
               <DetailKv2
                 label="Pickup address"
@@ -461,7 +461,7 @@ const SupplierDetail = ({
             <div className="card-title">Cortex pickup rules</div>
           </div>
           <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            <div className="supplier-pickup-grid" style={{ gap: 10 }}>
               <InfoTile label="Dock" value={boolText(profile.loadingDock)} />
               <InfoTile label="Appointment" value={profile.appointmentRequired ? 'Required' : 'Not required'} sub={profile.dockAppointmentLeadTimeHours ? `${profile.dockAppointmentLeadTimeHours}h lead time` : 'No lead time set'} />
               <InfoTile label="Liftgate" value={profile.liftgateRequired ? 'Required' : 'Not required'} sub={profile.insidePickup ? 'Inside pickup' : 'Standard pickup'} />
@@ -532,7 +532,7 @@ const SupplierDetail = ({
                   </div>
                   {activeRecord.status ? <StatusChip status={activeRecord.status} /> : null}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                <div className="supplier-record-grid" style={{ gap: 8 }}>
                   <InfoTile label="Units" value={fmt.num(activeRecord.units || 0)} />
                   <InfoTile label="Amount" value={activeRecord.amount != null ? fmt.money(activeRecord.amount, { compact: true }) : '—'} />
                   <InfoTile label="Date" value={dateText(activeRecord.date)} />
@@ -561,7 +561,7 @@ const SupplierDetail = ({
           ) : !activity?.records.length ? (
             <EmptyState>Shipment plans, ASNs, labels, BOLs, orders, and billing events will appear here once linked to this supplier.</EmptyState>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+            <div className="supplier-activity-grid" style={{ gap: 10 }}>
               {activity.records.slice(0, 24).map((record) => (
                 <button
                   key={`${record.type}-${record.id}`}
