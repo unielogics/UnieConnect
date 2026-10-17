@@ -106,21 +106,29 @@ export const CsvImportModal = ({
   const [csv, setCsv] = useState(`${template.headers}\n${template.example}`);
   const [customers, setCustomers] = useState<OmsCustomer[]>([]);
   const [skus, setSkus] = useState<OmsSku[]>([]);
+  const [referenceLoading, setReferenceLoading] = useState(entity === 'orders');
+  const [referenceError, setReferenceError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
 
   const rows = useMemo(() => parseCsv(csv), [csv]);
 
-  useEffect(() => {
+  const loadReferences = async () => {
     if (entity !== 'orders') return;
-    Promise.all([
-      fetchOmsCustomers().catch(() => ({ customers: [] })),
-      fetchOmsSkus().catch(() => ({ skus: [], total: 0 })),
-    ]).then(([customerResp, skuResp]) => {
-      setCustomers(customerResp.customers || []);
-      setSkus(skuResp.skus || []);
-    });
-  }, [entity]);
+    setReferenceLoading(true);
+    setReferenceError(null);
+    const [customerResult, skuResult] = await Promise.allSettled([fetchOmsCustomers(), fetchOmsSkus()]);
+    if (customerResult.status === 'fulfilled') setCustomers(customerResult.value.customers || []);
+    if (skuResult.status === 'fulfilled') setSkus(skuResult.value.skus || []);
+    const failures = [
+      customerResult.status === 'rejected' ? 'customers' : '',
+      skuResult.status === 'rejected' ? 'SKUs' : '',
+    ].filter(Boolean);
+    if (failures.length) setReferenceError(`Could not load ${failures.join(' and ')} required to validate order rows.`);
+    setReferenceLoading(false);
+  };
+
+  useEffect(() => { void loadReferences(); }, [entity]);
 
   const importRow = async (row: Record<string, string>) => {
     if (entity === 'customers') {
@@ -242,7 +250,7 @@ export const CsvImportModal = ({
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn ghost" onClick={onClose}>Cancel</button>
-            <button className="btn primary" onClick={submit} disabled={importing || rows.length === 0}>
+            <button className="btn primary" onClick={submit} disabled={importing || rows.length === 0 || (entity === 'orders' && (referenceLoading || Boolean(referenceError)))}>
               <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} />
               {importing ? 'Importing...' : `Import ${template.title}`}
             </button>
@@ -276,9 +284,14 @@ export const CsvImportModal = ({
 
         {entity === 'orders' && (
           <div className="card">
-            <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)' }}>
+            <div className="card-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, color: referenceError ? 'var(--red-text)' : 'var(--text-secondary)', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Icon name="warning" size={15} />
-              Orders require existing customers and SKUs. Import customers/SKUs first, then import orders by customerEmail and sku.
+              {referenceLoading
+                ? 'Loading customers and SKUs for order validation...'
+                : referenceError || `Ready to match against ${customers.length} customers and ${skus.length} SKUs.`}
+              </div>
+              {referenceError && <button className="btn sm" onClick={loadReferences}>Retry references</button>}
             </div>
           </div>
         )}

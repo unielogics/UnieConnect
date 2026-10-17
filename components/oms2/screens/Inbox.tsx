@@ -44,19 +44,20 @@ export const Inbox = (_props: ScreenProps) => {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<InboxMessage | null>(null);
 
   const load = (nextOffset = offset) => {
     setLoading(true);
+    setError(null);
     fetchInboxMessages({ limit: PAGE_SIZE, offset: nextOffset })
       .then((d) => {
         setMessages(d.messages || []);
         setTotal(d.total || 0);
         setOffset(nextOffset);
       })
-      .catch(() => {
-        setMessages([]);
-        setTotal(0);
+      .catch((err) => {
+        setError(err?.message || 'Inbox messages could not be loaded.');
       })
       .finally(() => setLoading(false));
   };
@@ -88,7 +89,16 @@ export const Inbox = (_props: ScreenProps) => {
         </div>
       </div>
 
-      {loading ? (
+      {error && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div className="card-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ color: 'var(--red-text)', fontSize: 12.5 }}><Icon name="warning" size={14} /> {error}</div>
+            <button className="btn sm" onClick={() => load(offset)}>Retry</button>
+          </div>
+        </div>
+      )}
+
+      {loading && messages.length === 0 ? (
         <div className="card"><Loading rows={6} /></div>
       ) : (
         <div className="card">

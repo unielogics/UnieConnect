@@ -344,15 +344,22 @@ export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, su
   const [rawOpen, setRawOpen] = useState(false);
 
   const [accounts, setAccounts] = useState<ChannelAccount[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [listing, setListing] = useState(false);
   const [listMsg, setListMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
-  useEffect(() => {
+  const loadAccounts = () => {
+    setAccountsLoading(true);
+    setAccountsError(null);
     fetchChannelAccounts()
       .then((a) => { const list = Array.isArray(a) ? a : []; setAccounts(list); if (list[0]) setSelectedAccount(list[0].id); })
-      .catch(() => setAccounts([]));
-  }, []);
+      .catch((err) => setAccountsError(err?.message || 'Marketplace connections could not be loaded.'))
+      .finally(() => setAccountsLoading(false));
+  };
+
+  useEffect(loadAccounts, []);
 
   const listToMarketplace = async () => {
     if (!selectedAccount) { setListMsg({ tone: 'err', text: 'Pick a marketplace first.' }); return; }
@@ -573,7 +580,13 @@ export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, su
           ) : (
             <>
               <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>List &amp; add SKU to a marketplace</div>
-              {accounts.length === 0 ? (
+              {accountsLoading && accounts.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading connected marketplaces...</div>
+              ) : accountsError && accounts.length === 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', color: 'var(--red-text)', fontSize: 12 }}>
+                  <span>{accountsError}</span><button className="btn sm" onClick={loadAccounts}>Retry</button>
+                </div>
+              ) : accounts.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No connected marketplaces. Connect one first.</div>
               ) : (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

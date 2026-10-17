@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Chip, fmt, Loading } from '../ui';
+import { Icon } from '../icons';
 import { fetchHeatmap, HeatmapResponse } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
 
@@ -18,13 +19,18 @@ const STATE_NAMES: Record<string, string> = {
 export const StateDetailModal = ({ stateCode, onClose }: { stateCode: string; onClose: () => void }) => {
   const [data, setData] = useState<HeatmapResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setError(null);
     fetchHeatmap()
       .then(setData)
-      .catch(() => setData(null))
+      .catch((err) => setError(err?.message || 'State demand data could not be loaded.'))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(load, []);
 
   const st = (data?.states || []).find((s) => (s.state || '').toUpperCase() === stateCode);
   const whs = (data?.warehouses || []).filter((w) => (w.state || '').toUpperCase() === stateCode);
@@ -42,9 +48,17 @@ export const StateDetailModal = ({ stateCode, onClose }: { stateCode: string; on
       }
     >
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        {loading ? (
+        {error && (
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ color: 'var(--red-text)', fontSize: 12.5 }}><Icon name="warning" size={14} /> {error}</span>
+              <button className="btn sm" onClick={load}>Retry</button>
+            </div>
+          </div>
+        )}
+        {loading && !data ? (
           <div className="card"><Loading rows={4} /></div>
-        ) : (
+        ) : data ? (
           <>
             <div className="stat-grid cols-3">
               <div className="stat">
@@ -98,7 +112,7 @@ export const StateDetailModal = ({ stateCode, onClose }: { stateCode: string; on
               )}
             </div>
           </>
-        )}
+        ) : null}
       </div>
     </Modal>
   );

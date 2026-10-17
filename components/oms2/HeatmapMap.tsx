@@ -70,13 +70,20 @@ export const HeatmapMap = ({
   warehouses?: WarehousePin[];
 }) => {
   const [geo, setGeo] = useState<any>(null);
+  const [geoError, setGeoError] = useState(false);
 
-  useEffect(() => {
+  const loadGeo = () => {
+    setGeoError(false);
     fetch('/us-states.geojson')
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Map boundary request failed (${r.status})`);
+        return r.json();
+      })
       .then(setGeo)
-      .catch(() => setGeo(null));
-  }, []);
+      .catch(() => setGeoError(true));
+  };
+
+  useEffect(loadGeo, []);
 
   const valueFor = (name: string) => {
     const d = byState[NAME_TO_CODE[name]];
@@ -121,7 +128,13 @@ export const HeatmapMap = ({
   };
 
   return (
-    <div style={{ height: 460, width: '100%', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+    <div style={{ height: 460, width: '100%', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}>
+      {geoError && (
+        <div style={{ position: 'absolute', zIndex: 1000, top: 12, left: 12, right: 12, padding: '9px 12px', borderRadius: 8, border: '1px solid var(--red-border)', background: 'var(--bg-elev)', color: 'var(--red-text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, fontSize: 12 }}>
+          <span>State boundaries could not be loaded. Warehouse pins remain available.</span>
+          <button className="btn sm" onClick={loadGeo}>Retry map</button>
+        </div>
+      )}
       <MapContainer
         center={[39.5, -98.35] as any}
         zoom={4}
