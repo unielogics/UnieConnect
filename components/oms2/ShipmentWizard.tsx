@@ -169,11 +169,6 @@ const economicsTransferPerUnit = (row?: any) =>
   economicsOptionalPerUnitValue(row, 'transferLtlPerUnit')
   ?? economicsOptionalPerUnitValue(row, 'optimizedNetworkTransferPerUnit');
 
-const economicsLabels = (row?: any) => {
-  const costs = economicsCosts(row);
-  return asNumber(costs.labelTotal, 0) + asNumber(costs.unitLabelTotal, 0) + asNumber(costs.cartonLabelTotal, 0);
-};
-
 const perSkuPricingAggregate = (rows: any[]) => {
   const totals = rows.reduce((acc, row) => {
     const qty = economicsQuantity(row);
@@ -397,8 +392,8 @@ const CortexPricingPanel = ({
   if (loading) {
     return (
       <div className="card" style={{ padding: 16, marginBottom: 14 }}>
-        <div className="card-title"><Icon name="sparkle" size={14} /> Cortex pricing intelligence</div>
-        <div className="card-subtitle">Calculating fulfillment, label, storage, and transportation exposure…</div>
+        <div className="card-title"><Icon name="sparkle" size={14} /> Fulfillment &amp; transport cost preview</div>
+        <div className="card-subtitle">Calculating warehouse services, outbound postage, storage, and transportation exposure…</div>
       </div>
     );
   }
@@ -449,14 +444,19 @@ const CortexPricingPanel = ({
   const dueToday = previewDueToday(preview);
   const confidence = preview.confidence == null ? null : Math.round(Number(preview.confidence) * 100);
   const degraded = Boolean((preview as any).fallbackAvailable || (preview as any).cortex?.ok === false || String(preview.source || '').includes('fallback'));
+  const pricingSourceCopy = preview.source === 'cortex_pricing_authority'
+    ? 'Live Cortex pricing using this account\'s connected warehouse and SKU inputs.'
+    : preview.source === 'sku_fulfillment_economics_cache'
+      ? 'Saved per-SKU economics from the latest account pricing run.'
+      : 'Modeled fallback from SKU quantity, dimensions, weight, workflow, and available warehouse policy.';
 
   return (
     <div className="card" style={{ marginBottom: 14 }}>
       <div className="card-header">
         <div>
-          <div className="card-title"><Icon name="sparkle" size={14} /> Cortex pricing intelligence</div>
+          <div className="card-title"><Icon name="sparkle" size={14} /> Fulfillment &amp; transport cost preview</div>
           <div className="card-subtitle">
-            Estimated cost to receive, fulfill, store, and ship. Warehouse fees are charged when services are performed.
+            Estimated warehouse services and transportation. Required ASN pallet-label PDFs always cost $0.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -483,9 +483,9 @@ const CortexPricingPanel = ({
             <strong>{money(fulfillmentPerUnit)}</strong>
             <div className="muted" style={{ fontSize: 11 }}>pick, pack, receive</div>
           </ReviewCard>
-          <ReviewCard title="48-state label avg">
+          <ReviewCard title="Outbound parcel postage / unit">
             <strong>{moneyOrMissing(labelAvg)}</strong>
-            <div className="muted" style={{ fontSize: 11 }}>parcel exposure</div>
+            <div className="muted" style={{ fontSize: 11 }}>not the pallet-label PDF</div>
           </ReviewCard>
           <ReviewCard title="LTL transfer / unit">
             <strong>{moneyOrMissing(transferPerUnit)}</strong>
@@ -506,9 +506,9 @@ const CortexPricingPanel = ({
             {[
               ['Receiving / prep / LAB', receivingPrepLabTotal],
               ['Fulfillment estimate', fulfillmentTotal],
-              ['48-state label estimate', labelAvg == null ? null : labelTotal],
+              ['Outbound parcel postage estimate', labelAvg == null ? null : labelTotal],
               ['LTL transfer estimate', transferPerUnit == null ? null : transferTotal],
-              ['Estimated total', total],
+              ['Estimated service + transport total', total],
             ].map(([label, value]) => (
               <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, marginBottom: 6 }}>
                 <span>{label}</span>
@@ -520,6 +520,12 @@ const CortexPricingPanel = ({
             <div style={{ fontSize: 11, fontWeight: 850, textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 8 }}>Controls & blockers</div>
             <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'var(--text-secondary)' }}>
               {preview.feeTimingNotice || 'Warehouse fees are billed when services are performed. Due today is $0.00 unless supplier pickup or paid transportation is selected.'}
+            </div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'var(--text-secondary)', marginTop: 8 }}>
+              <strong style={{ color: 'var(--text)' }}>Cost basis:</strong> {pricingSourceCopy}
+            </div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'var(--green-text)', marginTop: 8, fontWeight: 700 }}>
+              Required 4×6 ASN pallet-label PDF: $0.00.
             </div>
             {(preview.blockers || []).length > 0 && (
               <div style={{ display: 'grid', gap: 5, marginTop: 10 }}>
