@@ -186,7 +186,6 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
             <div className="card-title">
               SKUs in plan <Chip dot={false}>{enriched.length}</Chip>
             </div>
-            <button className="btn ghost sm"><Icon name="filter" size={12} /></button>
           </div>
           <div style={{ display: 'flex', gap: 4, padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
             {['all', 'reorder', 'rebalance', 'expand', 'hold'].map((f) => (

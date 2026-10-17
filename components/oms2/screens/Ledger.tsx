@@ -67,11 +67,6 @@ export const Ledger = (_: ScreenProps) => {
       ) : (
         <div className="table-wrap">
           <div className="table-toolbar">
-            <button className="filter-chip">Type</button>
-            <button className="filter-chip">Actor</button>
-            <button className="filter-chip applied">Recent <Icon name="x" size={10} /></button>
-            <button className="filter-chip">Confidence ≥ 0.7</button>
-            <div className="spacer" />
             <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{filtered.length} events</span>
           </div>
           {filtered.length === 0 ? (

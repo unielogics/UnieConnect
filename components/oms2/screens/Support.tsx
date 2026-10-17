@@ -219,6 +219,7 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [ticketFilter, setTicketFilter] = useState<'all' | 'open' | 'resolved'>('all');
 
   const load = () => {
     setLoading(true);
@@ -298,7 +299,13 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
     }
   };
 
-  const featured = selected || tickets[0];
+  const visibleTickets = tickets.filter((ticket) => {
+    const status = String(ticket.status || '').toLowerCase();
+    if (ticketFilter === 'open') return !['resolved', 'closed'].includes(status);
+    if (ticketFilter === 'resolved') return ['resolved', 'closed'].includes(status);
+    return true;
+  });
+  const featured = selected || visibleTickets[0];
 
   return (
     <div className="page fade-in">
@@ -308,7 +315,7 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
           <p className="page-subtitle">Ticketing tied to OMS entities, customer responses, evidence attachments, and Cortex triage.</p>
         </div>
         <div className="page-actions">
-          <button className="btn" onClick={() => downloadCsv('unieconnect-support-tickets.csv', tickets.map((ticket) => ({
+          <button className="btn" onClick={() => downloadCsv('unieconnect-support-tickets.csv', visibleTickets.map((ticket) => ({
             'Ticket ID': displayTicketId(ticket), Subject: ticket.subject, Status: ticket.status, Priority: ticket.priority,
             Channel: ticket.channel || '', Owner: ticket.owner || '', 'Entity type': ticket.entityType || '',
             'Entity ID': displayEntityId(ticket), Messages: ticket.messagesCount ?? '', Attachments: ticket.attachmentsCount ?? '',
@@ -325,16 +332,18 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
           <div className="card">
             <div className="card-header">
               <div className="card-title">
-                Tickets <Chip dot={false}>{tickets.length}</Chip>
+                Tickets <Chip dot={false}>{visibleTickets.length}</Chip>
               </div>
               <div className="seg">
-                <button className="active">All</button>
-                <button>Mine</button>
-                <button>Open</button>
+                {(['all', 'open', 'resolved'] as const).map((filter) => (
+                  <button key={filter} className={ticketFilter === filter ? 'active' : ''} onClick={() => setTicketFilter(filter)} style={{ textTransform: 'capitalize' }}>
+                    {filter}
+                  </button>
+                ))}
               </div>
             </div>
-            {tickets.length === 0 ? (
-              <EmptyState>No tickets. Operations are clean, and new exceptions will open ticket records automatically.</EmptyState>
+            {visibleTickets.length === 0 ? (
+              <EmptyState>No tickets in this view.</EmptyState>
             ) : (
               <table className="data">
                 <thead>
@@ -351,7 +360,7 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {tickets.map((t) => (
+                  {visibleTickets.map((t) => (
                     <tr key={t.id} className="clickable" onClick={() => openTicket(t)}>
                       <td className="mono strong">{displayTicketId(t)}</td>
                       <td style={{ maxWidth: 260, whiteSpace: 'normal' }}>

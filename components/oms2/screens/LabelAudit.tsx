@@ -253,8 +253,6 @@ export const LabelAudit = (_: ScreenProps) => {
                   {f === 'ontime' ? 'On-time' : f}
                 </button>
               ))}
-              <button className="filter-chip">Carrier</button>
-              <button className="filter-chip">Date</button>
               <div className="spacer" />
               <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{filtered.length} labels</span>
             </div>

@@ -157,14 +157,10 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
         <div className="table-wrap">
           <div className="table-toolbar">
             <MarketplaceFilter value={marketplaceFilter} onChange={setMarketplaceFilter} />
-            <button className="filter-chip">Warehouse</button>
-            <button className="filter-chip">Date</button>
-            <button className="filter-chip">Carrier</button>
             <div className="spacer" />
             <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>
-              Saved view: <strong style={{ color: 'var(--text)' }}>Ops daily</strong>
+              <strong style={{ color: 'var(--text)' }}>{filtered.length}</strong> orders in this view
             </span>
-            <button className="btn ghost sm"><Icon name="columns" size={12} /> Columns</button>
           </div>
           {filtered.length === 0 ? (
             <EmptyState>No orders in this view.</EmptyState>

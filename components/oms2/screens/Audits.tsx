@@ -106,9 +106,7 @@ export const Audits = (_: ScreenProps) => {
 
           <div className="table-wrap">
             <div className="table-toolbar">
-              <button className="filter-chip applied">Recent <Icon name="x" size={10} /></button>
-              <button className="filter-chip">Counterparty</button>
-              <button className="filter-chip">Status</button>
+              <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{claims.length} claims</span>
               <div className="spacer" />
               <button className="btn ghost sm" onClick={() => downloadCsv('unieconnect-audit-claims.csv', claims.map((claim) => ({
                 'Claim ID': claim.id, Type: claim.type, Counterparty: claim.counterparty,

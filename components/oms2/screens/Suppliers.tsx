@@ -190,7 +190,6 @@ export const Suppliers = ({
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {screenRec && <CortexRowAction rec={screenRec} onOpen={() => setSelectedRec(screenRec)} />}
-                <button className="btn ghost sm"><Icon name="filter" size={12} /></button>
               </div>
             </div>
             <div style={{ padding: '0 14px 12px' }}>

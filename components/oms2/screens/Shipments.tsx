@@ -86,7 +86,6 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
           <p className="page-subtitle">Inbound shipment plans, dock dates, pallet forecasts, and WMS receiving status.</p>
         </div>
         <div className="page-actions">
-          <button className="btn ghost"><Icon name="filter" size={13} /> Filter</button>
           <button className="btn" onClick={() => downloadCsv('unieconnect-shipment-plans.csv', [
             ...asns.map((asn) => ({ Type: 'ASN', ID: asn.displayId || asn.publicId || asn.asnNumber || asn.id, Status: asn.status, Supplier: asn.supplierName || asn.supplierId || '', Warehouse: asn.facilityName || asn.facilityCode || '', Units: asn.units ?? '', 'Estimated arrival': asn.estimatedArrivalDate || '', Created: asn.createdAt || '' })),
             ...inbound.map((sku) => ({ Type: 'Planned inbound SKU', ID: sku.sku, Title: sku.title || '', Status: sku.risk, Supplier: sku.supplierId || '', Units: sku.proposedUnits, Inbound: sku.inbound, 'Service tier': sku.serviceTier, Recommendation: sku.recommendation })),
@@ -121,11 +120,6 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {screenRec && <CortexRowAction rec={screenRec} label onOpen={() => setSelectedRec(screenRec)} />}
-                  <div className="seg">
-                    <button className="active">All</button>
-                    <button>Open</button>
-                    <button>Received</button>
-                  </div>
                 </div>
               </div>
               {selectionNotice && (
