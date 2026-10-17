@@ -83,7 +83,6 @@ export const Ledger = (_: ScreenProps) => {
                   <th className="num">Impact</th>
                   <th className="num">Evidence</th>
                   <th>Status</th>
-                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -99,11 +98,6 @@ export const Ledger = (_: ScreenProps) => {
                     </td>
                     <td className="num mono muted">{e.evidence != null ? `${num(e.evidence)} sources` : '—'}</td>
                     <td>{e.status ? <StatusChip status={e.status} /> : '—'}</td>
-                    <td>
-                      <button className="btn ghost sm">
-                        <Icon name="eye" size={11} /> Trace
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -287,7 +287,7 @@ export const Sidebar = ({
         </nav>
 
         <div className="sb-footer">
-          <button className="sb-item" data-hint="Help">
+          <button className="sb-item" data-hint="Help" onClick={() => onNavigate('support')}>
             <Icon name="info" size={18} />
             <span className="sb-label">Help</span>
           </button>

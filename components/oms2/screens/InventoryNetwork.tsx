@@ -228,7 +228,6 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           )}
           <div className="spacer" />
           <span className="inventory-count">{filtered.length} SKUs</span>
-          <button className="btn ghost sm"><Icon name="columns" size={12} /> Columns</button>
         </div>
       </div>
 

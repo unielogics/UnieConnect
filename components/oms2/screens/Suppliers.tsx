@@ -365,7 +365,7 @@ const SupplierDetail = ({
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn ghost" onClick={() => setEditOpen(true)}><Icon name="settings" size={13} /> Edit</button>
             <CortexRowAction rec={recommendation} label onOpen={() => recommendation && onOpenRecommendation(recommendation)} />
-            <button className="btn"><Icon name="ledger" size={13} /> Terms</button>
+            <button className="btn" onClick={() => onNavigate('billing')}><Icon name="ledger" size={13} /> Terms</button>
             <button className="btn primary" onClick={onCreateShipment}>
               <Icon name="shipments" size={13} /> Create shipment plan
             </button>

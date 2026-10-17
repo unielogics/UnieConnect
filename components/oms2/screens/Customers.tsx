@@ -145,7 +145,6 @@ export const Customers = ({ onNavigate, onNewCustomer, onImportCsv }: ScreenProp
             <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>
               {filtered.length} of {rows.length}
             </span>
-            <button className="btn ghost sm"><Icon name="columns" size={12} /> Columns</button>
           </div>
           {filtered.length === 0 ? (
             <EmptyState>No customers match.</EmptyState>

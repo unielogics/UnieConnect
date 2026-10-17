@@ -500,7 +500,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
         ))}
       </div>
 
-      {tab === 'overview' && <Overview data={data} />}
+      {tab === 'overview' && <Overview data={data} onNavigate={onNavigate} />}
       {tab === 'heatmap' && <SkuDemandHeatmap data={data} />}
       {tab === 'warehouses' && <Warehouses data={data} />}
       {tab === 'history' && <History data={data} />}
@@ -1572,10 +1572,10 @@ const SkuIntelligenceStrip = ({
   );
 };
 
-const Overview = ({ data }: { data: OmsSkuDetail }) => (
+const Overview = ({ data, onNavigate }: { data: OmsSkuDetail; onNavigate: ScreenProps['onNavigate'] }) => (
   <div className="row-2">
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <NextSixShipments data={data} />
+      <NextSixShipments data={data} onNavigate={onNavigate} />
     </div>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <ChannelBreakdownCard data={data} />
@@ -1657,7 +1657,7 @@ const SkuDemandHeatmap = ({ data }: { data: OmsSkuDetail }) => {
   );
 };
 
-const NextSixShipments = ({ data }: { data: OmsSkuDetail }) => {
+const NextSixShipments = ({ data, onNavigate }: { data: OmsSkuDetail; onNavigate: ScreenProps['onNavigate'] }) => {
   const ships = data.nextShipments || [];
   return (
     <div className="card">
@@ -1668,7 +1668,7 @@ const NextSixShipments = ({ data }: { data: OmsSkuDetail }) => {
           </div>
           <div className="card-subtitle">Confirmed + AI-planned inbound to your network</div>
         </div>
-        <button className="btn ghost sm"><Icon name="plus" size={11} /> Manual</button>
+        <button className="btn ghost sm" onClick={() => onNavigate('shipments')}><Icon name="plus" size={11} /> Create shipment</button>
       </div>
       <div style={{ padding: 0 }}>
         {ships.length === 0 && <EmptyState>No inbound shipments planned for this SKU.</EmptyState>}
@@ -1704,7 +1704,7 @@ const NextSixShipments = ({ data }: { data: OmsSkuDetail }) => {
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 15, fontWeight: 700 }}>{num(s.quantity).toLocaleString()}u</div>
-              <button className="btn ghost sm">View</button>
+              <button className="btn ghost sm" onClick={() => onNavigate('shipments', s.id)}>View</button>
             </div>
           </div>
         ))}
@@ -1832,22 +1832,28 @@ const Warehouses = ({ data }: { data: OmsSkuDetail }) => (
 
 const History = ({ data }: { data: OmsSkuDetail }) => {
   const events = data.history || [];
+  const [filter, setFilter] = useState<'all' | 'ai' | 'inventory' | 'billing'>('all');
   const typeIcon: Record<string, string> = { ai: 'sparkle', ledger: 'ledger', shipment: 'shipments', billing: 'billing' };
   const typeTone: Record<string, string> = { ai: 'purple', ledger: 'blue', shipment: 'blue', billing: 'amber' };
+  const visibleEvents = events.filter((event) => {
+    if (filter === 'all') return true;
+    if (filter === 'inventory') return ['shipment', 'inventory', 'ledger'].includes(event.type);
+    return event.type === filter;
+  });
   return (
     <div className="card">
       <div className="card-header">
         <div className="card-title">Activity history</div>
         <div className="seg">
-          <button className="active">All</button>
-          <button>AI</button>
-          <button>Inventory</button>
-          <button>Billing</button>
+          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All</button>
+          <button className={filter === 'ai' ? 'active' : ''} onClick={() => setFilter('ai')}>Cortex</button>
+          <button className={filter === 'inventory' ? 'active' : ''} onClick={() => setFilter('inventory')}>Inventory</button>
+          <button className={filter === 'billing' ? 'active' : ''} onClick={() => setFilter('billing')}>Billing</button>
         </div>
       </div>
       <div style={{ padding: 0 }}>
-        {events.length === 0 && <EmptyState>No recorded activity for this SKU yet.</EmptyState>}
-        {events.map((e, i) => (
+        {visibleEvents.length === 0 && <EmptyState>No activity in this view.</EmptyState>}
+        {visibleEvents.map((e, i) => (
           <div
             key={i}
             style={{
@@ -1855,7 +1861,7 @@ const History = ({ data }: { data: OmsSkuDetail }) => {
               gridTemplateColumns: '150px 28px 1fr auto',
               gap: 14,
               padding: '12px 16px',
-              borderBottom: i === events.length - 1 ? 'none' : '1px solid var(--border-subtle)',
+              borderBottom: i === visibleEvents.length - 1 ? 'none' : '1px solid var(--border-subtle)',
             }}
           >
             <span className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{e.ts}</span>

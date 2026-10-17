@@ -155,7 +155,6 @@ export const LabelAudit = (_: ScreenProps) => {
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Upload CSV
           </button>
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Re-scan all labels</button>
-          <button className="btn"><Icon name="audit" size={13} /> File all refundable</button>
         </div>
       </div>
 

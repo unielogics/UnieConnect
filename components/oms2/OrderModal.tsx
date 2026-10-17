@@ -46,9 +46,7 @@ export const OrderModal = ({ order, onClose, onNavigate }: { order: OmsOrder; on
             <span className="mono">{order.tracking || '—'}</span> · {order.carrier || '—'}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn ghost"><Icon name="support" size={13} /> Email customer</button>
             <button className="btn" onClick={() => onNavigate('ledger')}><Icon name="ledger" size={13} /> Ledger</button>
-            <button className="btn"><Icon name="refresh" size={13} /> Re-sync</button>
           </div>
         </>
       }

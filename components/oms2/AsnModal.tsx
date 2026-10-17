@@ -51,7 +51,6 @@ export const AsnModal = ({
                 <Icon name="shipments" size={13} /> View shipment
               </button>
             )}
-            <button className="btn"><Icon name="refresh" size={13} /> Re-sync</button>
           </div>
         </>
       }

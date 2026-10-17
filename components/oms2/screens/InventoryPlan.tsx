@@ -283,14 +283,14 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
           {viewMode === 'timeline' && <PlanTimeline months={plan.months} />}
           {viewMode === 'network' && <NetworkBreakdown warehouses={plan.warehouses} sku={sku} />}
 
-          <PlanNextSixShipments detail={detail} skuLabel={sku.sku} />
+          <PlanNextSixShipments detail={detail} skuLabel={sku.sku} onNavigate={onNavigate} />
 
           <div className="card">
             <div className="card-header">
               <div className="card-title">
                 <Icon name="sparkle" size={15} style={{ color: 'var(--purple)' }} /> Why the plan looks like this
               </div>
-              <button className="btn ghost sm"><Icon name="eye" size={12} /> Full evidence</button>
+              <button className="btn ghost sm" onClick={() => onNavigate('ledger')}><Icon name="eye" size={12} /> Full evidence</button>
             </div>
             <div className="card-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
               <p style={{ margin: 0, color: 'var(--text)' }}>
@@ -495,7 +495,6 @@ const PlanTimeline = ({ months }: { months: InventoryPlanFull['months'] }) => (
                 Projected demand {num(m.projectedUnits).toLocaleString()}u · saves {fmt.money(num(m.savings), { compact: true })}
               </div>
             </div>
-            <button className="btn ghost sm">Details</button>
           </div>
         );
       })}
@@ -535,7 +534,7 @@ const NetworkBreakdown = ({ warehouses, sku }: { warehouses: InventoryPlanFull['
   </div>
 );
 
-const PlanNextSixShipments = ({ detail, skuLabel }: { detail: OmsSkuDetail | null; skuLabel: string }) => {
+const PlanNextSixShipments = ({ detail, skuLabel, onNavigate }: { detail: OmsSkuDetail | null; skuLabel: string; onNavigate: ScreenProps['onNavigate'] }) => {
   const ships = detail?.nextShipments || [];
   return (
     <div className="card">
@@ -546,7 +545,7 @@ const PlanNextSixShipments = ({ detail, skuLabel }: { detail: OmsSkuDetail | nul
           </div>
           <div className="card-subtitle">Confirmed + AI-planned inbound to your network.</div>
         </div>
-        <button className="btn ghost sm">View all shipments</button>
+        <button className="btn ghost sm" onClick={() => onNavigate('shipments')}>View all shipments</button>
       </div>
       {!detail ? (
         <Loading rows={3} />

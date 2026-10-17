@@ -557,26 +557,35 @@ const OptimizationImpactPanel = ({
   </div>
 );
 
-const WarningsPanel = ({ warnings }: { warnings: CommandCenterFull['warnings'] }) => (
-  <div className="card">
-    <div className="card-header">
-      <div className="card-title">
-        <Icon name="warning" size={15} style={{ color: 'var(--amber)' }} />
-        Warnings
-        <Chip dot={false}>{warnings.length}</Chip>
+const WarningsPanel = ({ warnings }: { warnings: CommandCenterFull['warnings'] }) => {
+  const [filter, setFilter] = useState<'all' | 'critical' | 'attention'>('all');
+  const visibleWarnings = warnings.filter((warning) => {
+    const severity = String(warning.severity || '').toLowerCase();
+    if (filter === 'critical') return ['critical', 'high'].includes(severity);
+    if (filter === 'attention') return !['critical', 'high'].includes(severity);
+    return true;
+  });
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <Icon name="warning" size={15} style={{ color: 'var(--amber)' }} />
+          Warnings
+          <Chip dot={false}>{visibleWarnings.length}</Chip>
+        </div>
+        <div className="seg">
+          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All</button>
+          <button className={filter === 'critical' ? 'active' : ''} onClick={() => setFilter('critical')}>Critical</button>
+          <button className={filter === 'attention' ? 'active' : ''} onClick={() => setFilter('attention')}>Need attention</button>
+        </div>
       </div>
-      <div className="seg">
-        <button className="active">All</button>
-        <button>Critical</button>
-        <button>Need attention</button>
-      </div>
-    </div>
-    <div style={{ maxHeight: 420, overflowY: 'auto' }}>
-      {warnings.length === 0 && <EmptyState>No active warnings — operations within thresholds.</EmptyState>}
-      {warnings.map((w, idx) => {
+      <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+        {visibleWarnings.length === 0 && <EmptyState>No warnings in this view.</EmptyState>}
+        {visibleWarnings.map((w, idx) => {
         const tone = severityTone(w.severity);
         return (
-          <div key={idx} style={{ display: 'grid', gridTemplateColumns: '28px 1fr auto', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+          <div key={idx} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
             <div style={{ width: 28, height: 28, borderRadius: 6, background: `var(--${tone}-soft)`, color: `var(--${tone})`, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
               <Icon name={severityIcon(w.severity)} size={14} />
             </div>
@@ -589,15 +598,13 @@ const WarningsPanel = ({ warnings }: { warnings: CommandCenterFull['warnings'] }
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>{w.detail}</div>
             </div>
-            <button className="btn ghost sm" style={{ alignSelf: 'center' }}>
-              <Icon name="chevron" size={11} />
-            </button>
           </div>
         );
       })}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const AutonomousActivityRail = ({ activity }: { activity: CommandCenterFull['autonomousActivity'] }) => (
   <div className="card">

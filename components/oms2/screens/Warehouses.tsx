@@ -82,7 +82,6 @@ export const Warehouses = ({ onNavigate }: ScreenProps) => {
               <span style={{ fontSize: 12, fontWeight: 800 }}>Warehouse network</span>
               <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>Real connected WMS/user-linked warehouses only</span>
               <div className="spacer" />
-              <button className="btn ghost sm"><Icon name="columns" size={12} /> Columns</button>
             </div>
             {warehouses.length === 0 ? (
               <EmptyState>
