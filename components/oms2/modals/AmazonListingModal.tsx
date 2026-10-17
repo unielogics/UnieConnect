@@ -95,7 +95,7 @@ export const AmazonListingModal = ({
       setPublished(String(res.submissionResult?.message || 'Draft is ready for Amazon provider submission.'));
       onSaved?.();
     } catch (err: any) {
-      setErrors([err?.message || 'Unable to publish listing draft']);
+      setErrors([err?.message || 'Unable to queue the Amazon listing draft']);
     } finally {
       setSaving(false);
     }
@@ -103,14 +103,14 @@ export const AmazonListingModal = ({
 
   return (
     <Modal
-      title="List on Amazon"
-      subtitle="Create a channel-specific Amazon listing draft from this UnieConnect SKU."
+      title="Amazon listing draft"
+      subtitle="Prepare, validate, and queue a channel-specific listing from this UnieConnect SKU."
       onClose={onClose}
       width={760}
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, width: '100%', alignItems: 'center' }}>
           <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-            Publishing requires Amazon SP-API approval and explicit user confirmation.
+            Queueing saves the validated request. It is not published until Amazon provider submission completes.
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn ghost" onClick={onClose}>Cancel</button>
@@ -118,7 +118,7 @@ export const AmazonListingModal = ({
               Validate draft
             </button>
             <button className="btn primary" disabled={saving || !isReady} onClick={publish}>
-              Publish request
+              Queue submission
             </button>
           </div>
         </div>

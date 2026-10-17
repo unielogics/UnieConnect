@@ -1,12 +1,12 @@
-import { useEffect } from 'react';
-import { useRouter } from 'next/router';
+import type { GetServerSideProps } from 'next';
 
-export default function ProfilePage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace('/oms?view=profile');
-  }, [router]);
-
+export default function ProfileRedirect() {
   return null;
 }
+
+export const getServerSideProps: GetServerSideProps = async () => ({
+  redirect: {
+    destination: '/oms?view=profile',
+    permanent: false,
+  },
+});

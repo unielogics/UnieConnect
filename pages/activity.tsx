@@ -1,14 +1,12 @@
-import DashboardLayout from '../components/DashboardLayout';
+import type { GetServerSideProps } from 'next';
 
-export default function ActivityPage() {
-  return (
-    <DashboardLayout title="Activity" subtitle="View system activity logs and events">
-      <div className="card">
-        <div className="title">Activity Log</div>
-        <div className="muted" style={{ marginTop: 8 }}>
-          Activity dashboard is coming soon. This will show system events, syncs, and activity logs.
-        </div>
-      </div>
-    </DashboardLayout>
-  );
+export default function ActivityRedirect() {
+  return null;
 }
+
+export const getServerSideProps: GetServerSideProps = async () => ({
+  redirect: {
+    destination: '/oms?view=ledger',
+    permanent: false,
+  },
+});
