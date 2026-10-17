@@ -143,6 +143,8 @@ export const AICopilot = ({
   const [threads, setThreads] = useState<CortexChatThread[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
   const [threadListError, setThreadListError] = useState<string | null>(null);
+  const [threadOpenError, setThreadOpenError] = useState<string | null>(null);
+  const [failedThreadId, setFailedThreadId] = useState<string | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [pending, setPending] = useState(false);
@@ -158,6 +160,8 @@ export const AICopilot = ({
   };
 
   const startNewThread = () => {
+    setThreadOpenError(null);
+    setFailedThreadId(null);
     setThreadId(null);
     setHistory([
       { role: 'ai', body: ctx?.summary || 'Cortex is grounded in this OMS account. Ask about the current screen, tasks, SKUs, orders, warehouses, audits, or readiness.' },
@@ -166,12 +170,15 @@ export const AICopilot = ({
 
   const openThread = async (id: string) => {
     setLoadingThread(true);
+    setThreadOpenError(null);
+    setFailedThreadId(null);
     try {
       const r = await fetchCortexChatThread(id);
       setThreadId(r.thread.id);
       setHistory((r.messages || []).filter((m) => m.role !== 'system').map(messageToHistory));
-    } catch {
-      setHistory((h) => [...h, { role: 'ai', body: 'I could not open that thread. Start a new question or try again.', muted: true }]);
+    } catch (error: any) {
+      setThreadOpenError(error?.message || 'That thread could not be opened.');
+      setFailedThreadId(id);
     } finally {
       setLoadingThread(false);
     }
@@ -219,9 +226,9 @@ export const AICopilot = ({
     bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
   }, [history.length, pending, loadingThread]);
 
-  const send = async (q: string) => {
+  const send = async (q: string, appendUser = true) => {
     if (!q) return;
-    setHistory((h) => [...h, { role: 'user', body: q }]);
+    if (appendUser) setHistory((h) => [...h, { role: 'user', body: q }]);
     setPending(true);
     try {
       const res = await sendCortexChat({
@@ -261,7 +268,13 @@ export const AICopilot = ({
             <>
               <div className="ai-answer-text">Cortex chat is unavailable right now. No cross-account data was used or exposed.</div>
               <div className="ai-answer-actions">
-                <button className="ai-answer-action" onClick={() => send(q)}>
+                <button
+                  className="ai-answer-action"
+                  onClick={() => {
+                    setHistory((current) => current.slice(0, -1));
+                    void send(q, false);
+                  }}
+                >
                   <Icon name="refresh" size={11} /> Retry
                 </button>
               </div>
@@ -312,6 +325,11 @@ export const AICopilot = ({
         ) : threadListError ? (
           <button className="copilot-thread-pill" onClick={loadThreads} title={threadListError}>
             <Icon name="warning" size={11} /> Retry history
+          </button>
+        ) : null}
+        {threadOpenError && failedThreadId ? (
+          <button className="copilot-thread-pill" onClick={() => openThread(failedThreadId)} title={threadOpenError}>
+            <Icon name="refresh" size={11} /> Retry thread
           </button>
         ) : null}
       </div>
