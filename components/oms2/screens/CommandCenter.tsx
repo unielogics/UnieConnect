@@ -37,6 +37,8 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [optimizing, setOptimizing] = useState(false);
   const [taskFeedback, setTaskFeedback] = useState<string | null>(null);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
+  const [decisionFeedback, setDecisionFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [decisionUpdatingId, setDecisionUpdatingId] = useState<string | null>(null);
 
   const load = (r: Range) => {
     setLoading(true);
@@ -81,12 +83,24 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   };
 
   const decideRecommendation = async (rec: OmsRecommendation, action: 'approve' | 'reject') => {
+    setDecisionUpdatingId(rec.id);
+    setDecisionFeedback(null);
     try {
       if (action === 'approve') await approveRecommendation(rec.id, { source: 'command_center' });
       else await rejectRecommendation(rec.id, 'Denied from Command Center');
+      setDecisionFeedback({
+        tone: 'success',
+        text: action === 'approve' ? `Approved: ${rec.title}` : `Denied: ${rec.title}`,
+      });
+    } catch (error: any) {
+      setDecisionFeedback({
+        tone: 'error',
+        text: error?.message || `The recommendation could not be ${action === 'approve' ? 'approved' : 'denied'}.`,
+      });
     } finally {
       const r = await fetchLatestOptimization().catch(() => null);
       if (r) setRecommendations(r.recommendations || []);
+      setDecisionUpdatingId(null);
     }
   };
 
@@ -199,7 +213,13 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           </div>
 
           <div className="command-decision-row" style={{ marginBottom: 16 }}>
-            <OptimizationImpactPanel recommendations={decisionRecommendations} onNavigate={onNavigate} onDecision={decideRecommendation} />
+            <OptimizationImpactPanel
+              recommendations={decisionRecommendations}
+              onNavigate={onNavigate}
+              onDecision={decideRecommendation}
+              feedback={decisionFeedback}
+              updatingId={decisionUpdatingId}
+            />
             <RevenueTrendCard data={data} bd={bd} compact />
           </div>
 
@@ -567,10 +587,14 @@ const OptimizationImpactPanel = ({
   recommendations,
   onNavigate,
   onDecision,
+  feedback,
+  updatingId,
 }: {
   recommendations: OmsRecommendation[];
   onNavigate: (target: string, payload?: string) => void;
   onDecision: (rec: OmsRecommendation, action: 'approve' | 'reject') => void;
+  feedback?: { tone: 'success' | 'error'; text: string } | null;
+  updatingId?: string | null;
 }) => (
   <div className="card">
     <div className="card-header">
@@ -580,6 +604,11 @@ const OptimizationImpactPanel = ({
       </div>
       <Chip tone="purple" dot={false}>{recommendations.length} open</Chip>
     </div>
+    {feedback && (
+      <div className={`decision-feedback ${feedback.tone}`} role="status">
+        <Icon name={feedback.tone === 'success' ? 'check' : 'warning'} size={13} /> {feedback.text}
+      </div>
+    )}
     <div style={{ padding: 12, maxHeight: 360, overflow: 'auto' }}>
       {recommendations.length === 0 ? (
         <EmptyState>Run Seller Optimization to generate account-level opportunities.</EmptyState>
@@ -588,6 +617,7 @@ const OptimizationImpactPanel = ({
           key={rec.id}
           rec={rec}
           compact
+          busy={updatingId === rec.id}
           onOpen={() => onNavigate(rec.entityType === 'sku' ? 'sku-detail' : rec.entityType === 'business_double' ? 'double' : 'ledger', rec.entityId)}
           onApprove={() => onDecision(rec, 'approve')}
           onDeny={() => onDecision(rec, 'reject')}
