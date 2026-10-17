@@ -282,6 +282,10 @@ export type ShipmentPricingPreview = {
   generatedAt?: string;
   source?: string;
   sourceLabels?: string[];
+  costStatus?: 'evidence_backed' | 'planning_only' | string;
+  costAuthority?: string;
+  pricingBasis?: string;
+  excludedCostItems?: string[];
   currency?: string;
   workflowType?: 'FBA' | 'FBW' | 'FBM' | 'DTC' | string;
   runId?: string;

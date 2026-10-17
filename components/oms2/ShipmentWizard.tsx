@@ -445,11 +445,17 @@ const CortexPricingPanel = ({
   const dueToday = previewDueToday(preview);
   const confidence = preview.confidence == null ? null : Math.round(Number(preview.confidence) * 100);
   const degraded = Boolean((preview as any).fallbackAvailable || (preview as any).cortex?.ok === false || String(preview.source || '').includes('fallback'));
-  const pricingSourceCopy = preview.source === 'cortex_pricing_authority'
-    ? 'Live Cortex pricing using this account\'s connected warehouse and SKU inputs.'
-    : preview.source === 'sku_fulfillment_economics_cache'
-      ? 'Saved per-SKU economics from the latest account pricing run.'
-      : 'Modeled fallback from SKU quantity, dimensions, weight, workflow, and available warehouse policy.';
+  const evidenceBacked = preview.costStatus === 'evidence_backed' && !degraded;
+  const pricingSourceCopy = !evidenceBacked
+    ? 'Planning assumptions derived from SKU quantity, dimensions, weight, workflow, and warehouse policy. This is not a WMS invoice or carrier quote.'
+    : preview.pricingBasis === 'connected_warehouse_cortex'
+      ? 'Cortex pricing anchored to this account\'s connected receiving warehouse, SKU facts, demand, and available rate evidence.'
+      : preview.pricingBasis === 'network_cortex'
+        ? 'Cortex network pricing using SKU facts, demand, and available rate evidence because no connected receiving warehouse is configured.'
+        : preview.pricingBasis === 'connected_warehouse_cache'
+          ? 'Saved account economics for the connected receiving warehouse. Refresh pricing before making a material commitment.'
+          : 'Saved per-SKU account economics from the latest pricing run.';
+  const totalLabel = evidenceBacked ? 'Evidence-backed service + transport estimate' : 'Planning estimate · not invoiced';
 
   return (
     <div className="card" style={{ marginBottom: 14 }}>
@@ -457,11 +463,12 @@ const CortexPricingPanel = ({
         <div>
           <div className="card-title"><Icon name="sparkle" size={14} /> Fulfillment &amp; transport cost preview</div>
           <div className="card-subtitle">
-            Estimated warehouse services and transportation. Required ASN pallet-label PDFs always cost $0.
+            Warehouse services and transportation only. ASN pallet-label PDFs are operational documents and are excluded from pricing.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <Chip tone={String(preview.rateShopScope || '').includes('full') ? 'purple' : 'green'} dot={false}>{pricingScopeLabel(preview.rateShopScope)}</Chip>
+          <Chip tone={evidenceBacked ? 'green' : 'amber'} dot={false}>{evidenceBacked ? 'Evidence backed' : 'Planning only'}</Chip>
           {confidence != null && <Chip tone={confidence >= 70 ? 'green' : 'amber'} dot={false}>{confidence}% confidence</Chip>}
         </div>
       </div>
@@ -509,7 +516,7 @@ const CortexPricingPanel = ({
               ['Fulfillment estimate', fulfillmentTotal],
               ['Outbound parcel postage estimate', labelAvg == null ? null : labelTotal],
               ['LTL transfer estimate', transferPerUnit == null ? null : transferTotal],
-              ['Estimated service + transport total', total],
+              [totalLabel, total],
             ].map(([label, value]) => (
               <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, marginBottom: 6 }}>
                 <span>{label}</span>
@@ -525,8 +532,8 @@ const CortexPricingPanel = ({
             <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'var(--text-secondary)', marginTop: 8 }}>
               <strong style={{ color: 'var(--text)' }}>Cost basis:</strong> {pricingSourceCopy}
             </div>
-            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'var(--green-text)', marginTop: 8, fontWeight: 700 }}>
-              Required 4×6 ASN pallet-label PDF: $0.00.
+            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: 'var(--text-secondary)', marginTop: 8 }}>
+              ASN pallet-label PDFs are included with the shipment documents and never enter the cost calculation.
             </div>
             {(preview.blockers || []).length > 0 && (
               <div style={{ display: 'grid', gap: 5, marginTop: 10 }}>
@@ -1348,7 +1355,7 @@ export const ShipmentWizard = ({
                 )}
               </ReviewCard>
               <ReviewCard title="Pallet labels" tone="green">
-                Required 4x6 ASN pallet labels · no UnieConnect label cost · auto-download after submit
+                Required 4x6 ASN pallet labels · included with shipment documents · auto-download after submit
               </ReviewCard>
               <ReviewCard title="ASN" tone="green">
                 <strong>Auto-generated</strong> on submit · {hasConnectedWarehouses ? 'pushed to connected destination WMS' : 'held as projected until WMS connection'}
