@@ -4,6 +4,7 @@ import { Chip, fmt, Loading, ErrorState, EmptyState, downloadJson } from '../ui'
 import {
   fetchBusinessDouble,
   approveBusinessDouble,
+  rejectBusinessDouble,
   fetchHeatmap,
   fetchLatestOptimization,
   runSellerOptimization,
@@ -48,6 +49,7 @@ export const BusinessDouble = (_: ScreenProps) => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [denied, setDenied] = useState(false);
   const [running, setRunning] = useState(false);
@@ -58,8 +60,8 @@ export const BusinessDouble = (_: ScreenProps) => {
     fetchBusinessDouble()
       .then((d) => {
         setBd(d);
-        setAccepted(d.plan?.status === 'approved' || !!d.latestApproved);
-        setDenied(false);
+        setAccepted(d.plan?.status === 'approved' || d.latestApproved?.sourcePlanId === d.plan?.id);
+        setDenied(d.latestRejected?.sourcePlanId === d.plan?.id);
       })
       .catch((e) => setErr(e.message || 'Failed to load business double'))
       .finally(() => setLoading(false));
@@ -88,11 +90,24 @@ export const BusinessDouble = (_: ScreenProps) => {
     setAccepting(true);
     try {
       await approveBusinessDouble(bd.plan.id);
-      setAccepted(true);
+      load();
     } catch (e: any) {
       setErr(e.message || 'Approval failed');
     } finally {
       setAccepting(false);
+    }
+  };
+
+  const deny = async () => {
+    if (!bd?.plan?.id) return;
+    setRejecting(true);
+    try {
+      await rejectBusinessDouble(bd.plan.id);
+      load();
+    } catch (e: any) {
+      setErr(e.message || 'Rejection failed');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -240,11 +255,9 @@ export const BusinessDouble = (_: ScreenProps) => {
         accepted={accepted}
         denied={denied}
         accepting={accepting}
+        rejecting={rejecting}
         onAccept={() => { if (hasModeledPlan) accept(); }}
-        onDeny={() => {
-          setAccepted(false);
-          setDenied(true);
-        }}
+        onDeny={deny}
         plan={plan}
         modeled={hasModeledPlan}
       />
@@ -447,6 +460,7 @@ const ApprovalSurface = ({
   accepted,
   denied,
   accepting,
+  rejecting,
   onAccept,
   onDeny,
   plan,
@@ -456,6 +470,7 @@ const ApprovalSurface = ({
   accepted: boolean;
   denied: boolean;
   accepting: boolean;
+  rejecting: boolean;
   onAccept: () => void;
   onDeny: () => void;
   plan: BusinessDoubleResponse['plan'];
@@ -518,7 +533,7 @@ const ApprovalSurface = ({
             <button
               className={`btn ${accepted ? '' : 'primary'} lg`}
               onClick={onAccept}
-              disabled={!modeled || accepting || accepted || denied}
+              disabled={!modeled || accepting || rejecting || accepted || denied}
               style={{ marginTop: 8, height: 44, fontSize: 14 }}
             >
               {accepted ? (
@@ -535,8 +550,8 @@ const ApprovalSurface = ({
                 </>
               )}
             </button>
-            <button className="btn lg" disabled={!modeled || accepting || accepted || denied} onClick={onDeny} style={{ height: 40, fontSize: 14 }}>
-              {denied ? 'Plan denied' : 'Deny plan'}
+            <button className="btn lg" disabled={!modeled || accepting || rejecting || accepted || denied} onClick={onDeny} style={{ height: 40, fontSize: 14 }}>
+              {denied ? 'Plan denied' : rejecting ? 'Denying…' : 'Deny plan'}
             </button>
           </div>
         </div>

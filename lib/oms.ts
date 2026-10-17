@@ -168,8 +168,22 @@ export type BusinessDoubleResponse = {
       generatedAt?: string;
     };
   };
-  latestApproved?: unknown;
+  latestApproved?: BusinessDoubleDecision | null;
+  latestRejected?: BusinessDoubleDecision | null;
   persistence: string;
+};
+
+export type BusinessDoubleDecision = {
+  id: string;
+  status: 'approved' | 'rejected' | string;
+  title?: string;
+  sourcePlanId?: string | null;
+  decidedAt?: string | null;
+  decidedBy?: string | null;
+  reason?: string | null;
+  currentMetrics?: Record<string, number>;
+  optimizedMetrics?: Record<string, number>;
+  savings?: Record<string, number>;
 };
 
 /* ============================ Extended OMS types ============================ */
@@ -958,6 +972,12 @@ export const approveBusinessDouble = (planId: string) =>
   omsFetch<{ approved: boolean; planId: string }>(`/business-double/${encodeURIComponent(planId)}/approve`, {
     method: 'POST',
     body: JSON.stringify({}),
+  });
+
+export const rejectBusinessDouble = (planId: string, reason = 'Denied from Business Double') =>
+  omsFetch<{ rejected: boolean; planId: string; sourcePlanId: string }>(`/business-double/${encodeURIComponent(planId)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
   });
 
 const marketplaceQuery = (params?: MarketplaceFilterParams) => {
