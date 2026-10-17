@@ -200,7 +200,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                         { icon: 'eye', title: 'Open order details', onClick: () => onOpenOrder && onOpenOrder(o) },
                         ...(o.sku ? [{ icon: 'box', title: `Open SKU ${o.sku}`, onClick: () => onNavigate('sku-detail', o.sku!) }] : []),
                         ...(rec ? [{ icon: 'sparkle', title: 'Review Cortex decision', onClick: () => setSelectedRec(rec) }] : []),
-                        { icon: 'support', title: 'Email customer', shortcut: '⌘E' },
+                        ...(o.customer_email ? [{ icon: 'support', title: 'Email customer', shortcut: '⌘E', onClick: () => { window.location.href = `mailto:${o.customer_email}`; } }] : []),
                         { divider: true },
                         { icon: 'audit', title: 'Open dispute', onClick: () => onNavigate('audits') },
                         { icon: 'refresh', title: `Re-sync from ${o._ch}`, shortcut: '⌘R', onClick: load },

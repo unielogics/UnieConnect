@@ -59,7 +59,7 @@ const issueChip = (f: F) => {
   return <Chip>{issue}</Chip>;
 };
 
-export const LabelAudit = (_: ScreenProps) => {
+export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
   const [data, setData] = useState<LabelAuditResponse | null>(null);
   const [runs, setRuns] = useState<LabelAuditRun[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -274,6 +274,7 @@ export const LabelAudit = (_: ScreenProps) => {
                   {filtered.map((l) => {
                     const delta = cost(l) - (optCost(l) || cost(l));
                     const rec = recFor(l.id, l.order, l.trackingNumber, l.tracking, l.runId);
+                    const sourceRun = l.runId ? runs.find((run) => String(run.id) === String(l.runId)) : undefined;
                     return (
                       <tr
                         key={l.id}
@@ -284,11 +285,10 @@ export const LabelAudit = (_: ScreenProps) => {
                         onContextMenu={(e) =>
                           ctx.open(e, [
                             { label: 'Label' },
-                            { icon: 'eye', title: 'Open label' },
-                            { icon: 'orders', title: `Open order ${l.order || ''}` },
-                            { icon: 'audit', title: 'Build refund evidence' },
-                            { divider: true },
-                            { icon: 'sparkle', title: `Switch to ${l.optimizedCarrier || 'AI alternative'}` },
+                            ...(sourceRun ? [{ icon: 'eye', title: 'Open audit run', onClick: () => openRun(sourceRun) }] : []),
+                            ...(l.order ? [{ icon: 'orders', title: `Open order ${l.order}`, onClick: () => onOpenOrderById?.(String(l.order)) }] : []),
+                            ...(rec ? [{ icon: 'sparkle', title: 'Review Cortex recommendation', onClick: () => setSelectedRec(rec) }] : []),
+                            ...((sourceRun || l.order || rec) ? [{ divider: true } as const] : []),
                             { icon: 'refresh', title: 'Rescan', shortcut: '⌘R', onClick: load },
                           ])
                         }
