@@ -112,7 +112,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
 
   const totalRefunds = num(data?.summary?.estimatedRefunds) || findings.reduce((s, f) => s + ref(f), 0);
   const currentTotal = findings.reduce((s, f) => s + cost(f), 0);
-  const optimizedTotal = findings.reduce((s, f) => s + (optCost(f) || cost(f)), 0);
+  const optimizedTotal = findings.reduce((s, f) => s + (f.optimizedCost == null ? cost(f) : optCost(f)), 0);
   const labelSavings = currentTotal - optimizedTotal;
   const lateCount = num(data?.summary?.lateDeliveries) || findings.filter((f) => /late/i.test(f.issue || f.findingType || '')).length;
   const refundable = findings.filter((f) => ref(f) > 0).length;
@@ -153,7 +153,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
         <div>
           <h1 className="page-title">Carrier Label Audit</h1>
           <p className="page-subtitle">
-            Every outbound label — late, refunds, dim-weight reclass, and optimized carrier/service alternatives with the AI plan.
+            Audit late delivery, refund candidates, evidence gaps, and shipments that need a live carrier rate shop.
           </p>
         </div>
         <div className="page-actions">
@@ -210,14 +210,14 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
               <div className="stat-delta">{findings.length ? ((lateCount / findings.length) * 100).toFixed(1) : 0}% of volume</div>
             </div>
             <div className="stat good">
-              <div className="stat-label">Refunds available</div>
+              <div className="stat-label">Refund candidates</div>
               <div className="stat-value">${totalRefunds.toFixed(0)}</div>
               <div className="stat-delta up"><span className="arrow">▲</span> {refundable} eligible</div>
             </div>
             <div className="stat ai">
-              <div className="stat-label">Plan savings on labels</div>
+              <div className="stat-label">Quoted service savings</div>
               <div className="stat-value">{fmt.money(labelSavings, { compact: true })}</div>
-              <div className="stat-delta">{currentTotal ? ((labelSavings / currentTotal) * 100).toFixed(1) : 0}% lower / label</div>
+              <div className="stat-delta">{labelSavings > 0 && currentTotal ? `${((labelSavings / currentTotal) * 100).toFixed(1)}% from comparable quotes` : 'No comparable quotes yet'}</div>
             </div>
           </div>
 
@@ -233,7 +233,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
               <div className="card-body label-audit-run-grid" style={{ gap: 12 }}>
                 <MiniRunStat label="Findings" value={latestRun.findingsCount} />
                 <MiniRunStat label="Refunds" value={fmt.money(latestRun.estimatedRefunds)} />
-                <MiniRunStat label="Service savings" value={fmt.money(latestRun.optimizedServiceSavings)} />
+                <MiniRunStat label="Quoted savings" value={fmt.money(latestRun.optimizedServiceSavings)} />
                 <MiniRunStat label="Missing evidence" value={latestRun.missingEvidenceCount} />
               </div>
             </div>
@@ -267,7 +267,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
                     <th>Issue</th>
                     <th className="num">Refund</th>
                     <th>Audit</th>
-                    <th>AI alternative</th>
+                    <th>Rate review</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -353,7 +353,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
               <EmptyState>No CSV audit runs yet.</EmptyState>
             ) : (
               <table className="data">
-                <thead><tr><th>Run</th><th>File</th><th className="num">Rows</th><th className="num">Findings</th><th className="num">Refunds</th><th className="num">Savings</th><th>Status</th></tr></thead>
+                <thead><tr><th>Run</th><th>File</th><th className="num">Rows</th><th className="num">Findings</th><th className="num">Refund candidates</th><th className="num">Quoted savings</th><th>Status</th></tr></thead>
                 <tbody>
                   {runs.map((run) => (
                     <tr key={run.id} className="clickable" onClick={() => openRun(run)}>
@@ -426,7 +426,7 @@ const LabelAuditUploadModal = ({
               <Icon name="download" size={18} style={{ transform: 'rotate(180deg)' }} />
               <div>
                 <div style={{ fontWeight: 800 }}>{filename || 'Choose CSV file'}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{message || 'Rows are audited for refunds, late delivery, evidence gaps, and optimized carrier/service alternatives.'}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{message || 'Rows are audited for late delivery, refund candidates, evidence gaps, and shipments that require live rate shopping.'}</div>
               </div>
             </div>
           </label>
