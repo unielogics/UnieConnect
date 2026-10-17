@@ -1,15 +1,12 @@
-import { useEffect } from 'react';
-import { useRouter } from 'next/router';
-import DashboardLayout from '../components/DashboardLayout';
+import type { GetServerSideProps } from 'next';
 
 export default function ItemsRedirect() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace('/catalog');
-  }, [router]);
-  return (
-    <DashboardLayout title="Redirecting" subtitle="">
-      <div className="text-gray-500">Redirecting to Catalog...</div>
-    </DashboardLayout>
-  );
+  return null;
 }
+
+export const getServerSideProps: GetServerSideProps = async () => ({
+  redirect: {
+    destination: '/oms?view=skus',
+    permanent: false,
+  },
+});
