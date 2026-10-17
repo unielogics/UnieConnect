@@ -17,22 +17,20 @@ export const OrderModal = ({ order, onClose, onNavigate }: { order: OmsOrder; on
   const customer = order.customer || order.customer_name || order.display_name || order.customer_email || 'Customer';
   const total = num(order.total);
   const cost = num(order.cost);
-  const qty = num(order.qty) || 1;
-  const wh = order.wh || 'WH';
+  const lines = order.lines || [];
+  const qty = num(order.qty) || lines.reduce((sum, line) => sum + num(line.quantity), 0);
+  const wh = order.wh || 'Not assigned';
   const status = order.status || 'new';
   const date = order.date || '';
   const promised = order.promised || '—';
 
-  const timeline = [
-    { ts: '09:14', title: `Order received from ${ch}`, source: ch, done: true },
-    { ts: '09:18', title: 'Auto-validated (address fingerprint, fraud score)', source: 'Fraud Shield', done: true },
-    { ts: '09:32', title: `Inventory allocated at ${wh}`, source: `WMS:${wh}`, done: true },
-    { ts: '14:08', title: 'Picking started', source: `WMS:${wh}`, done: status !== 'new' },
-    { ts: '15:21', title: 'Packed and weighed', source: `WMS:${wh}`, done: ['packed', 'shipped', 'delivered', 'exception'].includes(status) },
-    { ts: '16:05', title: `Label generated · ${order.carrier || 'carrier'}`, source: 'TMS:ShipStation', done: ['shipped', 'delivered'].includes(status) },
-    { ts: `${promised} (est)`, title: `Delivery to ${order.state || '—'}`, source: order.carrier || '—', done: status === 'delivered' },
-  ];
-  const doneCount = timeline.filter((t) => t.done).length;
+  const timeline = order.timeline || [];
+  const recommendation = order.metadata?.fulfillmentRecommendation;
+  const eventTime = (value?: string) => {
+    if (!value) return '—';
+    const dateValue = new Date(value);
+    return Number.isNaN(dateValue.getTime()) ? value : dateValue.toLocaleString();
+  };
 
   return (
     <Modal
@@ -78,11 +76,10 @@ export const OrderModal = ({ order, onClose, onNavigate }: { order: OmsOrder; on
         <div className="card">
           <div className="card-header">
             <div className="card-title">Fulfillment timeline</div>
-            <Chip dot={false}>
-              {doneCount} / {timeline.length} steps
-            </Chip>
+            <Chip dot={false}>{timeline.length} events</Chip>
           </div>
           <div style={{ padding: 0 }}>
+            {timeline.length === 0 && <div style={{ padding: 16, color: 'var(--text-secondary)', fontSize: 12.5 }}>No fulfillment events have been received from a connected warehouse yet.</div>}
             {timeline.map((t, i) => (
               <div
                 key={i}
@@ -92,31 +89,30 @@ export const OrderModal = ({ order, onClose, onNavigate }: { order: OmsOrder; on
                   gap: 12,
                   padding: '12px 16px',
                   borderBottom: i === timeline.length - 1 ? 'none' : '1px solid var(--border-subtle)',
-                  opacity: t.done ? 1 : 0.55,
                 }}
               >
-                <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{t.ts}</span>
+                <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{eventTime(t.ts)}</span>
                 <div
                   style={{
                     width: 22,
                     height: 22,
                     borderRadius: '50%',
-                    background: t.done ? 'var(--green)' : 'var(--bg-active)',
-                    color: t.done ? 'white' : 'var(--text-tertiary)',
+                    background: 'var(--green)',
+                    color: 'white',
                     display: 'grid',
                     placeItems: 'center',
                     flexShrink: 0,
                     position: 'relative',
                   }}
                 >
-                  {t.done ? <Icon name="check" size={12} /> : <span style={{ fontSize: 9, fontWeight: 700 }}>{i + 1}</span>}
+                  <Icon name="check" size={12} />
                   {i < timeline.length - 1 && (
                     <div style={{ position: 'absolute', top: 22, left: '50%', transform: 'translateX(-50%)', width: 1, height: 32, background: 'var(--border)' }} />
                   )}
                 </div>
                 <div>
                   <div style={{ fontSize: 12.5, fontWeight: 600 }}>{t.title}</div>
-                  <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)', marginTop: 2 }}>{t.source}</div>
+                  <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)', marginTop: 2 }}>{t.source || 'OMS'}</div>
                 </div>
               </div>
             ))}
@@ -155,23 +151,20 @@ export const OrderModal = ({ order, onClose, onNavigate }: { order: OmsOrder; on
             </div>
           </div>
 
-          {order.sku && (
+          {lines.length > 0 && (
             <div className="card">
               <div className="card-header">
-                <div className="card-title">Line item</div>
-                <button className="btn ghost sm" onClick={() => { onNavigate('sku-detail', order.sku); onClose(); }}>SKU →</button>
+                <div className="card-title">Order items</div>
               </div>
-              <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 42, height: 42, borderRadius: 8, background: 'var(--bg-sunken)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', color: 'var(--text-tertiary)' }}>
-                  <Icon name="box" size={20} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{order.sku}</div>
-                  <div style={{ fontSize: 12.5, fontWeight: 600 }}>{order.skuName || order.sku}</div>
-                  <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                    {qty} × ${(total / qty).toFixed(2)} = ${total.toFixed(2)}
-                  </div>
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {lines.map((line, index) => (
+                  <button key={line.id || index} className="order-line-row" onClick={() => line.itemId && (onNavigate('sku-detail', line.itemId), onClose())} disabled={!line.itemId}>
+                    <span className="mono">{line.sku || 'No SKU'}</span>
+                    <span>{line.title || line.sku || 'Order item'}</span>
+                    <span className="mono">{num(line.quantity)} × ${num(line.unitPrice).toFixed(2)}</span>
+                    <strong>${num(line.totalPrice || num(line.quantity) * num(line.unitPrice)).toFixed(2)}</strong>
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -202,28 +195,21 @@ export const OrderModal = ({ order, onClose, onNavigate }: { order: OmsOrder; on
                 </div>
               </div>
               <div className="card-body" style={{ fontSize: 12.5 }}>
-                Short-ship reported by {wh}. Cortex auto-opened a claim and re-routed replacement units.
+                {order.metadata?.exceptionReason || `The warehouse reported an exception for this order${wh !== 'Not assigned' ? ` at ${wh}` : ''}. Review the connected WMS event history before taking action.`}
               </div>
             </div>
           )}
 
-          <div className="card" style={{ borderColor: 'var(--purple-soft)' }}>
-            <div className="card-header">
-              <div className="card-title">
-                <Icon name="sparkle" size={15} style={{ color: 'var(--purple)' }} /> AI insight
+          {recommendation?.summary && (
+            <div className="card" style={{ borderColor: 'var(--purple-soft)' }}>
+              <div className="card-header">
+                <div className="card-title">
+                  <Icon name="sparkle" size={15} style={{ color: 'var(--purple)' }} /> Cortex recommendation
+                </div>
               </div>
+              <div className="card-body" style={{ fontSize: 12.5 }}>{recommendation.summary}</div>
             </div>
-            <div className="card-body" style={{ fontSize: 12.5 }}>
-              Optimal carrier for this zone × weight is{' '}
-              <strong>{order.carrier === 'UPS Ground' ? 'USPS Ground Advantage' : 'UPS Ground'}</strong>
-              {cost ? (
-                <>
-                  {' '}at <strong>${(cost * 0.78).toFixed(2)}</strong> (~22% cheaper)
-                </>
-              ) : null}
-              . The AI plan switches this lane automatically on accept.
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </Modal>
