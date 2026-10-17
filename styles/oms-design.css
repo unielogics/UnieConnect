@@ -1025,6 +1025,12 @@
 .uc-shell .command-mini-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .uc-shell .label-audit-run-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .uc-shell .command-activity-row { display: grid; grid-template-columns: 44px 24px minmax(0, 1fr) auto; }
+.uc-shell .modal-form-grid,
+.uc-shell .research-two-column-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.uc-shell .modal-three-column-grid,
+.uc-shell .research-three-column-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.uc-shell .modal-four-column-grid,
+.uc-shell .research-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 1100px) {
   .uc-shell .business-decision-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .uc-shell .business-autonomy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1033,6 +1039,8 @@
   .uc-shell .app-studio-steps { grid-template-columns: minmax(0, 1fr); }
   .uc-shell .supplier-summary-grid,
   .uc-shell .label-audit-run-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .uc-shell .modal-four-column-grid,
+  .uc-shell .research-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
   .uc-shell .business-context-strip,
@@ -1053,6 +1061,8 @@
   .uc-shell .supplier-pickup-grid,
   .uc-shell .supplier-record-grid,
   .uc-shell .command-mini-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .uc-shell .modal-three-column-grid,
+  .uc-shell .research-three-column-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .uc-shell .business-context-strip > .btn,
   .uc-shell .business-decision-grid > .btn { width: 100%; justify-content: center; }
   .uc-shell .sku-inbound-row { grid-template-columns: minmax(0, 1fr) auto; }
@@ -1074,7 +1084,13 @@
   .uc-shell .supplier-record-grid,
   .uc-shell .command-mini-metrics,
   .uc-shell .label-audit-run-grid,
-  .uc-shell .command-activity-row { grid-template-columns: minmax(0, 1fr); }
+  .uc-shell .command-activity-row,
+  .uc-shell .modal-form-grid,
+  .uc-shell .modal-three-column-grid,
+  .uc-shell .modal-four-column-grid,
+  .uc-shell .research-two-column-grid,
+  .uc-shell .research-three-column-grid,
+  .uc-shell .research-stat-grid { grid-template-columns: minmax(0, 1fr); }
   .uc-shell .sku-event-row > :first-child,
   .uc-shell .sku-inbound-row > :first-child,
   .uc-shell .command-activity-row > :first-child { grid-column: auto; }

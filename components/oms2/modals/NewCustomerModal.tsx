@@ -23,7 +23,7 @@ const label: React.CSSProperties = {
   display: 'block',
 };
 const Row = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>{children}</div>
+  <div className="modal-form-grid" style={{ gap: 12, marginBottom: 12 }}>{children}</div>
 );
 
 export const NewCustomerModal = ({

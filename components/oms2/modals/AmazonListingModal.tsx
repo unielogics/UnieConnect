@@ -138,7 +138,7 @@ export const AmazonListingModal = ({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+        <div className="modal-form-grid" style={{ gap: 12 }}>
           <label className="field-label">
             Seller SKU
             <input className="input" value={form.sellerSku} onChange={(e) => update('sellerSku', e.target.value)} />
@@ -182,7 +182,7 @@ export const AmazonListingModal = ({
             Weight
             <input className="input" type="number" min="0" step="0.01" value={form.weight} onChange={(e) => update('weight', e.target.value)} />
           </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+          <div className="modal-three-column-grid" style={{ gap: 8 }}>
             <label className="field-label">
               Length
               <input className="input" type="number" min="0" step="0.01" value={form.length} onChange={(e) => update('length', e.target.value)} />

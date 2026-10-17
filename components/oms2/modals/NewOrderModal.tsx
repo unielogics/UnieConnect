@@ -487,7 +487,7 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
                 <div className="card-title">Service level</div>
               </div>
               <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <div className="modal-form-grid" style={{ gap: 6 }}>
                   {SERVICE_LEVELS.map((sl) => {
                     const active = sl.value === serviceLevel;
                     return (

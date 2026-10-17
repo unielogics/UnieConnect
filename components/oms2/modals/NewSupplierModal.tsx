@@ -26,7 +26,7 @@ const label: React.CSSProperties = {
 };
 
 const Row = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>{children}</div>
+  <div className="modal-form-grid" style={{ gap: 12, marginBottom: 12 }}>{children}</div>
 );
 
 const vehicleOptions = [
@@ -370,7 +370,7 @@ export const NewSupplierModal = ({
               </div>
               <div>
                 <label style={label}>Operational requirements</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, paddingTop: 2 }}>
+                <div className="modal-form-grid" style={{ gap: 8, paddingTop: 2 }}>
                   {[
                     ['appointmentRequired', 'Appointment required', appointmentRequired, setAppointmentRequired],
                     ['liftgateRequired', 'Liftgate required', liftgateRequired, setLiftgateRequired],
@@ -387,7 +387,7 @@ export const NewSupplierModal = ({
             </Row>
             <div style={{ marginBottom: 12 }}>
               <label style={label}>Equipment required at pickup</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))', gap: 8 }}>
+              <div className="modal-four-column-grid" style={{ gap: 8 }}>
                 {equipmentOptions.map(([id, text]) => (
                   <button
                     key={id}

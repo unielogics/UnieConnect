@@ -145,7 +145,7 @@ export const ProductResearchResultModal = ({ row, onClose, onListed }: {
         </div>
 
         {verdict && (verdict.positive_reasons?.length || verdict.blocking_reasons?.length) ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="research-two-column-grid" style={{ gap: 10 }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green-text)', marginBottom: 4 }}>Why it could sell</div>
               {(verdict.positive_reasons || []).slice(0, 4).map((x: string, i: number) => (
@@ -164,14 +164,14 @@ export const ProductResearchResultModal = ({ row, onClose, onListed }: {
         ) : null}
 
         {/* Opportunity + Keepa stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        <div className="research-stat-grid" style={{ gap: 10 }}>
           <Stat label="Opportunity score" value={r.opportunityScore ?? '—'} />
           <Stat label="Sales rank" value={keepa?.salesRank != null ? Number(keepa.salesRank).toLocaleString() : '—'} />
           <Stat label="Buy box" value={keepa?.buyBoxPrice != null ? `$${Number(keepa.buyBoxPrice).toFixed(2)}` : '—'} />
           <Stat label="Reviews" value={keepa?.reviewCount != null ? Number(keepa.reviewCount).toLocaleString() : '—'} />
         </div>
         {opp && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          <div className="research-three-column-grid" style={{ gap: 10 }}>
             <Stat label="Est. monthly units" value={opp.est_monthly_units != null ? Number(opp.est_monthly_units).toLocaleString() : '—'} />
             <Stat label="Amazon share 30d" value={opp.amazon_share_30d_pct != null ? `${Number(opp.amazon_share_30d_pct).toFixed(0)}%` : '—'} />
             <Stat label="Buy-box sellers" value={opp.distinct_buybox_sellers_30d ?? '—'} />
@@ -180,7 +180,7 @@ export const ProductResearchResultModal = ({ row, onClose, onListed }: {
 
         {/* Charts */}
         {series.length >= 2 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="research-two-column-grid" style={{ gap: 10 }}>
             <LineChart points={series} field="sales_rank" color="var(--purple)" label="Sales rank (lower = better)" />
             <LineChart points={series} field="buy_box_landed_usd" color="var(--green-text)" label="Buy-box price" invert />
             <LineChart points={series} field="new_offer_count" color="var(--amber-text)" label="Offer count" invert />

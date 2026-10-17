@@ -416,7 +416,7 @@ export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, su
 
         {/* verdict reasons */}
         {((verdict.positive_reasons || []).length > 0 || (verdict.blocking_reasons || []).length > 0) && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="research-two-column-grid" style={{ gap: 12 }}>
             <Section title="Why it could sell">
               {(verdict.positive_reasons || []).length
                 ? (verdict.positive_reasons || []).map((x: string, i: number) => <div key={i} style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 4 }}>✓ {x}</div>)
@@ -432,7 +432,7 @@ export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, su
 
         {/* 2. OPPORTUNITY BAND */}
         <Section title="Opportunity & demand" chip={<Chip tone="purple" dot={false}>{titleCase(vol.regime || 'neutral')}</Chip>}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          <div className="research-stat-grid" style={{ gap: 10 }}>
             <Stat label="Est. monthly units" value={fmtNum(est.monthly_units_est_mid ?? opp.est_monthly_units)} sub={num(est.monthly_units_est_low) != null ? `${fmtNum(est.monthly_units_est_low)}–${fmtNum(est.monthly_units_est_high)} range` : undefined} />
             <Stat label="Opportunity %" value={fmtPct(opp.opportunity_pct)} />
             <Stat label="Amazon share 30d" value={fmtPct(opp.amazon_share_30d_pct)} sub={opp.amazon_selling ? 'Amazon is selling' : 'Amazon not on listing'} />
@@ -443,7 +443,7 @@ export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, su
 
         {/* 3. CHARTS GRID — interactive keepa.com-style (hover tooltip, date axis, Amazon-stock shading) */}
         {series.length >= 2 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="research-two-column-grid" style={{ gap: 12 }}>
             <KeepaChart
               title="Price history"
               series={series}
@@ -484,7 +484,7 @@ export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, su
 
         {/* 4. BUY-BOX COMPETITION */}
         <Section title="Buy-box & competition" chip={<Chip tone={bbCtx.competition_level === 'high' ? 'red' : bbCtx.competition_level === 'low' ? 'green' : 'amber'} dot={false}>{titleCase(bbCtx.competition_level || 'unknown')}</Chip>}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          <div className="research-stat-grid" style={{ gap: 10 }}>
             <Stat label="Offer rows" value={fmtNum(bbCtx.offer_row_count ?? bbMkt.offer_row_count)} />
             <Stat label="Unique merchants (new)" value={fmtNum(bbCtx.unique_merchants_new_only ?? bbMkt.unique_merchants_new_only)} />
             <Stat label="Amazon present" value={bbMkt.amazon_retail_offer_presence ? 'Yes' : 'No'} />
@@ -519,9 +519,9 @@ export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, su
         </Section>
 
         {/* 6. VOLUME & MOMENTUM + 7. INVENTORY/PROCUREMENT side by side */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="research-two-column-grid" style={{ gap: 12 }}>
           <Section title="Volume & momentum">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="research-two-column-grid" style={{ gap: 10 }}>
               <Stat label="Regime" value={titleCase(vol.regime)} />
               <Stat label="Rank Δ 30d" value={mom.sales_rank_delta_30d_plain_language || fmtNum(mom.sales_rank_delta_30d)} />
               <Stat label="New reviews 30d" value={fmtNum(mom.new_reviews_last_30d)} />
@@ -530,7 +530,7 @@ export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, su
             {vol.listing_gap_reason && <div style={{ marginTop: 8 }}><PartialHint note={vol.listing_gap_reason} /></div>}
           </Section>
           <Section title="Inventory & procurement">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="research-two-column-grid" style={{ gap: 10 }}>
               <Stat label="Target cover" value={num(place.target_days_cover) != null ? `${place.target_days_cover}d` : '—'} />
               <Stat label="Suggested units" value={fmtNum(place.suggested_total_units_for_target_cover)} />
               <Stat label="Min warehouses" value={fmtNum(place.suggested_min_active_warehouses)} />
@@ -546,7 +546,7 @@ export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, su
 
         {/* 8. ECONOMICS */}
         <Section title="Pricing & economics">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          <div className="research-stat-grid" style={{ gap: 10 }}>
             <Stat label="List price" value={fmtUsd(econ.list_price_usd)} />
             <Stat label="Buy-box landed" value={fmtUsd(econ.buy_box_landed_price_usd)} />
             <Stat label="Amazon price" value={fmtUsd(econ.amazon_price_usd)} />

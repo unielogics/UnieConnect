@@ -93,7 +93,7 @@ export const NewTicketModal = ({ onClose, onSuccess }: { onClose: () => void; on
               <label style={label}>Subject *</label>
               <input style={field} value={f.subject} onChange={set('subject')} placeholder="Wrong item shipped — customer received 16oz" />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div className="modal-form-grid" style={{ gap: 12, marginBottom: 12 }}>
               <div>
                 <label style={label}>Linked entity type</label>
                 <select style={field} value={f.entityType} onChange={set('entityType')}>
@@ -109,7 +109,7 @@ export const NewTicketModal = ({ onClose, onSuccess }: { onClose: () => void; on
               <input style={field} value={f.entityId} onChange={set('entityId')} placeholder="OR12345678 or source order ID" />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div className="modal-form-grid" style={{ gap: 12, marginBottom: 12 }}>
               <div>
                 <label style={label}>Channel</label>
                 <select style={field} value={f.channel} onChange={set('channel')}>
