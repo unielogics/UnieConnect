@@ -24,6 +24,7 @@ export const Returns = ({ onNavigate }: ScreenProps) => {
   const [err, setErr] = useState<string | null>(null);
   const [selected, setSelected] = useState<OmsReturn | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -38,9 +39,10 @@ export const Returns = ({ onNavigate }: ScreenProps) => {
   const openDetail = (r: OmsReturn) => {
     setSelected(r);
     setDetailLoading(true);
+    setDetailError(null);
     fetchOmsReturn(r.id)
       .then((d) => setSelected(d.return))
-      .catch(() => {})
+      .catch((error: any) => setDetailError(error?.message || 'The complete return detail could not be loaded.'))
       .finally(() => setDetailLoading(false));
   };
 
@@ -130,6 +132,15 @@ export const Returns = ({ onNavigate }: ScreenProps) => {
               </button>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {detailError && (
+                <div className="inline-banner danger" role="alert">
+                  <Icon name="warning" size={13} />
+                  <span style={{ flex: 1 }}>{detailError}</span>
+                  <button className="btn ghost sm" onClick={() => openDetail(selected)}>
+                    <Icon name="refresh" size={12} /> Retry
+                  </button>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 <div><strong>Status:</strong> <StatusChip status={selected.status} /></div>
                 {selected.originalOrderNumber && <div><strong>Order:</strong> {selected.originalOrderNumber}</div>}

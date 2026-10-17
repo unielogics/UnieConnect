@@ -95,6 +95,7 @@ export default function UnieConnectApp() {
   const [orderModal, setOrderModal] = useState<OmsOrder | null>(null);
   const [asnModal, setAsnModal] = useState<OmsAsnDetail | null>(null);
   const [asnModalLoading, setAsnModalLoading] = useState(false);
+  const [detailLoadError, setDetailLoadError] = useState<string | null>(null);
   const [forcedSupplierId, setForcedSupplierId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [userLoadComplete, setUserLoadComplete] = useState(false);
@@ -117,6 +118,7 @@ export default function UnieConnectApp() {
     setShowWizard(false);
     setOrderModal(null);
     setAsnModal(null);
+    setDetailLoadError(null);
     setForcedSupplierId(null);
     setNewProductOpen(false);
     setNewSupplierOpen(false);
@@ -235,16 +237,21 @@ export default function UnieConnectApp() {
   const isSelected = useCallback((id: string) => selectedSkus.some((s) => s.id === id), [selectedSkus]);
 
   const openOrderById = useCallback((orderId: string) => {
+    setDetailLoadError(null);
     fetchOmsOrder(orderId)
       .then((res) => setOrderModal(res.order))
-      .catch(() => {});
+      .catch((error: any) => setDetailLoadError(error?.message || 'The order detail could not be loaded.'));
   }, []);
 
   const openAsnById = useCallback((asnId: string) => {
+    setDetailLoadError(null);
     setAsnModalLoading(true);
     fetchOmsAsn(asnId)
       .then((res) => setAsnModal(res.asn))
-      .catch(() => setAsnModal(null))
+      .catch((error: any) => {
+        setAsnModal(null);
+        setDetailLoadError(error?.message || 'The ASN detail could not be loaded.');
+      })
       .finally(() => setAsnModalLoading(false));
   }, []);
 
@@ -456,6 +463,15 @@ export default function UnieConnectApp() {
               onSelectSearchResult={openSearchResult}
             />
             <FulfillmentPausedBanner user={currentUser} />
+            {detailLoadError && (
+              <div className="inline-banner danger app-wide" role="alert">
+                <Icon name="warning" size={13} />
+                <span>{detailLoadError}</span>
+                <button className="icon-btn dismiss-x" aria-label="Dismiss detail error" onClick={() => setDetailLoadError(null)}>
+                  <Icon name="x" size={13} />
+                </button>
+              </div>
+            )}
             <React.Fragment key={`${section}-${screenKey}`}>
               {screens[section] || <CommandCenter {...sp} />}
             </React.Fragment>
