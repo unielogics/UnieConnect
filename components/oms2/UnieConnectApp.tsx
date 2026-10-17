@@ -41,7 +41,7 @@ import { NewTicketModal } from './modals/NewTicketModal';
 import { CsvImportModal, CsvImportEntity } from './modals/CsvImportModal';
 import { StateDetailModal } from './modals/StateDetailModal';
 import type { OmsAsnDetail, OmsOrder, OmsSku, OmsSupplier } from '../../lib/oms';
-import { fetchOmsAsn, fetchOmsOrder } from '../../lib/oms';
+import { archiveOmsSkus, fetchOmsAsn, fetchOmsOrder } from '../../lib/oms';
 import { fetchCurrentUser, type CurrentUser } from '../../lib/user';
 import { fetchUserFeatures, type Feature } from '../../lib/features';
 
@@ -49,6 +49,11 @@ export type Tweaks = { theme: 'light' | 'dark'; accent: string; density: 'comfor
 export const ACCENT_OPTIONS = ['#3157f6', '#6d28d9', '#0d9488', '#db2777'];
 const TWEAK_KEY = 'uc-oms-tweaks';
 const DEFAULT_TWEAKS: Tweaks = { theme: 'light', accent: '#3157f6', density: 'comfortable' };
+
+const csvCell = (value: unknown) => {
+  const text = value == null ? '' : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
 
 export type NavFn = (target: string, payload?: string) => void;
 
@@ -241,6 +246,46 @@ export default function UnieConnectApp() {
     return new Set(sups).size > 1;
   }, [selectedSkus, skuSupplierMap]);
 
+  const exportSelectedSkus = useCallback(() => {
+    const columns: Array<[string, (item: SelSku) => unknown]> = [
+      ['SKU', (item) => item.sku || item.id],
+      ['Title', (item) => item.title || item.name],
+      ['Supplier ID', (item) => item.supplierId || ''],
+      ['Available', (item) => item.available ?? ''],
+      ['Inbound', (item) => item.inbound ?? ''],
+      ['30-day velocity', (item) => item.velocity30d ?? ''],
+      ['Days of cover', (item) => item.daysOfCover ?? ''],
+      ['Risk', (item) => item.risk ?? ''],
+      ['Service tier', (item) => item.serviceTier ?? ''],
+    ];
+    const csv = [
+      columns.map(([label]) => csvCell(label)).join(','),
+      ...selectedSkus.map((item) => columns.map(([, value]) => csvCell(value(item))).join(',')),
+    ].join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `unieconnect-skus-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [selectedSkus]);
+
+  const archiveSelectedSkus = useCallback(async () => {
+    const result = await archiveOmsSkus(selectedSkus.map((item) => item.id));
+    if (result.archivedCount !== selectedSkus.length) {
+      throw new Error(`Archived ${result.archivedCount} of ${selectedSkus.length} selected SKUs. Refresh and try again.`);
+    }
+    setSelectedSkus([]);
+    setSkuSupplierMap((current) => {
+      const next = { ...current };
+      result.archivedIds.forEach((id) => delete next[id]);
+      return next;
+    });
+    bumpScreen();
+  }, [bumpScreen, selectedSkus]);
+
   const enabledFeatureIds = useMemo(() => {
     const ids = new Set<string>();
     userFeatures.forEach((feature) => {
@@ -400,8 +445,8 @@ export default function UnieConnectApp() {
             supplierMixed={supplierMixed}
             onClear={() => setSelectedSkus([])}
             onCreateShipment={() => setShowWizard(true)}
-            onExport={() => {}}
-            onDelete={() => setSelectedSkus([])}
+            onExport={exportSelectedSkus}
+            onArchive={archiveSelectedSkus}
           />
 
           {showWizard && (

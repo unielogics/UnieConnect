@@ -936,6 +936,12 @@ export const fetchOmsSkus = (filter?: MarketplaceFilterParams) => {
   return omsFetch<{ skus: OmsSku[]; total: number }>(`/skus${suffix}`);
 };
 
+export const archiveOmsSkus = (ids: string[]) =>
+  omsFetch<{ requestedCount: number; archivedCount: number; archivedIds: string[] }>('/skus/archive', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
+
 export const fetchOmsSkuDetail = (skuId: string) =>
   omsFetch<OmsSkuDetail>(`/skus/${encodeURIComponent(skuId)}`);
 

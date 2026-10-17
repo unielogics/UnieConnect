@@ -418,7 +418,18 @@
 .uc-shell .sel-bar button:hover { background: rgba(255,255,255,0.18); }
 .uc-shell .sel-bar button.primary { background: var(--accent); color: white; }
 .uc-shell .sel-bar button.primary:hover { background: var(--accent-hover); }
+.uc-shell .sel-bar button.danger { background: var(--red); color: #fff; }
+.uc-shell .sel-bar button:disabled { cursor: wait; opacity: 0.65; }
 .uc-shell .sel-bar button.close { background: transparent; padding: 6px; }
+.uc-shell .sel-bar .archive-confirm { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; }
+.uc-shell .sel-bar .sel-error { position: absolute; left: 18px; right: 18px; bottom: calc(100% + 8px); padding: 8px 10px; border: 1px solid var(--red-border); border-radius: 6px; background: var(--red-soft); color: var(--red-text); font-size: 12px; box-shadow: var(--shadow-sm); }
+@media (max-width: 760px) {
+  .uc-shell .sel-bar { left: 12px; right: 12px; bottom: 12px; transform: none; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  .uc-shell .sel-bar .meta { flex: 1; min-width: 120px; }
+  .uc-shell .sel-bar .actions { width: 100%; flex-wrap: wrap; }
+  .uc-shell .sel-bar .actions button { flex: 1; justify-content: center; }
+  .uc-shell .sel-bar .archive-confirm { width: 100%; flex-wrap: wrap; }
+}
 
 /* ============================= Modal overlay ============================= */
 .uc-shell .modal-overlay {

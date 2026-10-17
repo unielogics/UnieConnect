@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon } from './icons';
 
 export type SelSku = {
@@ -17,7 +17,7 @@ export const SelectionBar = ({
   onClear,
   onCreateShipment,
   onExport,
-  onDelete,
+  onArchive,
   supplierMixed,
 }: {
   count: number;
@@ -25,12 +25,28 @@ export const SelectionBar = ({
   onClear: () => void;
   onCreateShipment: () => void;
   onExport: () => void;
-  onDelete: () => void;
+  onArchive: () => Promise<void>;
   supplierMixed: boolean;
 }) => {
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
+
   if (count === 0) return null;
+
+  const archive = async () => {
+    setArchiving(true);
+    setArchiveError('');
+    try {
+      await onArchive();
+    } catch (error: any) {
+      setArchiveError(error?.message || 'Could not archive the selected SKUs.');
+      setArchiving(false);
+    }
+  };
+
   return (
-    <div className="sel-bar fade-in">
+    <div className={`sel-bar fade-in ${confirmArchive ? 'confirming' : ''}`} role="region" aria-label="Selected SKU actions">
       <span className="count">{count}</span>
       <span className="meta">
         selected · {items[0]?.name?.slice(0, 28)}
@@ -49,13 +65,24 @@ export const SelectionBar = ({
         <button onClick={onExport}>
           <Icon name="download" size={12} /> Export
         </button>
-        <button onClick={onDelete}>
-          <Icon name="x" size={12} /> Remove
-        </button>
+        {confirmArchive ? (
+          <span className="archive-confirm" role="alert">
+            <span>Archive {count} SKU{count === 1 ? '' : 's'}?</span>
+            <button onClick={() => { setConfirmArchive(false); setArchiveError(''); }} disabled={archiving}>Cancel</button>
+            <button className="danger" onClick={archive} disabled={archiving}>
+              {archiving ? 'Archiving...' : 'Archive'}
+            </button>
+          </span>
+        ) : (
+          <button onClick={() => setConfirmArchive(true)}>
+            <Icon name="archive" size={12} /> Archive
+          </button>
+        )}
         <button className="close" onClick={onClear} data-hint="Clear">
           <Icon name="x" size={14} />
         </button>
       </div>
+      {archiveError ? <span className="sel-error" role="alert">{archiveError}</span> : null}
     </div>
   );
 };
