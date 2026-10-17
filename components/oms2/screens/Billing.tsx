@@ -200,11 +200,9 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
   const savingsPct = data.totals?.savingsPct ?? (currentTotal ? (savings / currentTotal) * 100 : 0);
   const maxBar = Math.max(1, ...cats.flatMap((c) => [Math.abs(c.current), Math.abs(c.optimized)]));
   const perWh = data.perWarehouse || [];
-  const totalDeltaPct = data.deltaPct?.total ?? 0;
   const hasApprovedPlan = (data.totals as any)?.savingsSource === 'approved_overrides' && savings > 0;
   const isEstimate = data.source === 'estimate';
   const isEmptyWindow = data.source === 'empty';
-  const categoryRecCount = recommendations.filter((r) => r.entityId).length;
   const sparkData = (data.series || []).map((s) => s.total);
   const rangeLabel = custom
     ? `${(custom.from || '').slice(0, 10)} → ${new Date(nextDayIsoBack(custom.to)).toISOString().slice(0, 10)}`
@@ -267,108 +265,31 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
         </div>
       )}
 
-      <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 50%)' }}>
-        <div className="card-body" style={{ padding: 22 }}>
-          <div className="billing-plan-comparison" style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr', gap: 28, alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 6 }}>CURRENT OPERATION</div>
-              <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em' }}>{fmt.money(currentTotal)}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>{rangeLabel}</span>
-                {data.previous && !isEstimate && !isEmptyWindow && currentTotal > 0 && (
-                  <span style={{ color: totalDeltaPct > 0 ? 'var(--red-text)' : 'var(--green-text)', fontWeight: 600 }}>
-                    {totalDeltaPct > 0 ? '+' : ''}{totalDeltaPct}% vs prior period
-                  </span>
-                )}
-              </div>
-              {sparkData.length >= 2 && (
-                <div style={{ marginTop: 8 }}>
-                  <Sparkline data={sparkData} color="var(--purple)" width={140} height={30} fill />
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'grid', placeItems: 'center' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg-elev)', border: '2px solid var(--purple)', display: 'grid', placeItems: 'center', color: 'var(--purple)' }}>
-                <Icon name="arrowRight" size={22} />
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: 'var(--purple-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                {hasApprovedPlan ? 'PROJECTED (APPROVED PLAN)' : 'PROJECTED WITH AI PLAN'}
-                {screenRec && <CortexRowAction rec={screenRec} label onOpen={() => setSelectedRec(screenRec)} />}
-              </div>
-              <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--purple-text)' }}>{fmt.money(optimizedTotal)}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-                {hasApprovedPlan ? 'projection · until WMS re-rates' : 'review a suggestion to approve'}
-              </div>
-            </div>
-            <div style={{ background: 'var(--green-soft)', padding: 18, borderRadius: 10 }}>
-              <div style={{ fontSize: 11, color: 'var(--green-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{hasApprovedPlan ? 'YOU SAVE (PROJECTED)' : 'POTENTIAL SAVINGS'}</div>
-              {hasApprovedPlan ? (
-                <>
-                  <div style={{ fontSize: 30, fontWeight: 700, color: 'var(--green-text)', marginTop: 4 }}>{fmt.money(savings)}</div>
-                  <div style={{ fontSize: 12, color: 'var(--green-text)', fontWeight: 600, marginTop: 2 }}>
-                    {savingsPct.toFixed(1)}% lower cost · {rangeLabel}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--green-text)', marginTop: 4 }}>No plan approved yet</div>
-                  <div style={{ fontSize: 12, color: 'var(--green-text)', fontWeight: 600, marginTop: 2 }}>
-                    {screenRec ? 'Review the AI plan to see projected savings' : 'No AI plan available for this period'}
-                  </div>
-                </>
-              )}
-            </div>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-body command-mini-metrics" style={{ gap: 18, alignItems: 'center' }}>
+          <div>
+            <div className="kv-label">Billed total</div>
+            <div className="kv-value">{fmt.money(currentTotal)}</div>
+            <div className="muted">{rangeLabel}</div>
           </div>
+          <div>
+            <div className="kv-label">Source</div>
+            <div className="kv-value" style={{ fontSize: 14 }}>{isEstimate ? 'Modeled estimate' : isEmptyWindow ? 'No activity' : 'WMS invoices'}</div>
+            <div className="muted">{isEstimate ? 'not billed charges' : 'observed account data'}</div>
+          </div>
+          <div>
+            <div className="kv-label">Approved projection</div>
+            <div className="kv-value" style={{ fontSize: 14 }}>{hasApprovedPlan ? fmt.money(optimizedTotal) : 'No approved change'}</div>
+            <div className="muted">{hasApprovedPlan ? 'advisory until WMS re-rates' : 'Cortex decisions appear on affected rows'}</div>
+          </div>
+          <div>
+            <div className="kv-label">Approved savings</div>
+            <div className="kv-value" style={{ color: hasApprovedPlan ? 'var(--green-text)' : undefined }}>{hasApprovedPlan ? fmt.money(savings) : '—'}</div>
+            <div className="muted">{hasApprovedPlan ? `${savingsPct.toFixed(1)}% projected` : 'no financial claim'}</div>
+          </div>
+          {sparkData.length >= 2 && <Sparkline data={sparkData} color="var(--purple)" width={120} height={30} fill />}
         </div>
       </div>
-
-      {screenRec && !hasApprovedPlan && (
-        <div
-          className="card"
-          style={{ marginBottom: 16, border: '1px solid var(--purple)', background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 100%)', display: 'flex', alignItems: 'center', gap: 20, padding: '18px 22px', flexWrap: 'wrap' }}
-        >
-          <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--bg-elev)', border: '2px solid var(--purple)', display: 'grid', placeItems: 'center', color: 'var(--purple)', flexShrink: 0 }}>
-            <Icon name="sparkle" size={22} />
-          </div>
-          <div style={{ minWidth: 220, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 15, fontWeight: 800 }}>AI Savings Plan ready to approve</span>
-              <Chip tone="purple" dot={false}>{recommendations.length} suggestion{recommendations.length === 1 ? '' : 's'}</Chip>
-            </div>
-            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Cortex found a lower-cost billing plan for {rangeLabel}. Review the suggested rate changes and approve to apply the projected discounts{categoryRecCount ? ` across ${categoryRecCount} categor${categoryRecCount === 1 ? 'y' : 'ies'}` : ''}.
-            </div>
-          </div>
-          <div style={{ textAlign: 'right', minWidth: 130 }}>
-            <div style={{ fontSize: 11, color: 'var(--green-text)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Projected savings</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--green-text)', letterSpacing: '-0.02em' }}>{fmt.money(savings)}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--green-text)', fontWeight: 600 }}>{savingsPct.toFixed(1)}% lower · {rangeLabel}</div>
-          </div>
-          <button className="btn primary" style={{ flexShrink: 0 }} onClick={() => setSelectedRec(screenRec)}>
-            <Icon name="sparkle" size={13} /> Review &amp; approve plan
-          </button>
-        </div>
-      )}
-
-      {hasApprovedPlan && (
-        <div
-          className="card"
-          style={{ marginBottom: 16, borderLeft: '3px solid var(--green, #16a34a)', display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px', flexWrap: 'wrap' }}
-        >
-          <Icon name="check" size={18} style={{ color: 'var(--green-text)' }} />
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700 }}>AI Savings Plan approved</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              {fmt.money(savings)} projected savings ({savingsPct.toFixed(1)}%) · projection until WMS re-rates
-            </div>
-          </div>
-          {screenRec && (
-            <button className="btn ghost sm" onClick={() => setSelectedRec(screenRec)}>Review plan</button>
-          )}
-        </div>
-      )}
 
       {data.forecast?.storage && (
         <div
@@ -421,10 +342,10 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
         <div className="card-header">
           <div>
             <div className="card-title">
-              Cost breakdown — current vs. suggested
+              Cost breakdown
               <CortexInlineBadge count={recommendations.length} />
             </div>
-            <div className="card-subtitle">Every line reconciled against WMS-allocated charges. Click a row to filter the invoice ledger below.</div>
+            <div className="card-subtitle">Observed WMS-allocated charges. Cortex decisions appear on the affected row.</div>
           </div>
           <div style={{ display: 'flex', gap: 12, fontSize: 11.5 }}>
             {screenRec && <CortexRowAction rec={screenRec} label onOpen={() => setSelectedRec(screenRec)} />}
@@ -432,10 +353,10 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
               <span style={{ width: 10, height: 10, background: 'var(--text-tertiary)', borderRadius: 2 }} />
               <span style={{ color: 'var(--text-secondary)' }}>Current</span>
             </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {hasApprovedPlan && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 10, height: 10, background: 'var(--purple)', borderRadius: 2 }} />
-              <span style={{ color: 'var(--text-secondary)' }}>With AI plan</span>
-            </span>
+              <span style={{ color: 'var(--text-secondary)' }}>Approved projection</span>
+            </span>}
           </div>
         </div>
         <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -468,7 +389,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{c.desc}</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {(['current', 'optimized'] as const).map((sel) => (
+                  {(hasApprovedPlan ? ['current', 'optimized'] as const : ['current'] as const).map((sel) => (
                     <div key={sel} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 10.5, color: sel === 'optimized' ? 'var(--purple-text)' : 'var(--text-tertiary)', width: 50, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: sel === 'optimized' ? 700 : 600 }}>
                         {sel === 'optimized' ? 'Suggested' : 'Current'}
@@ -492,13 +413,15 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                   ))}
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: good ? 'var(--green-text)' : 'var(--red-text)' }}>
-                    {good ? '−' : '+'}
-                    {fmt.money(Math.abs(delta), { compact: true })}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                    {c.current ? ((delta / c.current) * 100).toFixed(0) : 0}%
-                  </div>
+                  {hasApprovedPlan ? <>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: good ? 'var(--green-text)' : 'var(--red-text)' }}>
+                      {good ? '−' : '+'}
+                      {fmt.money(Math.abs(delta), { compact: true })}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                      {c.current ? ((delta / c.current) * 100).toFixed(0) : 0}%
+                    </div>
+                  </> : <span className="muted">Observed</span>}
                 </div>
                 <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   {rec ? (
@@ -516,7 +439,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <div className="card-title">
-            <Icon name="box" size={15} /> Per-warehouse cost reduction
+            <Icon name="box" size={15} /> Per-warehouse billed cost
           </div>
           <Chip dot={false}>{rangeLabel}</Chip>
         </div>
@@ -529,7 +452,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                 <th>Warehouse</th>
                 <th>Region</th>
                 <th className="num">Current</th>
-                <th className="num">Suggested</th>
+                <th className="num">Approved projection</th>
                 <th className="num">Savings</th>
                 <th>Impact</th>
               </tr>
@@ -550,10 +473,10 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                     <td className="mono strong">{w.code}</td>
                     <td className="muted">{w.region || '—'}</td>
                     <td className="num mono">{fmt.money(num(w.current))}</td>
-                    <td className="num mono strong" style={{ color: 'var(--purple-text)' }}>{fmt.money(num(w.optimized))}</td>
-                    <td className="num mono strong" style={{ color: 'var(--green-text)' }}>−{fmt.money(d)}</td>
+                    <td className="num mono strong" style={{ color: hasApprovedPlan ? 'var(--purple-text)' : 'var(--text-tertiary)' }}>{hasApprovedPlan ? fmt.money(num(w.optimized)) : '—'}</td>
+                    <td className="num mono strong" style={{ color: hasApprovedPlan ? 'var(--green-text)' : 'var(--text-tertiary)' }}>{hasApprovedPlan ? `−${fmt.money(d)}` : '—'}</td>
                     <td>
-                      <ProgressBar value={pct} max={30} color="green" showLabel height={5} />
+                      {hasApprovedPlan && <ProgressBar value={pct} max={30} color="green" showLabel height={5} />}
                       {rec && <div style={{ marginTop: 5 }}><CortexRowAction rec={rec} label onOpen={() => setSelectedRec(rec)} /></div>}
                     </td>
                   </tr>
