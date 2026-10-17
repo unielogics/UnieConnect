@@ -63,10 +63,12 @@ export const LabelAudit = (_: ScreenProps) => {
   const [data, setData] = useState<LabelAuditResponse | null>(null);
   const [runs, setRuns] = useState<LabelAuditRun[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [runDetail, setRunDetail] = useState<{ run: LabelAuditRun; findings: LabelAuditResponse['findings'] } | null>(null);
+  const [runDetail, setRunDetail] = useState<{ run: LabelAuditRun; findings: LabelAuditResponse['findings']; loading?: boolean; error?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [runHistoryError, setRunHistoryError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'late' | 'refund' | 'ontime'>('all');
   const ctx = useCtxMenu();
   const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('labels');
@@ -74,13 +76,17 @@ export const LabelAudit = (_: ScreenProps) => {
   const load = () => {
     setLoading(true);
     setErr(null);
+    setRunHistoryError(null);
     Promise.all([
       fetchLabelAudit(),
-      fetchLabelAuditRuns().catch(() => ({ runs: [] })),
+      fetchLabelAuditRuns().catch((error: any) => {
+        setRunHistoryError(error?.message || 'CSV audit run history could not be loaded.');
+        return null;
+      }),
     ])
       .then(([audit, runData]) => {
         setData(audit);
-        setRuns(runData.runs || []);
+        if (runData) setRuns(runData.runs || []);
       })
       .catch((e) => setErr(e.message || 'Failed to load label audit'))
       .finally(() => setLoading(false));
@@ -116,7 +122,7 @@ export const LabelAudit = (_: ScreenProps) => {
 
   const submitCsv = async (filename: string, rows: LabelAuditCsvRow[]) => {
     setUploading(true);
-    setErr(null);
+    setActionError(null);
     try {
       const res = await createLabelAuditRun({ filename, rows });
       if (res.run) {
@@ -125,19 +131,19 @@ export const LabelAudit = (_: ScreenProps) => {
       setUploadOpen(false);
       await load();
     } catch (e: any) {
-      setErr(e.message || 'CSV audit failed');
+      setActionError(e.message || 'CSV audit failed');
     } finally {
       setUploading(false);
     }
   };
 
   const openRun = async (run: LabelAuditRun) => {
-    setRunDetail({ run, findings: [] });
+    setRunDetail({ run, findings: [], loading: true });
     try {
       const detail = await fetchLabelAuditRun(run.id);
       setRunDetail(detail);
-    } catch {
-      setRunDetail({ run, findings: [] });
+    } catch (error: any) {
+      setRunDetail({ run, findings: [], error: error?.message || 'This audit run could not be loaded.' });
     }
   };
 
@@ -159,6 +165,21 @@ export const LabelAudit = (_: ScreenProps) => {
       </div>
 
       {recommendationStatus}
+
+      {runHistoryError && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{runHistoryError} Current findings remain available.</span>
+          <button className="btn ghost sm" onClick={load}><Icon name="refresh" size={12} /> Retry history</button>
+        </div>
+      )}
+      {actionError && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{actionError}</span>
+          <button className="icon-btn" aria-label="Dismiss error" data-hint="Dismiss" onClick={() => setActionError(null)}><Icon name="x" size={12} /></button>
+        </div>
+      )}
 
       {err ? (
         <div className="card"><ErrorState message={err} onRetry={load} /></div>
@@ -352,7 +373,7 @@ export const LabelAudit = (_: ScreenProps) => {
         </>
       )}
       {uploadOpen && <LabelAuditUploadModal busy={uploading} onClose={() => setUploadOpen(false)} onSubmit={submitCsv} />}
-      {runDetail && <RunDetailDrawer detail={runDetail} onClose={() => setRunDetail(null)} />}
+      {runDetail && <RunDetailDrawer detail={runDetail} onClose={() => setRunDetail(null)} onRetry={() => openRun(runDetail.run)} />}
       {recDrawer}
     </div>
   );
@@ -433,7 +454,11 @@ const LabelAuditUploadModal = ({
   );
 };
 
-const RunDetailDrawer = ({ detail, onClose }: { detail: { run: LabelAuditRun; findings: LabelAuditResponse['findings'] }; onClose: () => void }) => {
+const RunDetailDrawer = ({ detail, onClose, onRetry }: {
+  detail: { run: LabelAuditRun; findings: LabelAuditResponse['findings']; loading?: boolean; error?: string };
+  onClose: () => void;
+  onRetry: () => void;
+}) => {
   useCloseOnOmsNavigation(onClose);
 
   return (
@@ -447,8 +472,12 @@ const RunDetailDrawer = ({ detail, onClose }: { detail: { run: LabelAuditRun; fi
           <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
         </div>
         <div className="modal-body">
-          {detail.findings.length === 0 ? (
+          {detail.loading ? (
             <Loading rows={4} />
+          ) : detail.error ? (
+            <ErrorState message={detail.error} onRetry={onRetry} />
+          ) : detail.findings.length === 0 ? (
+            <EmptyState>No findings were stored for this audit run.</EmptyState>
           ) : (
             <table className="data">
               <thead><tr><th>Tracking</th><th>Order</th><th>Issue</th><th className="num">Refund</th><th>Recommendation</th></tr></thead>
