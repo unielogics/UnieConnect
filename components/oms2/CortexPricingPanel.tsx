@@ -58,6 +58,7 @@ const networkBlockedCopy = (reason?: unknown) => {
     no_positive_savings_after_transfer: 'No positive savings after transfer',
     no_eligible_network_node_available: 'No eligible network node available',
     no_distinct_second_node_selected: 'No distinct second node selected',
+    optimization_rate_evidence_unavailable: 'Live rates and warehouse fees are required for an optimized comparison',
     optimization_pricing_unavailable: 'Optimization pricing unavailable',
     ltl_transfer_rate_unavailable: 'LTL transfer rate unavailable',
   };

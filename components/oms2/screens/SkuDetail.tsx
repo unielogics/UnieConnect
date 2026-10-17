@@ -94,6 +94,7 @@ const networkBlockedCopy = (reason?: unknown) => {
     no_positive_savings_after_transfer: 'No positive savings after LTL transfer.',
     no_eligible_network_node_available: 'No eligible network node is available.',
     no_distinct_second_node_selected: 'Cortex did not find a distinct second node.',
+    optimization_rate_evidence_unavailable: 'Live rates and warehouse fees are required before Cortex can calculate optimized cost or savings.',
     optimization_pricing_unavailable: 'Optimization pricing is not available yet.',
     ltl_transfer_rate_unavailable: 'LTL transfer rate is not available yet.',
   };
