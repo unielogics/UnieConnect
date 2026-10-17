@@ -142,7 +142,7 @@ export type CommandCenter = {
     revenueSeries?: Array<{ at: string; revenue: number }>;
   };
   warnings: Array<{ severity: string; title: string; detail: string }>;
-  autonomousActivity: Array<{ system: string; action: string; status: string; confidence: number; at: string }>;
+  autonomousActivity: Array<{ system: string; action: string; status: string; confidence: number; at: string; occurrences?: number; firstAt?: string }>;
   counts: Record<string, number>;
 };
 
@@ -194,7 +194,7 @@ export type CommandCenterFull = {
   source?: { sales?: string; inventory?: string; persistence?: string };
   metrics: CommandCenter['metrics'];
   warnings: Array<{ severity: string; title: string; detail: string }>;
-  autonomousActivity: Array<{ system: string; action: string; status: string; confidence: number; at: string; impact?: string }>;
+  autonomousActivity: Array<{ system: string; action: string; status: string; confidence: number; at: string; impact?: string; occurrences?: number; firstAt?: string }>;
   counts: Record<string, number>;
 };
 

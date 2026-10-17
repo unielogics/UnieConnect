@@ -695,38 +695,43 @@ const WarningsPanel = ({ warnings }: { warnings: CommandCenterFull['warnings'] }
   );
 };
 
-const AutonomousActivityRail = ({ activity }: { activity: CommandCenterFull['autonomousActivity'] }) => (
-  <div className="card">
-    <div className="card-header">
-      <div>
-        <div className="card-title">
-          <Icon name="bolt" size={15} style={{ color: 'var(--purple)' }} />
-          System activity
-        </div>
-        <div className="card-subtitle">Recorded OMS, warehouse, marketplace, and Cortex events for this account.</div>
-      </div>
-      <Chip tone="purple" dot={false}>{activity.length} actions</Chip>
-    </div>
-    <div style={{ maxHeight: 420, overflowY: 'auto' }}>
-      {activity.length === 0 && <EmptyState>No autonomous actions in this window.</EmptyState>}
-      {activity.map((e, i) => {
-        const tone = e.status === 'complete' ? 'green' : e.status === 'pending' ? 'amber' : 'blue';
-        return (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '44px 24px 1fr auto', gap: 12, padding: '11px 16px', borderBottom: '1px solid var(--border-subtle)', alignItems: 'center' }}>
-            <span className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{timeAgo(e.at)}</span>
-            <div style={{ width: 22, height: 22, borderRadius: 4, background: `var(--${tone}-soft)`, color: `var(--${tone})`, display: 'grid', placeItems: 'center' }}>
-              <Icon name="bolt" size={12} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, color: 'var(--text)' }}>{e.action}</div>
-              <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)', marginTop: 2 }}>{e.system}</div>
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: `var(--${tone}-text)` }}>
-              {e.impact || (e.confidence ? `${Math.round(e.confidence * 100)}%` : 'auto')}
-            </span>
+const AutonomousActivityRail = ({ activity }: { activity: CommandCenterFull['autonomousActivity'] }) => {
+  const eventCount = activity.reduce((total, event) => total + Math.max(1, Number(event.occurrences || 1)), 0);
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div>
+          <div className="card-title">
+            <Icon name="bolt" size={15} style={{ color: 'var(--purple)' }} />
+            System activity
           </div>
-        );
-      })}
+          <div className="card-subtitle">Recorded OMS, warehouse, marketplace, and Cortex events for this account.</div>
+        </div>
+        <Chip tone="purple" dot={false}>{eventCount} events</Chip>
+      </div>
+      <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+        {activity.length === 0 && <EmptyState>No autonomous actions in this window.</EmptyState>}
+        {activity.map((e, i) => {
+          const tone = e.status === 'complete' ? 'green' : e.status === 'pending' ? 'amber' : 'blue';
+          return (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '44px 24px 1fr auto', gap: 12, padding: '11px 16px', borderBottom: '1px solid var(--border-subtle)', alignItems: 'center' }}>
+              <span className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{timeAgo(e.at)}</span>
+              <div style={{ width: 22, height: 22, borderRadius: 4, background: `var(--${tone}-soft)`, color: `var(--${tone})`, display: 'grid', placeItems: 'center' }}>
+                <Icon name="bolt" size={12} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, color: 'var(--text)' }}>{e.action}</div>
+                <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                  {e.system}{Number(e.occurrences || 1) > 1 ? ` · repeated ${e.occurrences} times` : ''}
+                </div>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: `var(--${tone}-text)` }}>
+                {e.impact || (e.confidence ? `${Math.round(e.confidence * 100)}%` : 'auto')}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
-  </div>
-);
+  );
+};
