@@ -475,10 +475,39 @@
 .uc-shell .crumb-status.checking { background: var(--amber-soft); color: var(--amber-text); }
 .uc-shell .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
 .uc-shell .topbar-search { flex: 0 1 380px; margin-left: auto; position: relative; }
-.uc-shell .topbar-search input { width: 100%; height: 32px; padding: 0 12px 0 32px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg); font-size: 12.5px; outline: none; }
+.uc-shell .topbar-search input { width: 100%; height: 32px; padding: 0 52px 0 32px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 12.5px; outline: none; }
 .uc-shell .topbar-search input:focus { border-color: var(--accent); background: var(--bg-elev); }
 .uc-shell .topbar-search .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-tertiary); }
 .uc-shell .topbar-search kbd { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: 10.5px; color: var(--text-tertiary); background: var(--bg-elev); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+.uc-shell .topbar-search .search-clear { position: absolute; right: 5px; top: 4px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 5px; color: var(--text-tertiary); }
+.uc-shell .topbar-search .search-clear:hover { background: var(--bg-hover); color: var(--text); }
+.uc-shell .global-search-results { position: absolute; top: calc(100% + 7px); left: 0; right: 0; max-height: min(430px, calc(100vh - 86px)); overflow-y: auto; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev); box-shadow: var(--shadow-lg); z-index: 240; }
+.uc-shell .global-search-state { min-height: 54px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; color: var(--text-tertiary); font-size: 12px; text-align: center; }
+.uc-shell .global-search-state.error { color: var(--red-text); }
+.uc-shell .global-search-result { width: 100%; min-height: 50px; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "icon copy type" "icon copy status"; align-items: center; column-gap: 9px; padding: 7px 9px; border-radius: 6px; color: var(--text); text-align: left; }
+.uc-shell .global-search-result:hover, .uc-shell .global-search-result.active { background: var(--bg-hover); }
+.uc-shell .search-type-icon { grid-area: icon; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; background: var(--accent-soft); color: var(--accent-text); }
+.uc-shell .search-type-icon.order, .uc-shell .search-type-icon.asn { background: var(--green-soft); color: var(--green-text); }
+.uc-shell .search-type-icon.invoice { background: var(--amber-soft); color: var(--amber-text); }
+.uc-shell .search-type-icon.ticket { background: var(--purple-soft); color: var(--purple-text); }
+.uc-shell .search-result-copy { grid-area: copy; min-width: 0; display: grid; gap: 2px; }
+.uc-shell .search-result-copy strong, .uc-shell .search-result-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uc-shell .search-result-copy strong { font-size: 12.5px; }
+.uc-shell .search-result-copy small { color: var(--text-tertiary); font-size: 11px; }
+.uc-shell .search-result-type { grid-area: type; align-self: end; color: var(--text-tertiary); font-size: 9.5px; font-weight: 750; text-transform: uppercase; }
+.uc-shell .search-result-status { grid-area: status; align-self: start; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: 10px; text-transform: capitalize; }
+@media (max-width: 1100px) {
+  .uc-shell .topbar { gap: 8px; padding: 0 12px; }
+  .uc-shell .crumbs .crumb:first-child, .uc-shell .crumbs .crumb-sep, .uc-shell .crumb-status { display: none; }
+  .uc-shell .topbar-search { flex: 1 1 280px; min-width: 180px; }
+}
+@media (max-width: 700px) {
+  .uc-shell .topbar .crumbs { display: none; }
+  .uc-shell .topbar-search { margin-left: 0; min-width: 120px; }
+  .uc-shell .topbar-search kbd { display: none; }
+  .uc-shell .topbar-search input { padding-right: 32px; }
+  .uc-shell .copilot-btn { padding: 0 9px; }
+}
 .uc-shell .icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius); color: var(--text-secondary); position: relative; }
 .uc-shell .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
 .uc-shell .icon-btn .pip { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); border: 1.5px solid var(--bg-elev); }

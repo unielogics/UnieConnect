@@ -1,6 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
-import { completeCortexTask, dismissCortexTask, fetchCortexChatHealth, fetchCortexTasks, CortexTask } from '../../lib/oms';
+import {
+  completeCortexTask,
+  dismissCortexTask,
+  fetchCortexChatHealth,
+  fetchCortexTasks,
+  searchOms,
+  CortexTask,
+  OmsGlobalSearchResult,
+} from '../../lib/oms';
 
 export const TITLE_MAP: Record<string, [string, string]> = {
   command: ['Command Center', 'Live operating cockpit'],
@@ -33,6 +41,7 @@ export const TopBar = ({
   onToggleTheme,
   onOpenProfile,
   onNavigate,
+  onSelectSearchResult,
 }: {
   section: string;
   copilotOpen: boolean;
@@ -41,6 +50,7 @@ export const TopBar = ({
   onToggleTheme: () => void;
   onOpenProfile?: () => void;
   onNavigate?: (target: string, payload?: string) => void;
+  onSelectSearchResult?: (result: OmsGlobalSearchResult) => void;
 }) => {
   const [title] = TITLE_MAP[section] || ['', ''];
   const [tasksOpen, setTasksOpen] = useState(false);
@@ -48,6 +58,14 @@ export const TopBar = ({
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<OmsGlobalSearchResult[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const loadTasks = (refresh = false) => {
     fetchCortexTasks({ status: 'open', refresh, limit: 12 })
@@ -76,6 +94,61 @@ export const TopBar = ({
       window.clearInterval(timer);
     };
   }, [section]);
+
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
+        searchInputRef.current?.focus();
+      }
+      if (event.key === 'Escape') setSearchOpen(false);
+    };
+    const onPointerDown = (event: MouseEvent) => {
+      if (!searchRef.current?.contains(event.target as Node)) setSearchOpen(false);
+    };
+    window.addEventListener('keydown', onShortcut);
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      window.removeEventListener('keydown', onShortcut);
+      document.removeEventListener('mousedown', onPointerDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    setActiveSearchIndex(0);
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      setSearchError('');
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setSearchLoading(true);
+      setSearchError('');
+      searchOms(query, controller.signal)
+        .then((response) => setSearchResults(response.results || []))
+        .catch((error: any) => {
+          if (error?.name !== 'AbortError') setSearchError(error?.message || 'Search is unavailable.');
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSearchLoading(false);
+        });
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchQuery]);
+
+  const chooseSearchResult = (result: OmsGlobalSearchResult) => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    onSelectSearchResult?.(result);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -133,10 +206,67 @@ export const TopBar = ({
         </span>
       </div>
 
-      <div className="topbar-search">
+      <div className="topbar-search" ref={searchRef}>
         <Icon name="search" className="search-icon" />
-        <input placeholder="Search SKUs, orders, ASNs, invoices, tickets…" />
-        <kbd>⌘K</kbd>
+        <input
+          ref={searchInputRef}
+          value={searchQuery}
+          placeholder="Search SKUs, orders, ASNs, invoices, tickets..."
+          aria-label="Search account records"
+          aria-expanded={searchOpen}
+          aria-controls="oms-global-search-results"
+          onFocus={() => setSearchOpen(true)}
+          onChange={(event) => { setSearchQuery(event.target.value); setSearchOpen(true); }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' && searchResults.length) {
+              event.preventDefault();
+              setActiveSearchIndex((index) => (index + 1) % searchResults.length);
+            } else if (event.key === 'ArrowUp' && searchResults.length) {
+              event.preventDefault();
+              setActiveSearchIndex((index) => (index - 1 + searchResults.length) % searchResults.length);
+            } else if (event.key === 'Enter' && searchResults[activeSearchIndex]) {
+              event.preventDefault();
+              chooseSearchResult(searchResults[activeSearchIndex]);
+            }
+          }}
+        />
+        {searchQuery ? (
+          <button className="search-clear" data-hint="Clear search" onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}>
+            <Icon name="x" size={13} />
+          </button>
+        ) : <kbd>Ctrl K</kbd>}
+        {searchOpen && (
+          <div className="global-search-results" id="oms-global-search-results" role="listbox">
+            {searchQuery.trim().length < 2 ? (
+              <div className="global-search-state">Type at least two characters to search this account.</div>
+            ) : searchLoading ? (
+              <div className="global-search-state">Searching account records...</div>
+            ) : searchError ? (
+              <div className="global-search-state error"><Icon name="warning" size={13} /> {searchError}</div>
+            ) : searchResults.length === 0 ? (
+              <div className="global-search-state">No matching records in this account.</div>
+            ) : searchResults.map((result, index) => (
+              <button
+                key={`${result.type}-${result.id}`}
+                className={`global-search-result ${index === activeSearchIndex ? 'active' : ''}`}
+                role="option"
+                aria-selected={index === activeSearchIndex}
+                onMouseEnter={() => setActiveSearchIndex(index)}
+                onClick={() => chooseSearchResult(result)}
+              >
+                <span className={`search-type-icon ${result.type}`}>
+                  <Icon name={result.type === 'sku' ? 'box' : result.type === 'order' ? 'orders' : result.type === 'asn' ? 'shipments' : result.type === 'invoice' ? 'billing' : 'support'} size={14} />
+                </span>
+                <span className="search-result-copy">
+                  <strong>{result.label}</strong>
+                  <small>{result.description}</small>
+                </span>
+                <span className="search-result-type">{result.type}</span>
+                {result.status ? <span className="search-result-status">{result.status.replace(/_/g, ' ')}</span> : null}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <button

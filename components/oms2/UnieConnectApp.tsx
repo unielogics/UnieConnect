@@ -40,7 +40,7 @@ import { NewOrderModal } from './modals/NewOrderModal';
 import { NewTicketModal } from './modals/NewTicketModal';
 import { CsvImportModal, CsvImportEntity } from './modals/CsvImportModal';
 import { StateDetailModal } from './modals/StateDetailModal';
-import type { OmsAsnDetail, OmsOrder, OmsSku, OmsSupplier } from '../../lib/oms';
+import type { OmsAsnDetail, OmsGlobalSearchResult, OmsOrder, OmsSku, OmsSupplier } from '../../lib/oms';
 import { archiveOmsSkus, fetchOmsAsn, fetchOmsOrder } from '../../lib/oms';
 import { fetchCurrentUser, type CurrentUser } from '../../lib/user';
 import { fetchUserFeatures, type Feature } from '../../lib/features';
@@ -239,6 +239,18 @@ export default function UnieConnectApp() {
       .finally(() => setAsnModalLoading(false));
   }, []);
 
+  const openSearchResult = useCallback((result: OmsGlobalSearchResult) => {
+    if (result.type === 'order') {
+      openOrderById(result.id);
+      return;
+    }
+    if (result.type === 'asn') {
+      openAsnById(result.id);
+      return;
+    }
+    navigate(result.screen, result.entityId);
+  }, [navigate, openAsnById, openOrderById]);
+
   const supplierMixed = useMemo(() => {
     if (selectedSkus.length < 2) return false;
     const sups = selectedSkus.map((s) => skuSupplierMap[s.id]).filter((x) => x != null);
@@ -425,6 +437,7 @@ export default function UnieConnectApp() {
               onToggleTheme={() => setTweak('theme', tweaks.theme === 'dark' ? 'light' : 'dark')}
               onOpenProfile={() => navigate('profile')}
               onNavigate={navigate}
+              onSelectSearchResult={openSearchResult}
             />
             <FulfillmentPausedBanner user={currentUser} />
             <React.Fragment key={`${section}-${screenKey}`}>

@@ -936,6 +936,23 @@ export const fetchOmsSkus = (filter?: MarketplaceFilterParams) => {
   return omsFetch<{ skus: OmsSku[]; total: number }>(`/skus${suffix}`);
 };
 
+export type OmsGlobalSearchResult = {
+  type: 'sku' | 'order' | 'asn' | 'invoice' | 'ticket';
+  id: string;
+  entityId: string;
+  screen: string;
+  label: string;
+  description: string;
+  status?: string | null;
+  image?: string | null;
+};
+
+export const searchOms = (query: string, signal?: AbortSignal) =>
+  omsFetch<{ query: string; results: OmsGlobalSearchResult[]; total: number }>(
+    `/search?q=${encodeURIComponent(query)}&limit=15`,
+    { signal },
+  );
+
 export const archiveOmsSkus = (ids: string[]) =>
   omsFetch<{ requestedCount: number; archivedCount: number; archivedIds: string[] }>('/skus/archive', {
     method: 'POST',
