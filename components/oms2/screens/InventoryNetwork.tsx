@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Sparkline, Loading, ErrorState, EmptyState, Thumb, useCloseOnOmsNavigation, downloadCsv } from '../ui';
 import { DecisionComparison } from '../DecisionComparison';
@@ -60,6 +61,7 @@ const KeepaMarker = ({ sku }: { sku: Pick<OmsSku, 'keepaUnavailable' | 'enrichme
 };
 
 export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewProduct, onImportCsv }: ScreenProps) => {
+  const router = useRouter();
   const [view, setView] = useState<'table' | 'heatmap' | 'treemap'>('table');
   const [search, setSearch] = useState('');
   const [skus, setSkus] = useState<OmsSku[]>([]);
@@ -69,6 +71,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
   const [marketplaceFilter, setMarketplaceFilter] = useState<MarketplaceFilterValue>({});
   const [riskFilter, setRiskFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [docFilter, setDocFilter] = useState<'all' | 'lt14' | '14to30' | 'gt30'>('all');
+  const [enrichmentFilter, setEnrichmentFilter] = useState<'all' | 'missing-cost' | 'missing-dimensions'>('all');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
   const [loading, setLoading] = useState(true);
@@ -90,6 +93,11 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
       .finally(() => setLoading(false));
   };
   useEffect(load, [marketplaceFilter.channel, marketplaceFilter.channelAccountId]);
+  useEffect(() => {
+    const requested = String(router.query.filter || 'all');
+    setEnrichmentFilter(requested === 'missing-cost' || requested === 'missing-dimensions' ? requested : 'all');
+    if (requested === 'missing-cost' || requested === 'missing-dimensions') setView('table');
+  }, [router.query.filter]);
 
   const filtered = useMemo(
     () =>
@@ -106,15 +114,19 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           (docFilter === 'lt14' && doc < 14) ||
           (docFilter === '14to30' && doc >= 14 && doc <= 30) ||
           (docFilter === 'gt30' && doc > 30);
-        return matchesSearch && matchesRisk && matchesDoc;
+        const missing = new Set(s.missingFields || []);
+        const matchesEnrichment = enrichmentFilter === 'all'
+          || (enrichmentFilter === 'missing-cost' && missing.has('cost'))
+          || (enrichmentFilter === 'missing-dimensions' && ['weight', 'length', 'width', 'height'].some((field) => missing.has(field)));
+        return matchesSearch && matchesRisk && matchesDoc && matchesEnrichment;
       }),
-    [skus, search, riskFilter, docFilter]
+    [skus, search, riskFilter, docFilter, enrichmentFilter]
   );
 
   // Reset to first page whenever the filtered set changes shape.
   useEffect(() => {
     setPage(1);
-  }, [search, riskFilter, docFilter, marketplaceFilter.channel, marketplaceFilter.channelAccountId]);
+  }, [search, riskFilter, docFilter, enrichmentFilter, marketplaceFilter.channel, marketplaceFilter.channelAccountId]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -221,9 +233,14 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
             <option value="14to30">DOC: 14–30d</option>
             <option value="gt30">DOC: &gt; 30d</option>
           </select>
+          {enrichmentFilter !== 'all' && (
+            <button className="filter-chip applied" onClick={() => { setEnrichmentFilter('all'); router.replace({ pathname: '/oms', query: { view: 'skus' } }, undefined, { shallow: true }); }}>
+              {enrichmentFilter === 'missing-cost' ? 'Missing cost' : 'Missing dimensions or weight'} <Icon name="x" size={10} />
+            </button>
+          )}
           {(riskFilter !== 'all' || docFilter !== 'all' || search) && (
             <button className="filter-chip applied" onClick={() => { setSearch(''); setRiskFilter('all'); setDocFilter('all'); }}>
-              Clear <Icon name="x" size={10} />
+              Clear other filters <Icon name="x" size={10} />
             </button>
           )}
           <div className="spacer" />

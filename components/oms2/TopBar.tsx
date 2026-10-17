@@ -188,6 +188,11 @@ export const TopBar = ({
   };
   const completionLabel = (task: CortexTask) =>
     task.source === 'readiness' || task.source === 'connection_health' ? 'Verify completion' : 'Mark done';
+  const taskNavigationPayload = (task: CortexTask) => {
+    if (task.dedupeKey === 'readiness:sku-unit-cost') return 'filter:missing-cost';
+    if (task.dedupeKey === 'readiness:sku-dimensions-weight') return 'filter:missing-dimensions';
+    return task.entityId || undefined;
+  };
   const highTaskCount = tasks.filter((task) => task.priority === 'high').length;
   const workAreas = Array.from(new Set(tasks.map((task) => task.actionTarget || task.screen).filter(Boolean))).slice(0, 3);
   const systemStatusCopy = cortexHealth === 'online'
@@ -313,7 +318,7 @@ export const TopBar = ({
                     className="task-popover-main"
                     disabled={taskUpdatingId === task.id}
                     onClick={() => {
-                      if (task.actionTarget && onNavigate) onNavigate(task.actionTarget, task.entityId || undefined);
+                      if (task.actionTarget && onNavigate) onNavigate(task.actionTarget, taskNavigationPayload(task));
                       setTasksOpen(false);
                     }}
                   >

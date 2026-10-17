@@ -415,6 +415,11 @@ const CortexTasksPanel = ({
   const sources = Array.from(new Set(tasks.map((task) => task.source || 'readiness'))).slice(0, 3);
   const completionLabel = (task: CortexTask) =>
     task.source === 'readiness' || task.source === 'connection_health' ? 'Verify completion' : 'Mark done';
+  const taskNavigationPayload = (task: CortexTask) => {
+    if (task.dedupeKey === 'readiness:sku-unit-cost') return 'filter:missing-cost';
+    if (task.dedupeKey === 'readiness:sku-dimensions-weight') return 'filter:missing-dimensions';
+    return task.entityId || undefined;
+  };
   return (
     <div className="card cortex-task-panel">
       <div className="card-header">
@@ -460,7 +465,7 @@ const CortexTasksPanel = ({
                         <button
                           className="btn ghost sm task-open-btn"
                           title={task.actionLabel || 'Open'}
-                          onClick={() => onNavigate(task.actionTarget || task.screen || 'command', task.entityId || undefined)}
+                          onClick={() => onNavigate(task.actionTarget || task.screen || 'command', taskNavigationPayload(task))}
                           disabled={updatingId === task.id}
                         >
                           <Icon name="arrowRight" size={12} /> {task.actionLabel || 'Open'}

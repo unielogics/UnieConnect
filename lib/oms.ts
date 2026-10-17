@@ -74,6 +74,12 @@ export type OmsSku = {
   images?: string[];
   supplierId?: string | null;
   asin?: string | null;
+  cost?: number | null;
+  price?: number | null;
+  weight?: number | null;
+  dimensions?: { length?: number; width?: number; height?: number } | null;
+  missingFields?: string[];
+  enrichmentPercent?: number;
   enrichmentState?: string;
   enrichmentMarker?: string;
   keepaUnavailable?: boolean;
