@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Thumb, RecentStrip } from '../ui';
 import { Icon } from '../icons';
 
@@ -94,14 +94,49 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [dependencyErrors, setDependencyErrors] = useState<Partial<Record<'customers' | 'skus' | 'orders', string>>>({});
+  const [dependencyLoading, setDependencyLoading] = useState({ customers: true, skus: true, orders: true });
 
-  const reloadCustomers = () =>
-    fetchOmsCustomers().then((d) => setCustomers(d.customers || [])).catch(() => setCustomers([]));
-  useEffect(() => {
-    reloadCustomers();
-    fetchOmsSkus().then((d) => setSkus(d.skus || [])).catch(() => setSkus([]));
-    fetchOmsOrders().then((d) => setRecentOrders((d.orders || []).slice(0, 3))).catch(() => setRecentOrders([]));
+  const loadCustomers = useCallback(async () => {
+    setDependencyLoading((current) => ({ ...current, customers: true }));
+    setDependencyErrors((current) => ({ ...current, customers: undefined }));
+    try {
+      const data = await fetchOmsCustomers();
+      setCustomers(data.customers || []);
+    } catch (error: any) {
+      setDependencyErrors((current) => ({ ...current, customers: error?.message || 'Customers could not be loaded.' }));
+    } finally {
+      setDependencyLoading((current) => ({ ...current, customers: false }));
+    }
   }, []);
+  const loadSkus = useCallback(async () => {
+    setDependencyLoading((current) => ({ ...current, skus: true }));
+    setDependencyErrors((current) => ({ ...current, skus: undefined }));
+    try {
+      const data = await fetchOmsSkus();
+      setSkus(data.skus || []);
+    } catch (error: any) {
+      setDependencyErrors((current) => ({ ...current, skus: error?.message || 'SKU catalog could not be loaded.' }));
+    } finally {
+      setDependencyLoading((current) => ({ ...current, skus: false }));
+    }
+  }, []);
+  const loadRecentOrders = useCallback(async () => {
+    setDependencyLoading((current) => ({ ...current, orders: true }));
+    setDependencyErrors((current) => ({ ...current, orders: undefined }));
+    try {
+      const data = await fetchOmsOrders();
+      setRecentOrders((data.orders || []).slice(0, 3));
+    } catch (error: any) {
+      setDependencyErrors((current) => ({ ...current, orders: error?.message || 'Recent orders could not be loaded.' }));
+    } finally {
+      setDependencyLoading((current) => ({ ...current, orders: false }));
+    }
+  }, []);
+  const reloadCustomers = loadCustomers;
+  useEffect(() => {
+    void Promise.all([loadCustomers(), loadSkus(), loadRecentOrders()]);
+  }, [loadCustomers, loadRecentOrders, loadSkus]);
 
   const filteredCustomers = useMemo(
     () =>
@@ -214,15 +249,24 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
         }
       >
         <div
+          className="new-order-layout"
           style={{
             maxWidth: 1120,
             margin: '0 auto',
             display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) 320px',
             gap: 16,
             alignItems: 'start',
           }}
         >
+          {Object.values(dependencyErrors).some(Boolean) && (
+            <div className="inline-banner danger" role="alert" style={{ gridColumn: '1 / -1' }}>
+              <Icon name="warning" size={13} />
+              <span style={{ flex: 1 }}>{Object.values(dependencyErrors).filter(Boolean).join(' ')} Existing selections are preserved.</span>
+              <button className="btn ghost sm" onClick={() => void Promise.all([loadCustomers(), loadSkus(), loadRecentOrders()])}>
+                <Icon name="refresh" size={12} /> Retry data
+              </button>
+            </div>
+          )}
           {/* ---------- Main column ---------- */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
             {/* Recent context: last 3 orders */}
@@ -281,7 +325,11 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
                     <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 220, overflowY: 'auto', gap: 6 }}>
                       {filteredCustomers.length === 0 && (
                         <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: 8 }}>
-                          No matches — create a new customer.
+                          {dependencyLoading.customers
+                            ? 'Loading customers...'
+                            : dependencyErrors.customers
+                              ? 'Customer records are unavailable. Retry data or create a new customer.'
+                              : 'No matches — create a new customer.'}
                         </div>
                       )}
                       {filteredCustomers.map((c) => (
@@ -312,9 +360,16 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
                 </button>
               </div>
               <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {dependencyLoading.skus && skus.length === 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading SKU catalog...</div>
+                )}
+                {dependencyErrors.skus && skus.length === 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--red-text)' }}>{dependencyErrors.skus} Retry data before adding order lines.</div>
+                )}
                 {lines.length === 0 && (
                   <button
                     onClick={addLine}
+                    disabled={Boolean(dependencyErrors.skus && skus.length === 0)}
                     style={{
                       border: '1px dashed var(--border)', borderRadius: 8, padding: '18px 12px',
                       background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 12.5,
@@ -326,8 +381,9 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
                 {lines.map((l) => (
                   <div
                     key={l.key}
+                    className="new-order-line"
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 10, padding: 10,
+                      display: 'flex', alignItems: 'center', gap: 10, padding: 10, flexWrap: 'wrap',
                       borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'var(--bg-elev)',
                     }}
                   >
@@ -387,7 +443,7 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
                 )}
               </div>
               <div className="card-body">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                <div className="new-order-grid-two" style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
                   <div>
                     <label style={label}>Channel</label>
                     <select style={field} value={channel} onChange={(e) => setChannel(e.target.value)}>
@@ -402,7 +458,7 @@ export const NewOrderModal = ({ onClose, onSuccess }: { onClose: () => void; onS
                     <input style={field} value={ship.line1} onChange={(e) => { setShip((p) => ({ ...p, line1: e.target.value })); setShipAutoFilled(false); }} />
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                <div className="new-order-grid-four" style={{ display: 'grid', gap: 12 }}>
                   <div>
                     <label style={label}>City</label>
                     <input style={field} value={ship.city} onChange={(e) => setShip((p) => ({ ...p, city: e.target.value }))} />
