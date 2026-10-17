@@ -254,7 +254,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
               feedback={decisionFeedback}
               updatingId={decisionUpdatingId}
             />
-            <RevenueTrendCard data={data} bd={bd} compact />
+            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={decisionRecommendations} onNavigate={onNavigate} />
           </div>
 
           <div className="command-task-plan-row" style={{ marginBottom: 16 }}>
@@ -279,7 +279,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           </div>
 
           <div className="row-2" style={{ marginBottom: 16 }}>
-            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={decisionRecommendations} onNavigate={onNavigate} />
+            <RevenueTrendCard data={data} bd={bd} />
             <ChannelMixCard data={data} />
           </div>
 
