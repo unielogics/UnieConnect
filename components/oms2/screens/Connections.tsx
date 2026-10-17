@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Loading, EmptyState, Modal } from '../ui';
 import { apiFetch, fetchCommandCenter, fetchHeatmap, fetchLabelAudit } from '../../../lib/oms';
@@ -82,14 +83,16 @@ const ConnectionCard = ({
   onRepair,
   onRemove,
   busy,
+  focused,
 }: {
   c: Conn;
   onRefresh: (c: Conn) => void;
   onRepair: (c: Conn) => void;
   onRemove: (c: Conn) => void;
   busy?: boolean;
+  focused?: boolean;
 }) => (
-  <tr>
+  <tr id={`connection-${c.id}`} className={focused ? 'connection-row-focused' : undefined}>
     <td>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -119,8 +122,9 @@ const ConnectionCard = ({
     <td className="num">
       <div style={{ display: 'inline-flex', gap: 4 }}>
         {c.needsRepair && (
-          <button className="btn ghost sm" onClick={() => onRepair(c)} disabled={busy} data-hint="Repair authorization">
-            <Icon name="plug" size={11} /> Repair
+          <button className="btn ghost sm" onClick={() => onRepair(c)} disabled={busy} data-hint="Open provider authorization">
+            <Icon name="plug" size={11} />
+            {['needs_authorization', 'needs_configuration'].includes(String(c.raw?.status || '')) ? 'Authorize' : 'Repair'}
           </button>
         )}
         <button className="btn ghost sm" onClick={() => onRefresh(c)} disabled={busy} data-hint={c.owner === 'wms' ? 'Test connection' : 'Refresh'}>
@@ -391,6 +395,7 @@ const ConnectNewModal = ({
 };
 
 export const Connections = (_: ScreenProps) => {
+  const router = useRouter();
   const [conns, setConns] = useState<Conn[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -478,6 +483,15 @@ export const Connections = (_: ScreenProps) => {
 
   useEffect(() => load(), [load]);
 
+  const focusedConnectionId = typeof router.query.connection === 'string' ? router.query.connection : '';
+
+  useEffect(() => {
+    if (loading || !focusedConnectionId) return;
+    const connection = conns.find((item) => String(item.raw?.id || '') === focusedConnectionId);
+    if (!connection) return;
+    document.getElementById(`connection-${connection.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [conns, focusedConnectionId, loading]);
+
   const refreshConnection = async (c: Conn) => {
     setBusy(c.id);
     setNotice(null);
@@ -500,8 +514,13 @@ export const Connections = (_: ScreenProps) => {
   };
 
   const repairConnection = async (c: Conn) => {
-    if (c.owner !== 'marketplace' || c.raw?.channel !== 'shopify' || !c.raw?.shopDomain) {
+    const channel = String(c.raw?.channel || '').toLowerCase();
+    if (c.owner !== 'marketplace' || !['shopify', 'amazon', 'ebay'].includes(channel)) {
       setNotice('This connection does not expose a self-service repair flow yet.');
+      return;
+    }
+    if (channel === 'shopify' && !c.raw?.shopDomain) {
+      setNotice('This Shopify connection is missing its store domain. Remove it and reconnect the store.');
       return;
     }
     const token = localStorage.getItem(TOKEN_KEY);
@@ -512,19 +531,25 @@ export const Connections = (_: ScreenProps) => {
     setBusy(c.id);
     setNotice(null);
     try {
-      const url = new URL(oauthApiUrl('/api/v1/auth/shopify/start'));
+      const url = new URL(oauthApiUrl(`/api/v1/auth/${channel}/start`));
       url.searchParams.set('format', 'json');
-      url.searchParams.set('shop', normalizeShop(String(c.raw.shopDomain)));
+      if (channel === 'shopify') url.searchParams.set('shop', normalizeShop(String(c.raw?.shopDomain || '')));
       url.searchParams.set('redirectTo', `${window.location.origin}/oms?view=connections`);
       const response = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
         credentials: 'include',
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.url) throw new Error(payload?.message || payload?.error || `Repair failed (${response.status})`);
-      window.location.href = String(payload.url);
+      if (!response.ok) throw new Error(payload?.message || payload?.error || `Authorization failed (${response.status})`);
+      if (payload?.url) {
+        window.location.href = String(payload.url);
+        return;
+      }
+      setNotice(payload?.message || `${c.name} authorization is ready for provider configuration.`);
+      setBusy(null);
+      load();
     } catch (error: any) {
-      setNotice(error?.message || 'Shopify authorization repair failed.');
+      setNotice(error?.message || `${c.name} authorization failed.`);
       setBusy(null);
     }
   };
@@ -629,7 +654,15 @@ export const Connections = (_: ScreenProps) => {
                     </thead>
                     <tbody>
                       {items.map((c) => (
-                        <ConnectionCard key={c.id} c={c} onRefresh={refreshConnection} onRepair={repairConnection} onRemove={removeConnection} busy={busy === c.id || busy === 'all'} />
+                        <ConnectionCard
+                          key={c.id}
+                          c={c}
+                          onRefresh={refreshConnection}
+                          onRepair={repairConnection}
+                          onRemove={removeConnection}
+                          busy={busy === c.id || busy === 'all'}
+                          focused={String(c.raw?.id || '') === focusedConnectionId}
+                        />
                       ))}
                     </tbody>
                   </table>

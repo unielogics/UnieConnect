@@ -216,6 +216,9 @@ export default function UnieConnectApp() {
       if (safeTarget === 'suppliers' && payload?.startsWith('filter:')) {
         q.filter = payload.slice('filter:'.length);
       }
+      if (safeTarget === 'connections' && payload) {
+        q.connection = payload;
+      }
       setSection(safeTarget);
       router.push({ pathname: '/oms', query: q }, undefined, { shallow: true });
     },
