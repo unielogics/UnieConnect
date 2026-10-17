@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Loading, EmptyState, Modal } from '../ui';
-import { apiFetch, fetchCommandCenter, fetchHeatmap, fetchLabelAudit } from '../../../lib/oms';
+import { apiFetch, fetchCortexChatHealth, fetchLabelAudit } from '../../../lib/oms';
 import { apiUrl, authFetch, oauthApiUrl, TOKEN_KEY } from '../../../lib/api';
 import { timeAgo } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -124,7 +124,9 @@ const ConnectionCard = ({
         {c.needsRepair && (
           <button className="btn ghost sm" onClick={() => onRepair(c)} disabled={busy} data-hint="Open provider authorization">
             <Icon name="plug" size={11} />
-            {['needs_authorization', 'needs_configuration'].includes(String(c.raw?.status || '')) ? 'Authorize' : 'Repair'}
+            {String(c.raw?.channel || '').toLowerCase() === 'shopify'
+              ? 'Reconnect'
+              : ['needs_authorization', 'needs_configuration'].includes(String(c.raw?.status || '')) ? 'Authorize' : 'Repair'}
           </button>
         )}
         <button className="btn ghost sm" onClick={() => onRefresh(c)} disabled={busy} data-hint={c.owner === 'wms' ? 'Test connection' : 'Refresh'}>
@@ -401,18 +403,27 @@ export const Connections = (_: ScreenProps) => {
   const [busy, setBusy] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadErrors, setLoadErrors] = useState<Partial<Record<Owner, string>>>({});
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     setLoading(true);
-    Promise.all([
-      fetchCommandCenter('7d').catch(() => null),
-      fetchHeatmap().catch(() => null),
-      fetchLabelAudit().catch(() => null),
-      apiFetch<ChannelAccount[]>('/channel-accounts').catch(() => []),
-      apiFetch<{ warehouses: any[] }>('/oms/warehouses').catch(() => ({ warehouses: [] })),
-    ])
-      .then(([cc, _hm, la, accounts, warehouseData]) => {
+    setLoadErrors({});
+    const [cortexResult, labelResult, accountResult, warehouseResult] = await Promise.allSettled([
+      fetchCortexChatHealth('connections'),
+      fetchLabelAudit(),
+      apiFetch<ChannelAccount[]>('/channel-accounts'),
+      apiFetch<{ warehouses: any[] }>('/oms/warehouses'),
+    ]);
+    const errors: Partial<Record<Owner, string>> = {};
+    if (accountResult.status === 'rejected') errors.marketplace = 'Marketplace connection status could not be loaded.';
+    if (warehouseResult.status === 'rejected') errors.wms = 'Warehouse connection status could not be loaded.';
+    if (cortexResult.status === 'rejected' || !cortexResult.value.ok) errors.intelligence = 'Cortex health could not be verified.';
+    if (labelResult.status === 'rejected') errors.carrier = 'Carrier and rate feed status could not be loaded.';
+
+    setConns((current) => {
         const out: Conn[] = [];
+        const accounts = accountResult.status === 'fulfilled' ? accountResult.value : null;
+        if (!accounts) out.push(...current.filter((connection) => connection.owner === 'marketplace'));
         (accounts || []).forEach((a) => {
           const syncEntries = Object.entries(a.sync || {});
           const syncIssue = syncEntries
@@ -423,7 +434,7 @@ export const Connections = (_: ScreenProps) => {
             .join('; ');
           const missingLocationScope = a.channel === 'shopify'
             && !(a.scopes || []).some((scope) => scope === 'read_locations' || scope === 'write_locations');
-          const degraded = Boolean(syncIssue || syncEntries.some(([, state]) => state?.metadata?.degraded));
+          const degraded = Boolean(missingLocationScope || syncIssue || syncEntries.some(([, state]) => state?.metadata?.degraded));
           const entities = syncEntries.length
             ? syncEntries.map(([entity, state]) => `${entity.replace(/_/g, ' ')}${state?.count == null ? '' : ` ${state.count}`}`)
             : channelEntities[a.channel] || ['Orders', 'Inventory'];
@@ -435,12 +446,14 @@ export const Connections = (_: ScreenProps) => {
             lastSync: a.lastSyncAt ? timeAgo(a.lastSyncAt) : 'pending',
             entities,
             owner: 'marketplace',
-            issue: syncIssue || (missingLocationScope ? 'Location inventory access is missing. Reconnect Shopify to authorize warehouse-level inventory.' : undefined),
+            issue: syncIssue || (missingLocationScope ? 'Shopify location inventory is unavailable. Reconnect and approve location access to restore warehouse-level quantities.' : undefined),
             needsRepair: a.status === 'needs_authorization' || a.status === 'needs_configuration' || missingLocationScope,
             raw: a,
           });
         });
 
+        const warehouseData = warehouseResult.status === 'fulfilled' ? warehouseResult.value : null;
+        if (!warehouseData) out.push(...current.filter((connection) => connection.owner === 'wms'));
         (warehouseData?.warehouses || []).forEach((w) =>
           out.push({
             id: `wms-${w.warehouseCode || w.code || w.id}`,
@@ -454,18 +467,35 @@ export const Connections = (_: ScreenProps) => {
           }),
         );
 
+        const cortexHealthy = cortexResult.status === 'fulfilled' && cortexResult.value.ok;
         out.push({
           id: 'cortex',
           name: 'Cortex Intelligence',
-          region: String(cc?.source?.inventory || 'cortex'),
-          status: 'live',
-          lastSync: 'continuous',
+          region: 'account-scoped intelligence',
+          status: cortexHealthy ? 'healthy' : 'degraded',
+          lastSync: cortexHealthy ? 'continuous' : 'health check failed',
           entities: ['Demand', 'Net-Opt', 'Audit'],
           owner: 'intelligence',
+          issue: cortexHealthy ? undefined : 'Cortex could not be verified. Account data remains isolated and operational views remain available.',
         });
 
+        const la = labelResult.status === 'fulfilled' ? labelResult.value : null;
         const carriers = Array.from(new Set((la?.findings || []).map((f) => f.carrier).filter(Boolean))) as string[];
-        (carriers.length ? carriers : ['Carrier audit/rates']).forEach((c, i) =>
+        if (!la) {
+          const knownCarriers = current.filter((connection) => connection.owner === 'carrier');
+          out.push(...(knownCarriers.length ? knownCarriers : [{
+            id: 'carrier-health',
+            name: 'Carrier audit/rates',
+            region: 'status unavailable',
+            lastSync: 'health check failed',
+            entities: ['Labels', 'Rates', 'Tracking'],
+            owner: 'carrier' as Owner,
+          }]).map((connection) => ({
+            ...connection,
+            status: 'degraded',
+            issue: errors.carrier,
+          })));
+        } else (carriers.length ? carriers : ['Carrier audit/rates']).forEach((c, i) =>
           out.push({
             id: `carrier-${i}`,
             name: c,
@@ -476,12 +506,15 @@ export const Connections = (_: ScreenProps) => {
             owner: 'carrier',
           }),
         );
-        setConns(out);
-      })
-      .finally(() => setLoading(false));
+        return out;
+      });
+    setLoadErrors(errors);
+    setLoading(false);
   }, []);
 
-  useEffect(() => load(), [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const focusedConnectionId = typeof router.query.connection === 'string' ? router.query.connection : '';
 
@@ -497,8 +530,10 @@ export const Connections = (_: ScreenProps) => {
     setNotice(null);
     try {
       if (c.owner === 'marketplace' && c.raw?.id) {
-        await apiFetch(`/channel-accounts/${encodeURIComponent(c.raw.id)}/refresh`, { method: 'POST' });
-        setNotice(`${c.name} refresh queued.`);
+        const result = await apiFetch<any>(`/channel-accounts/${encodeURIComponent(c.raw.id)}/refresh`, { method: 'POST' });
+        setNotice(result?.syncStatus === 'partial'
+          ? `${c.name} refreshed with provider issues. Review the connection warning and reconnect if authorization is missing.`
+          : `${c.name} refreshed successfully.`);
       } else if (c.owner === 'wms' && c.raw?.warehouseCode) {
         await apiFetch(`/oms/warehouses/${encodeURIComponent(c.raw.warehouseCode)}/test`, { method: 'POST' });
         setNotice(`${c.name} connection is reachable.`);
@@ -619,6 +654,14 @@ export const Connections = (_: ScreenProps) => {
         </div>
       </div>
 
+      {Object.keys(loadErrors).length > 0 && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 14 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{Object.values(loadErrors).filter(Boolean).join(' ')} Last-known connections are preserved.</span>
+          <button className="btn ghost sm" onClick={() => load()}><Icon name="refresh" size={12} /> Retry status</button>
+        </div>
+      )}
+
       {notice && (
         <div className="card" style={{ padding: '10px 12px', marginBottom: 14, color: 'var(--text-secondary)' }}>
           {notice}
@@ -639,7 +682,7 @@ export const Connections = (_: ScreenProps) => {
               </div>
               <div className="table-wrap">
                 {items.length === 0 ? (
-                  <EmptyState>No {g.label.toLowerCase()} connected. Use Connect new to add one.</EmptyState>
+                  <EmptyState>{loadErrors[g.filter] ? `${g.label} status is unavailable. Retry before adding or removing a connection.` : `No ${g.label.toLowerCase()} connected. Use Connect new to add one.`}</EmptyState>
                 ) : (
                   <table className="data">
                     <thead>
