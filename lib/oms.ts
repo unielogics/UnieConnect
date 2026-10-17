@@ -342,6 +342,7 @@ export type OmsOrder = {
   id: string;
   publicId?: string;
   displayId?: string;
+  customerId?: string | null;
   ch?: string;
   account_channel?: string;
   chOrderId?: string;
@@ -439,6 +440,8 @@ export type OmsCustomerAddress = {
 
 export type OmsCustomer = {
   id: string;
+  publicId?: string;
+  displayId?: string;
   name: string;
   email?: string;
   phone?: string;
@@ -455,6 +458,18 @@ export type OmsCustomer = {
   firstOrder?: string;
   segment?: string;
   tags?: string[];
+  orderStatuses?: string[];
+  metadata?: Record<string, unknown>;
+};
+
+export type OmsCustomerDetail = {
+  customer: OmsCustomer;
+  orders: OmsOrder[];
+  summary: {
+    totalOrders: number;
+    totalValue: number;
+    ordersByStatus: Array<{ status: string; count: number }>;
+  };
 };
 
 export type SupplierPickupProfile = {
@@ -1146,6 +1161,9 @@ export const stopAsn = (id: string, reason?: string) =>
   });
 
 export const fetchOmsCustomers = () => omsFetch<{ customers: OmsCustomer[] }>('/customers');
+
+export const fetchOmsCustomerDetail = (customerId: string) =>
+  omsFetch<OmsCustomerDetail>(`/customers/${encodeURIComponent(customerId)}`);
 
 export const fetchOmsSuppliers = () =>
   omsFetch<{ suppliers: OmsSupplier[]; locations: Array<Record<string, unknown>> }>('/suppliers');
