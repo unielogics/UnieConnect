@@ -146,7 +146,20 @@ export const Suppliers = ({
         const nextSuppliers = d.suppliers || [];
         setSuppliers(nextSuppliers);
         if (s) setSkus(s.skus || []);
-        setSelected((current) => (current && nextSuppliers.some((supplier) => supplier.id === current) ? current : nextSuppliers[0]?.id || null));
+        const requestedSupplier = typeof router.query.supplier === 'string' ? router.query.supplier.trim() : '';
+        const requestedShipFrom = typeof router.query.shipFrom === 'string' ? router.query.shipFrom.trim() : '';
+        const matchedLocation = requestedShipFrom
+          ? (d.locations || []).find((location: Record<string, unknown>) => String(location.id || location._id || '') === requestedShipFrom)
+          : null;
+        const locationSupplier = matchedLocation
+          ? String(matchedLocation.supplierId || matchedLocation.supplier_id || '')
+          : '';
+        const routeSelection = requestedSupplier || locationSupplier;
+        setSelected((current) => {
+          if (routeSelection && nextSuppliers.some((supplier) => supplier.id === routeSelection)) return routeSelection;
+          if (current && nextSuppliers.some((supplier) => supplier.id === current)) return current;
+          return nextSuppliers[0]?.id || null;
+        });
       })
       .catch((e) => setErr(e.message || 'Failed to load suppliers'))
       .finally(() => setLoading(false));
@@ -256,7 +269,14 @@ export const Suppliers = ({
                 return (
                   <button
                     key={s.id}
-                    onClick={() => setSelected(s.id)}
+                    onClick={() => {
+                      setSelected(s.id);
+                      router.replace(
+                        { pathname: '/oms', query: { view: 'suppliers', supplier: s.id } },
+                        undefined,
+                        { shallow: true }
+                      );
+                    }}
                     style={{
                       display: 'block',
                       width: '100%',
