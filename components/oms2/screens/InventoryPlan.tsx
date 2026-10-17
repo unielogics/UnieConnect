@@ -129,7 +129,7 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
       </div>
 
       <div className="card" style={{ background: modeled ? 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 60%)' : 'var(--bg-elev)' }}>
-        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr) auto', gap: 18, alignItems: 'center', padding: 18 }}>
+        <div className="card-body inventory-plan-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr) auto', gap: 18, alignItems: 'center', padding: 18 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <Chip tone={modeled ? 'purple' : 'amber'} dot={false}>{modeled ? 'PROPOSED PLAN' : 'ACCOUNT BASELINE'}</Chip>
@@ -167,7 +167,7 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
             </span>
           </div>
         </div>
-        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14, padding: 18 }}>
+        <div className="card-body inventory-plan-diff-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14, padding: 18 }}>
           {diffs.map((d) => {
             const delta = d.proposed - d.current;
             const better = d.neutral ? true : (d as any).betterHigher ? delta > 0 : delta < 0;
@@ -206,7 +206,7 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
           <EmptyState>No SKUs in the current plan yet. Add products to build a 6-month plan.</EmptyState>
         </div>
       ) : (
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 360px) 1fr', gap: 16, alignItems: 'flex-start', marginTop: 16 }}>
+      <div className="inventory-plan-master-detail" style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 360px) minmax(0, 1fr)', gap: 16, alignItems: 'flex-start', marginTop: 16 }}>
         <div className="card" style={{ position: 'sticky', top: 70 }}>
           <div className="card-header">
             <div className="card-title">
@@ -295,7 +295,7 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
                 <button className={viewMode === 'network' ? 'active' : ''} onClick={() => setViewMode('network')}>By warehouse</button>
               </div>
             </div>
-            <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14, paddingTop: 14, paddingBottom: 16 }}>
+            <div className="card-body inventory-plan-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14, paddingTop: 14, paddingBottom: 16 }}>
               <DetailKv label="Available" value={`${num(sku.available).toLocaleString()}u`} />
               <DetailKv label="Inbound" value={`${num(sku.inbound).toLocaleString()}u`} />
               <DetailKv label="Days of cover" value={`${Math.round(num(sku.daysOfCover))}d`} tone={docTone(num(sku.daysOfCover))} />
@@ -500,6 +500,7 @@ const PlanTimeline = ({ months }: { months: InventoryPlanFull['months'] }) => (
         const tone = repl > 0 ? 'green' : 'blue';
         return (
           <div
+            className="inventory-plan-timeline-row"
             key={i}
             style={{
               display: 'grid',
@@ -549,7 +550,7 @@ const NetworkBreakdown = ({ warehouses, sku }: { warehouses: InventoryPlanFull['
       {warehouses.map((w, i) => {
         const active = i < (sku.proposedWarehouseCount || 0);
         return (
-          <div key={w.id} style={{ display: 'grid', gridTemplateColumns: '160px 1fr auto', gap: 14, alignItems: 'center' }}>
+          <div key={w.id} className="inventory-plan-warehouse-row" style={{ display: 'grid', gridTemplateColumns: '160px minmax(0, 1fr) auto', gap: 14, alignItems: 'center' }}>
             <div>
               <div className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{w.code || w.name}</div>
               <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>

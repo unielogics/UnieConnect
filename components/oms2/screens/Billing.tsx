@@ -269,7 +269,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
 
       <div className="card" style={{ marginBottom: 16, background: 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 50%)' }}>
         <div className="card-body" style={{ padding: 22 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr', gap: 28, alignItems: 'center' }}>
+          <div className="billing-plan-comparison" style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr 1fr', gap: 28, alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 6 }}>CURRENT OPERATION</div>
               <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em' }}>{fmt.money(currentTotal)}</div>
@@ -447,6 +447,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
             const active = category === c.key;
             return (
               <div
+                className="billing-cost-row"
                 key={c.key}
                 onClick={() => !c.refund && filterByCategory(c.key)}
                 style={{
