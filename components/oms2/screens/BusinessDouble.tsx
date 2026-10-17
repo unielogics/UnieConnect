@@ -198,7 +198,7 @@ export const BusinessDouble = (_: ScreenProps) => {
       )}
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, alignItems: 'center', padding: 16 }}>
+        <div className="card-body business-context-strip" style={{ gap: 16, alignItems: 'center', padding: 16 }}>
           <div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <Chip tone={latestOpt ? 'purple' : 'amber'} dot={false}>{latestOpt ? 'Latest Seller Optimization loaded' : 'No Seller Optimization run yet'}</Chip>
@@ -227,7 +227,7 @@ export const BusinessDouble = (_: ScreenProps) => {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+        <div className="card-body business-strategy-grid" style={{ gap: 12 }}>
           <StrategyCard
             badge="Today"
             tone="default"
@@ -282,7 +282,7 @@ export const BusinessDouble = (_: ScreenProps) => {
           {uniqueImpact.length === 0 ? (
             <EmptyState>Cost breakdown not yet returned by the plan model.</EmptyState>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${uniqueImpact.length}, 1fr)`, gap: 16 }}>
+            <div className="business-impact-grid" style={{ gap: 16 }}>
               {uniqueImpact.map((k) => (
                 <ImpactComparison
                   key={k}
@@ -445,7 +445,7 @@ const ScenarioPanel = ({
             );
           })}
         </svg>
-        <div style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, borderTop: '1px solid var(--border-subtle)' }}>
+        <div className="business-map-summary" style={{ padding: 14, gap: 10, borderTop: '1px solid var(--border-subtle)' }}>
           <div className="kv"><div className="kv-label">Active rooftops</div><div className="kv-value">{activeNodes.length}</div></div>
           <div className="kv"><div className="kv-label">Avg SLA</div><div className="kv-value">{num(scenario.sla ?? scenario.slaDays).toFixed(1)}d</div></div>
           <div className="kv"><div className="kv-label">30d freight</div><div className="kv-value">{fmt.money(num(scenario.freight))}</div></div>
@@ -546,7 +546,7 @@ const ApprovalSurface = ({
       }}
     >
       <div className="card-body" style={{ padding: 24 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr .7fr auto auto', gap: 14, alignItems: 'stretch' }}>
+        <div className="business-decision-grid" style={{ gap: 14, alignItems: 'stretch' }}>
           <div>
             <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Current</div>
             <div style={{ fontSize: 15, fontWeight: 800 }}>Current operating model</div>
@@ -611,7 +611,7 @@ const ApprovalSurface = ({
           {areas.length === 0 ? (
             <EmptyState>No autonomous actions defined for this plan.</EmptyState>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            <div className="business-autonomy-grid" style={{ gap: 10 }}>
               {areas.map((a, i) => (
                 <div
                   key={i}

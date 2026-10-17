@@ -996,6 +996,54 @@
   .uc-shell .cortex-task-summary > div + div { border-left: 0; border-top: 1px solid var(--border-subtle); padding-top: 10px; margin-top: 10px; }
 }
 
+/* ============================= Business Double / SKU detail responsiveness ============================= */
+.uc-shell .business-context-strip { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; }
+.uc-shell .business-strategy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.uc-shell .business-impact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.uc-shell .business-map-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.uc-shell .business-decision-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(140px, .7fr) auto auto; }
+.uc-shell .business-autonomy-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.uc-shell .sku-detail-hero-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
+.uc-shell .sku-intelligence-metric-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.uc-shell .sku-economics-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.uc-shell .sku-inbound-row { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; }
+.uc-shell .sku-related-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.uc-shell .sku-event-row { display: grid; grid-template-columns: 150px 28px minmax(0, 1fr) auto; }
+.uc-shell .sku-channel-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.uc-shell .sku-billing-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1100px) {
+  .uc-shell .business-decision-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .uc-shell .business-autonomy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .uc-shell .sku-intelligence-metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .uc-shell .sku-economics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .uc-shell .business-context-strip,
+  .uc-shell .business-strategy-grid,
+  .uc-shell .business-decision-grid,
+  .uc-shell .business-autonomy-grid,
+  .uc-shell .sku-detail-hero-grid,
+  .uc-shell .sku-intelligence-metric-grid,
+  .uc-shell .sku-economics-grid,
+  .uc-shell .sku-billing-summary { grid-template-columns: minmax(0, 1fr); }
+  .uc-shell .business-context-strip > .btn,
+  .uc-shell .business-decision-grid > .btn { width: 100%; justify-content: center; }
+  .uc-shell .sku-inbound-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .uc-shell .sku-inbound-row > :first-child { grid-column: 1 / -1; }
+  .uc-shell .sku-event-row { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .uc-shell .sku-event-row > :first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 480px) {
+  .uc-shell .business-map-summary,
+  .uc-shell .business-impact-grid,
+  .uc-shell .sku-channel-metrics,
+  .uc-shell .sku-inbound-row,
+  .uc-shell .sku-related-row,
+  .uc-shell .sku-event-row { grid-template-columns: minmax(0, 1fr); }
+  .uc-shell .sku-event-row > :first-child,
+  .uc-shell .sku-inbound-row > :first-child { grid-column: auto; }
+}
+
 /* ============================= Inline bits ============================= */
 .uc-shell .kv { display: flex; flex-direction: column; gap: 2px; }
 .uc-shell .kv-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }

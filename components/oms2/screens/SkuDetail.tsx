@@ -362,7 +362,7 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
       )}
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 18, alignItems: 'center', padding: 20 }}>
+        <div className="card-body sku-detail-hero-grid" style={{ gap: 18, alignItems: 'center', padding: 20 }}>
           <div
             style={{
               width: 72,
@@ -914,7 +914,7 @@ const SkuCortexEconomicsCard = ({
             </Chip>
           </div>
         </div>
-        <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10 }}>
+        <div className="card-body sku-intelligence-metric-grid" style={{ gap: 10 }}>
           {metricRows.map(([label, value, sub]) => (
             <div key={String(label)} style={{ padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-sunken)' }}>
               <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-tertiary)', fontWeight: 800 }}>{label}</div>
@@ -976,7 +976,7 @@ const SkuCortexEconomicsCard = ({
           {summary.confidence != null && <Chip tone={summary.confidence >= 70 ? 'green' : 'amber'} dot={false}>{summary.confidence}% confidence</Chip>}
         </div>
       </div>
-      <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
+      <div className="card-body sku-economics-grid" style={{ gap: 10 }}>
         {[
           ['Current / unit', money(summary.currentPerUnit), (summary.current as any)?.warehouseCode || 'modeled'],
           ['Optimized / unit', moneyOrMissing(summary.optimizedPerUnit), summary.optimizedBlockedReason ? networkBlockedCopy(summary.optimizedBlockedReason) : (summary.optimized as any)?.warehouseCode || 'modeled'],
@@ -1711,9 +1711,8 @@ const NextSixShipments = ({ data, onNavigate }: { data: OmsSkuDetail; onNavigate
         {ships.slice(0, 6).map((s, i) => (
           <div
             key={s.id}
+            className="sku-inbound-row"
             style={{
-              display: 'grid',
-              gridTemplateColumns: '90px 1fr auto',
               gap: 14,
               padding: '12px 16px',
               borderBottom: i === Math.min(ships.length, 6) - 1 ? 'none' : '1px solid var(--border-subtle)',
@@ -1793,9 +1792,8 @@ const RelatedSkusCard = ({ data }: { data: OmsSkuDetail }) => {
         {related.map((s, i) => (
           <div
             key={s.id}
+            className="sku-related-row"
             style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr auto',
               padding: '10px 14px',
               borderBottom: i === related.length - 1 ? 'none' : '1px solid var(--border-subtle)',
               gap: 10,
@@ -1892,9 +1890,8 @@ const History = ({ data }: { data: OmsSkuDetail }) => {
         {visibleEvents.map((e, i) => (
           <div
             key={i}
+            className="sku-event-row"
             style={{
-              display: 'grid',
-              gridTemplateColumns: '150px 28px 1fr auto',
               gap: 14,
               padding: '12px 16px',
               borderBottom: i === visibleEvents.length - 1 ? 'none' : '1px solid var(--border-subtle)',
@@ -1950,7 +1947,7 @@ const Channels = ({ data }: { data: OmsSkuDetail }) => {
             <div className="card-title">{c.channel}</div>
             <Chip tone="green" dot={false}>Live</Chip>
           </div>
-          <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+          <div className="card-body sku-channel-metrics" style={{ gap: 14 }}>
             <div className="kv"><div className="kv-label">30d units</div><div className="kv-value">{num(c.units30d).toLocaleString()}</div></div>
             <div className="kv"><div className="kv-label">30d revenue</div><div className="kv-value">{fmt.money(num(c.revenue30d), { compact: true })}</div></div>
             <div className="kv"><div className="kv-label">Share of demand</div><div className="kv-value">{Math.round(num(c.shareOfDemand) * 100)}%</div></div>
@@ -1978,7 +1975,7 @@ const Billing = ({ data }: { data: OmsSkuDetail }) => {
         <EmptyState>No billing breakdown available for this SKU.</EmptyState>
       ) : (
         <>
-          <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+          <div className="card-body sku-billing-summary" style={{ gap: 14 }}>
             <div className="kv"><div className="kv-label">Current monthly</div><div className="kv-value">{fmt.money(num(b.currentMonthly))}</div></div>
             <div className="kv"><div className="kv-label">Optimized monthly</div><div className="kv-value" style={{ color: 'var(--purple-text)' }}>{fmt.money(num(b.optimizedMonthly))}</div></div>
             <div className="kv"><div className="kv-label">Savings / mo</div><div className="kv-value" style={{ color: 'var(--green-text)' }}>{fmt.money(num(b.currentMonthly) - num(b.optimizedMonthly))}</div></div>
