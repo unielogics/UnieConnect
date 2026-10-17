@@ -756,7 +756,15 @@ export type CortexChatResponse = {
   cortex?: {
     ok?: boolean;
     status?: number;
-    health?: { available?: boolean; chatIntegrated?: boolean; status?: number; reason?: string };
+    health?: {
+      available?: boolean;
+      chatIntegrated?: boolean;
+      status?: number;
+      reason?: string;
+      liveRouteAvailable?: boolean;
+      liveRouteStatus?: number;
+      liveRouteReason?: string;
+    };
   };
 };
 
