@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchCortexPlans, approveCortexPlan, declineCortexPlan, type CortexPlan } from '../../lib/oms';
+import { Icon } from './icons';
 
 /**
  * Client-facing approval surface for Cortex placement plans relayed by the owning warehouse.
@@ -11,17 +12,19 @@ export function CortexPlanApprovals() {
   const [plans, setPlans] = useState<CortexPlan[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = async () => {
+    setLoadError(null);
     try {
       const res = await fetchCortexPlans('pending_client_approval');
       setPlans(res?.plans || []);
-    } catch {
-      setPlans([]);
+    } catch (error: any) {
+      setLoadError(error?.message || 'Pending Cortex placement plans could not be loaded.');
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   const approve = async (p: CortexPlan) => {
     setBusyId(p.id); setMsg(null);
@@ -44,26 +47,33 @@ export function CortexPlanApprovals() {
     } finally { setBusyId(null); }
   };
 
-  if (plans.length === 0) return null;
+  if (plans.length === 0 && !loadError) return null;
 
   return (
-    <div style={{ border: '1px solid var(--oms-violet-border, #c4b5fd)', background: 'var(--oms-violet-bg, #f5f3ff)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: '#5b21b6' }}>AI placement plans awaiting your approval</span>
-        <span style={{ fontSize: 12, color: '#7c3aed' }}>{plans.length} pending</span>
+    <div style={{ border: '1px solid var(--purple-border, var(--border))', background: 'var(--purple-soft)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: loadError || plans.length ? 10 : 0 }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--purple-text)' }}>Cortex placement plans awaiting approval</span>
+        {plans.length > 0 && <span style={{ fontSize: 12, color: 'var(--purple-text)' }}>{plans.length} pending</span>}
       </div>
+      {loadError && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: plans.length ? 10 : 0 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{loadError} Previously loaded plans are preserved.</span>
+          <button className="btn ghost sm" onClick={load}><Icon name="refresh" size={12} /> Retry plans</button>
+        </div>
+      )}
       {msg && (
-        <div style={{ fontSize: 13, marginBottom: 10, color: msg.tone === 'ok' ? '#047857' : '#b91c1c' }}>{msg.text}</div>
+        <div style={{ fontSize: 13, marginBottom: 10, color: msg.tone === 'ok' ? 'var(--green-text)' : 'var(--red-text)' }}>{msg.text}</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {plans.map((p) => {
           const legs = p.plan?.legs || p.plan?.after?.legs || p.plan?.transfer_set || [];
           return (
-            <div key={p.id} style={{ background: '#fff', border: '1px solid #ede9fe', borderRadius: 10, padding: 12 }}>
+            <div key={p.id} style={{ background: 'var(--bg-elev)', border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1f2937' }}>{p.summary || 'Cross-warehouse placement plan'}</div>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{p.summary || 'Cross-warehouse placement plan'}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
                     {Array.isArray(legs) && legs.length
                       ? legs.slice(0, 4).map((l: any, i: number) => (
                           <span key={i}>
@@ -76,7 +86,7 @@ export function CortexPlanApprovals() {
                     {Array.isArray(legs) && legs.length > 4 ? ` +${legs.length - 4} more` : ''}
                   </div>
                   {p.total_savings_usd != null && (
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#047857', marginTop: 4 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--green-text)', marginTop: 4 }}>
                       Projected savings ~${Number(p.total_savings_usd).toFixed(0)}/mo
                     </div>
                   )}
@@ -85,20 +95,20 @@ export function CortexPlanApprovals() {
                   <button
                     onClick={() => decline(p)}
                     disabled={busyId === p.id}
-                    style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                    style={{ padding: '7px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-elev)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                   >
                     Decline
                   </button>
                   <button
                     onClick={() => approve(p)}
                     disabled={busyId === p.id}
-                    style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: 'var(--purple)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
                   >
                     {busyId === p.id ? 'Working…' : 'Approve & execute'}
                   </button>
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>
                 Approving triggers a warehouse-to-warehouse transfer. Your warehouse completes the physical move.
               </div>
             </div>
