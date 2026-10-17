@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from './icons';
-import { Modal, Chip } from './ui';
+import { Modal, Chip, ErrorState, Loading } from './ui';
 import type { SelSku } from './SelectionBar';
 import { fetchOmsSuppliers, createShipmentDraft, confirmShipmentDraft, fetchShipmentPalletLabels, retryShipmentVendorEmail, fetchWarehouseOverview, OmsSupplier, OmsWarehouseOverview } from '../../lib/oms';
 import { fetchShipmentPricingPreview, type ShipmentPricingPreview } from '../../lib/shipment-plan';
@@ -625,6 +625,8 @@ export const ShipmentWizard = ({
   const list = skus.length ? skus : [];
   const [step, setStep] = useState(1);
   const [suppliers, setSuppliers] = useState<OmsSupplier[]>([]);
+  const [suppliersLoaded, setSuppliersLoaded] = useState(false);
+  const [supplierLoadError, setSupplierLoadError] = useState<string | null>(null);
   const [warehouses, setWarehouses] = useState<OmsWarehouseOverview[]>([]);
   const [warehousesLoaded, setWarehousesLoaded] = useState(false);
   const [supplierId, setSupplierId] = useState<string | null>(forcedSupplierId || null);
@@ -644,15 +646,28 @@ export const ShipmentWizard = ({
   );
 
   useEffect(() => {
+    let alive = true;
+    setSuppliersLoaded(false);
+    setSupplierLoadError(null);
     fetchOmsSuppliers()
       .then((d) => {
+        if (!alive) return;
         setSuppliers(d.suppliers || []);
         if (!supplierId && d.suppliers?.length) {
           const match = d.suppliers.find((sp) => list.some((sk) => (sp.skus || []).includes(sk.id) || (sk as any).supplierId === sp.id));
           if (match) setSupplierId(match.id);
         }
       })
-      .catch(() => {});
+      .catch((error: any) => {
+        if (!alive) return;
+        setSupplierLoadError(error?.message || 'Suppliers could not be loaded.');
+      })
+      .finally(() => {
+        if (alive) setSuppliersLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
   }, [supplierReloadToken]);
 
   useEffect(() => {
@@ -1014,7 +1029,18 @@ export const ShipmentWizard = ({
                 Every shipment plan must be tied to one supplier so UnieConnect can create the ASN, pickup context, and warehouse handoff correctly.
               </div>
             </div>
-            {suppliers.length === 0 ? (
+            {!suppliersLoaded ? (
+              <div className="card" style={{ padding: 18, background: 'var(--bg-sunken)' }}>
+                <Loading rows={3} />
+              </div>
+            ) : supplierLoadError ? (
+              <div className="card" style={{ background: 'var(--bg-elev)' }}>
+                <ErrorState
+                  message={supplierLoadError}
+                  onRetry={() => setSupplierReloadToken((token) => token + 1)}
+                />
+              </div>
+            ) : suppliers.length === 0 ? (
               <div className="card" style={{ padding: 18, background: 'var(--bg-sunken)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                   <div style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--amber-soft)', color: 'var(--amber-text)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>

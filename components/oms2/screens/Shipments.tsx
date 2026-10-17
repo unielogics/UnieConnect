@@ -23,6 +23,7 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('shipments');
 
@@ -69,10 +70,20 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
   const mutateAsn = async (asn: OmsAsn, action: 'cancel' | 'stop') => {
     const reason = action === 'stop' ? 'Stopped before warehouse execution from OMS' : 'Cancelled from OMS shipment screen';
     setActing(`${action}:${asn.id}`);
+    setActionFeedback(null);
     try {
       if (action === 'stop') await stopAsn(asn.id, reason);
       else await cancelAsn(asn.id, reason);
       await load();
+      setActionFeedback({
+        tone: 'success',
+        text: `${asn.displayId || asn.publicId || asn.asnNumber || 'ASN'} ${action === 'stop' ? 'stopped' : 'cancelled'} successfully.`,
+      });
+    } catch (error: any) {
+      setActionFeedback({
+        tone: 'error',
+        text: error?.message || `The ASN could not be ${action === 'stop' ? 'stopped' : 'cancelled'}.`,
+      });
     } finally {
       setActing(null);
     }
@@ -205,6 +216,11 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                   </div>
                   <button className="btn ghost sm" onClick={load}><Icon name="refresh" size={12} /> Sync</button>
                 </div>
+                {actionFeedback && (
+                  <div className={`decision-feedback ${actionFeedback.tone}`} role={actionFeedback.tone === 'error' ? 'alert' : 'status'}>
+                    <Icon name={actionFeedback.tone === 'success' ? 'check' : 'warning'} size={13} /> {actionFeedback.text}
+                  </div>
+                )}
                 <div className="card-body" style={{ padding: 0 }}>
                   {asns.length === 0 ? (
                     <EmptyState>No ASNs created yet. Create one from selected SKUs or a shipment plan.</EmptyState>
@@ -253,11 +269,11 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                               <td>
                                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                   <CortexRowAction rec={rec} onOpen={() => rec && setSelectedRec(rec)} />
-                                  <button className="btn ghost sm" disabled={locked || acting === `stop:${asn.id}`} onClick={() => mutateAsn(asn, 'stop')}>
-                                    Stop
+                                  <button className="btn ghost sm" disabled={locked || Boolean(acting)} onClick={() => mutateAsn(asn, 'stop')}>
+                                    {acting === `stop:${asn.id}` ? 'Stopping...' : 'Stop'}
                                   </button>
-                                  <button className="btn ghost sm" disabled={locked || acting === `cancel:${asn.id}`} onClick={() => mutateAsn(asn, 'cancel')}>
-                                    <Icon name="x" size={12} /> Cancel
+                                  <button className="btn ghost sm" disabled={locked || Boolean(acting)} onClick={() => mutateAsn(asn, 'cancel')}>
+                                    <Icon name="x" size={12} /> {acting === `cancel:${asn.id}` ? 'Cancelling...' : 'Cancel'}
                                   </button>
                                 </div>
                               </td>
