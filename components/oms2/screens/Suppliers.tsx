@@ -131,16 +131,21 @@ export const Suppliers = ({
   const [pickupFilter, setPickupFilter] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [skuError, setSkuError] = useState<string | null>(null);
   const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('suppliers');
 
   const load = () => {
     setLoading(true);
     setErr(null);
-    Promise.all([fetchOmsSuppliers(), fetchOmsSkus().catch(() => ({ skus: [], total: 0 }))])
+    setSkuError(null);
+    Promise.all([fetchOmsSuppliers(), fetchOmsSkus().catch((error: any) => {
+      setSkuError(error?.message || 'Linked SKU data could not be loaded.');
+      return null;
+    })])
       .then(([d, s]) => {
         const nextSuppliers = d.suppliers || [];
         setSuppliers(nextSuppliers);
-        setSkus(s.skus || []);
+        if (s) setSkus(s.skus || []);
         setSelected((current) => (current && nextSuppliers.some((supplier) => supplier.id === current) ? current : nextSuppliers[0]?.id || null));
       })
       .catch((e) => setErr(e.message || 'Failed to load suppliers'))
@@ -194,12 +199,20 @@ export const Suppliers = ({
 
       {recommendationStatus}
 
+      {skuError && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{skuError} Linked-SKU counts and shipment selection may be incomplete; existing supplier records are preserved.</span>
+          <button className="btn ghost sm" onClick={load}><Icon name="refresh" size={12} /> Retry SKU data</button>
+        </div>
+      )}
+
       {suppliers.length === 0 ? (
         <div className="card">
           <EmptyState>Add a supplier manually or by CSV before creating inbound shipment plans.</EmptyState>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 380px) 1fr', gap: 16, alignItems: 'start' }}>
+        <div className="supplier-master-detail" style={{ display: 'grid', gap: 16, alignItems: 'start' }}>
           <div className="card">
             <div className="card-header">
               <div className="card-title">
