@@ -910,6 +910,13 @@
 .uc-shell .ai-plan-evidence { color: var(--text-tertiary); font-size: 10.5px; }
 .uc-shell .ai-plan-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 4px; flex-wrap: wrap; }
 .uc-shell .ai-plan-footer .btn { flex: 1 1 140px; justify-content: center; }
+.uc-shell .ai-plan-run-status,
+.uc-shell .business-plan-run-status { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 11.5px; line-height: 1.35; }
+.uc-shell .ai-plan-run-status.complete,
+.uc-shell .business-plan-run-status.complete { color: var(--green-text); }
+.uc-shell .ai-plan-run-status.running svg,
+.uc-shell .business-plan-run-status.running svg { animation: cortex-progress-spin 1.2s linear infinite; }
+@keyframes cortex-progress-spin { to { transform: rotate(360deg); } }
 .uc-shell .cortex-task-table th:nth-child(1),
 .uc-shell .cortex-task-table td:nth-child(1) { width: 40%; }
 .uc-shell .cortex-task-table th:nth-child(2),

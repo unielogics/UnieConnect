@@ -959,8 +959,10 @@ export type SellerOptimizationSummary = {
   summary: Record<string, unknown>;
   businessDouble?: Record<string, unknown>;
   inventoryPlan?: Record<string, unknown>;
+  sourceSummary?: Record<string, unknown>;
   confidence?: number | null;
   createdAt?: string;
+  updatedAt?: string;
 };
 
 export const fetchCommandCenter = (range: OmsRange) =>
@@ -1417,6 +1419,42 @@ export const runSellerOptimization = (body: Record<string, unknown> = {}) =>
 
 export const fetchLatestOptimization = () =>
   omsFetch<{ latest?: SellerOptimizationSummary | null; readiness: IntelligenceReadiness; recommendations: OmsRecommendation[] }>('/intelligence/latest-optimization');
+
+export async function waitForSellerOptimization(
+  runId: string,
+  options: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal } = {},
+) {
+  const timeoutMs = options.timeoutMs ?? 180_000;
+  const intervalMs = options.intervalMs ?? 5_000;
+  const deadline = Date.now() + timeoutMs;
+  let latestResponse = await fetchLatestOptimization();
+
+  const isCompleted = () => {
+    const latest = latestResponse.latest;
+    if (!latest || String(latest.runId || '') !== String(runId || '')) return false;
+    const source = latest.sourceSummary || {};
+    const summary = latest.summary || {};
+    return source.source === 'cortex_webhook' || source.from_cortex === true || summary.from_cortex === true;
+  };
+
+  while (!isCompleted() && Date.now() < deadline) {
+    if (options.signal?.aborted) throw new DOMException('Optimization polling aborted', 'AbortError');
+    await new Promise<void>((resolve, reject) => {
+      const onAbort = () => {
+        window.clearTimeout(timer);
+        reject(new DOMException('Optimization polling aborted', 'AbortError'));
+      };
+      const timer = window.setTimeout(() => {
+        options.signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, intervalMs);
+      options.signal?.addEventListener('abort', onAbort, { once: true });
+    });
+    latestResponse = await fetchLatestOptimization();
+  }
+
+  return { ...latestResponse, completed: isCompleted() };
+}
 
 export const fetchRunStatus = (runId: string) =>
   omsFetch<IntelligenceRun>(`/intelligence/runs/${encodeURIComponent(runId)}/status`);

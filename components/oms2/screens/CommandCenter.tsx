@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, Sparkline, ProgressBar, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import {
@@ -10,6 +10,7 @@ import {
   completeCortexTask,
   dismissCortexTask,
   runSellerOptimization,
+  waitForSellerOptimization,
   rejectRecommendation,
   CommandCenterFull,
   BusinessDoubleResponse,
@@ -35,6 +36,8 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
+  const [optimizationNotice, setOptimizationNotice] = useState<string | null>(null);
+  const optimizationAbortRef = useRef<AbortController | null>(null);
   const [taskFeedback, setTaskFeedback] = useState<string | null>(null);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
   const [decisionFeedback, setDecisionFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
@@ -70,20 +73,38 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   useEffect(() => {
     void refreshIntelligencePanels(true);
   }, [refreshIntelligencePanels]);
+  useEffect(() => () => optimizationAbortRef.current?.abort(), []);
 
   const triggerOptimization = async () => {
+    optimizationAbortRef.current?.abort();
+    const controller = new AbortController();
+    optimizationAbortRef.current = controller;
     setOptimizing(true);
+    setOptimizationNotice('Preparing account evidence...');
     try {
       const response = await runSellerOptimization({ source: 'command_center' });
       setReadiness(response.readiness);
       setLatestOpt(response.optimization);
       setRecommendations(response.recommendations || []);
+      setOptimizationNotice('Cortex is modeling demand, placement, and fulfillment cost...');
+      const final = await waitForSellerOptimization(response.run.id, { signal: controller.signal });
+      setReadiness(final.readiness);
+      setLatestOpt(final.latest || response.optimization);
+      setRecommendations(final.recommendations || []);
+      setOptimizationNotice(final.completed
+        ? 'Plan updated with the latest Cortex model.'
+        : 'Cortex is still processing. The plan will refresh from the latest completed run.');
       await refreshIntelligencePanels(true);
       load(range);
     } catch (e: any) {
+      if (e?.name === 'AbortError') return;
       setErr(e.message || 'Seller Optimization failed');
+      setOptimizationNotice(null);
     } finally {
-      setOptimizing(false);
+      if (optimizationAbortRef.current === controller) {
+        optimizationAbortRef.current = null;
+        setOptimizing(false);
+      }
     }
   };
 
@@ -241,6 +262,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
               slaImp={slaImp}
               tasks={tasks}
               optimizing={optimizing}
+              optimizationNotice={optimizationNotice}
               onRun={triggerOptimization}
               onNavigate={onNavigate}
             />
@@ -269,6 +291,7 @@ const AiPlanCard = ({
   slaImp,
   tasks,
   optimizing,
+  optimizationNotice,
   onRun,
   onNavigate,
 }: {
@@ -278,6 +301,7 @@ const AiPlanCard = ({
   slaImp: number;
   tasks: CortexTask[];
   optimizing: boolean;
+  optimizationNotice: string | null;
   onRun: () => void;
   onNavigate: (target: string, payload?: string) => void;
 }) => {
@@ -335,6 +359,7 @@ const AiPlanCard = ({
             Open Business Double <Icon name="arrowRight" size={12} />
           </button>
         </div>
+        {optimizationNotice && <div className={`ai-plan-run-status ${optimizing ? 'running' : 'complete'}`} role="status"><Icon name={optimizing ? 'refresh' : 'check'} size={12} /> {optimizationNotice}</div>}
       </div>
     </div>
   );

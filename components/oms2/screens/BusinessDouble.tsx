@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, fmt, Loading, ErrorState, EmptyState, downloadJson } from '../ui';
 import {
@@ -8,6 +8,7 @@ import {
   fetchHeatmap,
   fetchLatestOptimization,
   runSellerOptimization,
+  waitForSellerOptimization,
   BusinessDoubleResponse,
   HeatmapResponse,
   SellerOptimizationSummary,
@@ -53,6 +54,8 @@ export const BusinessDouble = (_: ScreenProps) => {
   const [accepted, setAccepted] = useState(false);
   const [denied, setDenied] = useState(false);
   const [running, setRunning] = useState(false);
+  const [runStatus, setRunStatus] = useState<string | null>(null);
+  const runAbortRef = useRef<AbortController | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -71,17 +74,33 @@ export const BusinessDouble = (_: ScreenProps) => {
     fetchHeatmap().then(setHm).catch(() => {});
     fetchLatestOptimization().then((r) => setLatestOpt(r.latest || null)).catch(() => {});
   }, []);
+  useEffect(() => () => runAbortRef.current?.abort(), []);
 
   const runOptimization = async () => {
+    runAbortRef.current?.abort();
+    const controller = new AbortController();
+    runAbortRef.current = controller;
     setRunning(true);
+    setRunStatus('Preparing account evidence...');
     try {
       const response = await runSellerOptimization({ source: 'business_double' });
       setLatestOpt(response.optimization);
+      setRunStatus('Cortex is modeling demand, placement, and fulfillment cost...');
+      const final = await waitForSellerOptimization(response.run.id, { signal: controller.signal });
+      setLatestOpt(final.latest || response.optimization);
+      setRunStatus(final.completed
+        ? 'Plan updated with the latest Cortex model.'
+        : 'Cortex is still processing. The latest completed plan remains available.');
       load();
     } catch (e: any) {
+      if (e?.name === 'AbortError') return;
       setErr(e.message || 'Seller Optimization failed');
+      setRunStatus(null);
     } finally {
-      setRunning(false);
+      if (runAbortRef.current === controller) {
+        runAbortRef.current = null;
+        setRunning(false);
+      }
     }
   };
 
@@ -166,6 +185,11 @@ export const BusinessDouble = (_: ScreenProps) => {
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
               Optimize Suite uses Cortex seller optimization first, marketplace connections as primary data, CSV/manual data as fallback, and WMS truth for execution readiness.
             </div>
+            {runStatus && (
+              <div className={`business-plan-run-status ${running ? 'running' : 'complete'}`} role="status">
+                <Icon name={running ? 'refresh' : 'check'} size={12} /> {runStatus}
+              </div>
+            )}
           </div>
           <div className="kv">
             <div className="kv-label">AI confidence</div>
