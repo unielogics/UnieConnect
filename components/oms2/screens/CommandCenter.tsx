@@ -148,7 +148,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
 
   const savings = bd?.plan?.savings || {};
   const upside = Number(savings.revenue ?? savings.revenueUpside ?? 0);
-  const costRed = Number(savings.costPct ?? savings.costReductionPct ?? 0);
+  const costRed = Number(savings.costPct ?? savings.costReductionPct ?? savings.pct ?? 0);
   const slaImp = Number(savings.sla ?? savings.slaDays ?? 0);
   const decisionRecommendations = useMemo(
     () => recommendations.filter(isActionableDecisionRecommendation),
