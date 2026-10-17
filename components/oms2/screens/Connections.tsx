@@ -8,13 +8,19 @@ import { timeAgo } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 
 type Owner = 'marketplace' | 'wms' | 'intelligence' | 'carrier';
+type CapabilityState = 'healthy' | 'degraded' | 'pending' | 'idle';
+type ConnectionCapability = {
+  label: string;
+  status: CapabilityState;
+  count?: number;
+};
 type Conn = {
   id: string;
   name: string;
   region: string;
   status: string;
   lastSync: string;
-  entities: string[];
+  entities: ConnectionCapability[];
   owner: Owner;
   issue?: string;
   needsRepair?: boolean;
@@ -111,7 +117,13 @@ const ConnectionCard = ({
     <td>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
         {c.entities.map((e) => (
-          <span key={e} className="chip outline" style={{ fontSize: 10.5 }}>{e}</span>
+          <Chip
+            key={e.label}
+            tone={e.status === 'healthy' ? 'green' : e.status === 'degraded' ? 'amber' : 'default'}
+            dot={e.status !== 'idle'}
+          >
+            {e.label}{e.count == null ? '' : ` ${e.count}`}
+          </Chip>
         ))}
       </div>
     </td>
@@ -435,9 +447,21 @@ export const Connections = (_: ScreenProps) => {
           const missingLocationScope = a.channel === 'shopify'
             && !(a.scopes || []).some((scope) => scope === 'read_locations' || scope === 'write_locations');
           const degraded = Boolean(missingLocationScope || syncIssue || syncEntries.some(([, state]) => state?.metadata?.degraded));
-          const entities = syncEntries.length
-            ? syncEntries.map(([entity, state]) => `${entity.replace(/_/g, ' ')}${state?.count == null ? '' : ` ${state.count}`}`)
-            : channelEntities[a.channel] || ['Orders', 'Inventory'];
+          const entities: ConnectionCapability[] = syncEntries.length
+            ? syncEntries.map(([entity, state]) => {
+                const hasIssue = Boolean(state?.error || state?.metadata?.warning || state?.metadata?.degraded);
+                const isCurrent = ['synced', 'complete', 'completed', 'healthy'].includes(String(state?.status || '').toLowerCase());
+                const isShopifyInventoryBlocked = a.channel === 'shopify' && missingLocationScope && entity === 'inventory';
+                return {
+                  label: entity.replace(/_/g, ' '),
+                  count: state?.count,
+                  status: hasIssue || isShopifyInventoryBlocked ? 'degraded' : isCurrent ? 'healthy' : 'pending',
+                };
+              })
+            : (channelEntities[a.channel] || ['Orders', 'Inventory']).map((label) => ({
+                label,
+                status: a.status === 'connected' ? 'pending' : 'degraded',
+              }));
           out.push({
             id: `marketplace-${a.id}`,
             name: a.label || a.displayName || a.shopDomain || a.channel.toUpperCase(),
@@ -461,7 +485,7 @@ export const Connections = (_: ScreenProps) => {
             region: w.region || w.state || w.warehouseCode || 'warehouse',
             status: w.status || 'connected',
             lastSync: w.connectedAt ? timeAgo(w.connectedAt) : 'live',
-            entities: ['Inventory', 'ASNs', 'Billing', 'Tasks'],
+            entities: ['Inventory', 'ASNs', 'Billing', 'Tasks'].map((label) => ({ label, status: 'healthy' as const })),
             owner: 'wms',
             raw: w,
           }),
@@ -474,7 +498,7 @@ export const Connections = (_: ScreenProps) => {
           region: 'account-scoped intelligence',
           status: cortexHealthy ? 'healthy' : 'degraded',
           lastSync: cortexHealthy ? 'continuous' : 'health check failed',
-          entities: ['Demand', 'Net-Opt', 'Audit'],
+          entities: ['Demand', 'Net-Opt', 'Audit'].map((label) => ({ label, status: cortexHealthy ? 'healthy' as const : 'degraded' as const })),
           owner: 'intelligence',
           issue: cortexHealthy ? undefined : 'Cortex could not be verified. Account data remains isolated and operational views remain available.',
         });
@@ -488,7 +512,7 @@ export const Connections = (_: ScreenProps) => {
             name: 'Carrier audit/rates',
             region: 'status unavailable',
             lastSync: 'health check failed',
-            entities: ['Labels', 'Rates', 'Tracking'],
+            entities: ['Labels', 'Rates', 'Tracking'].map((label) => ({ label, status: 'degraded' as const })),
             owner: 'carrier' as Owner,
           }]).map((connection) => ({
             ...connection,
@@ -502,7 +526,7 @@ export const Connections = (_: ScreenProps) => {
             region: carriers.length ? 'active audit feed' : 'not connected',
             status: carriers.length ? 'healthy' : 'idle',
             lastSync: carriers.length ? 'live' : 'pending',
-            entities: ['Labels', 'Rates', 'Tracking'],
+            entities: ['Labels', 'Rates', 'Tracking'].map((label) => ({ label, status: carriers.length ? 'healthy' as const : 'idle' as const })),
             owner: 'carrier',
           }),
         );
@@ -689,7 +713,7 @@ export const Connections = (_: ScreenProps) => {
                       <tr>
                         <th>Connection</th>
                         <th>Status</th>
-                        <th>Scope</th>
+                        <th>Capabilities</th>
                         <th>Last sync</th>
                         <th>Control</th>
                         <th className="num">Actions</th>
