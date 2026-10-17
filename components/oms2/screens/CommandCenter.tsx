@@ -612,9 +612,9 @@ const AutonomousActivityRail = ({ activity }: { activity: CommandCenterFull['aut
       <div>
         <div className="card-title">
           <Icon name="bolt" size={15} style={{ color: 'var(--purple)' }} />
-          Autonomous activity
+          System activity
         </div>
-        <div className="card-subtitle">WMS, TMS, and Cortex actions executed without operator input.</div>
+        <div className="card-subtitle">Recorded OMS, warehouse, marketplace, and Cortex events for this account.</div>
       </div>
       <Chip tone="purple" dot={false}>{activity.length} actions</Chip>
     </div>
