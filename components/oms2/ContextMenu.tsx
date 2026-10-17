@@ -4,7 +4,7 @@ import { Icon } from './icons';
 export type CtxItem =
   | { divider: true }
   | { label: string }
-  | { icon?: string; title: string; onClick?: () => void; shortcut?: string; danger?: boolean };
+  | { icon?: string; title: string; onClick: () => void; shortcut?: string; danger?: boolean; disabled?: boolean };
 
 type CtxState = { x: number; y: number; items: CtxItem[] } | null;
 
@@ -18,7 +18,11 @@ export const CtxMenuProvider = ({ children }: { children: React.ReactNode }) => 
   const open = (e: React.MouseEvent, items: CtxItem[]) => {
     e.preventDefault();
     e.stopPropagation();
-    setMenu({ x: e.clientX, y: e.clientY, items });
+    const normalized = items.filter((item, index) => {
+      if (!('divider' in item)) return true;
+      return index > 0 && index < items.length - 1 && !('divider' in items[index - 1]);
+    });
+    setMenu({ x: e.clientX, y: e.clientY, items: normalized });
   };
   const close = () => setMenu(null);
 
@@ -41,8 +45,8 @@ export const CtxMenuProvider = ({ children }: { children: React.ReactNode }) => 
     const w = 240;
     const h = (menu.items.length + 1) * 32;
     return {
-      left: Math.min(menu.x, window.innerWidth - w - 8),
-      top: Math.min(menu.y, window.innerHeight - h - 8),
+      left: Math.max(8, Math.min(menu.x, window.innerWidth - w - 8)),
+      top: Math.max(8, Math.min(menu.y, window.innerHeight - Math.min(h, window.innerHeight - 16) - 8)),
     };
   }, [menu]);
 
@@ -58,9 +62,12 @@ export const CtxMenuProvider = ({ children }: { children: React.ReactNode }) => 
               <button
                 key={i}
                 className={`ctx-item ${it.danger ? 'danger' : ''}`}
+                disabled={it.disabled}
+                aria-disabled={it.disabled || undefined}
                 onClick={() => {
+                  if (it.disabled) return;
                   close();
-                  it.onClick && it.onClick();
+                  it.onClick();
                 }}
               >
                 {it.icon && (

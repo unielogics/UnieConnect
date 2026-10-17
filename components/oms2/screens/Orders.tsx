@@ -209,8 +209,9 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                           icon: 'x',
                           title: o._status === 'cancelled' ? 'Order already cancelled' : 'Cancel order',
                           danger: true,
+                          disabled: o._status === 'cancelled',
                           onClick: () => {
-                            if (o._status !== 'cancelled') setCancelTarget(o);
+                            setCancelTarget(o);
                           },
                         },
                       ])

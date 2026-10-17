@@ -393,10 +393,12 @@
 .uc-shell .ctx-menu {
   position: fixed; background: var(--bg-elev); border: 1px solid var(--border);
   border-radius: 8px; box-shadow: var(--shadow-lg); padding: 4px; z-index: 200;
-  min-width: 220px; font-size: 12.5px;
+  min-width: 220px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px);
+  overflow-y: auto; overscroll-behavior: contain; font-size: 12.5px;
 }
 .uc-shell .ctx-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 4px; cursor: pointer; color: var(--text); width: 100%; text-align: left; }
 .uc-shell .ctx-item:hover { background: var(--bg-hover); }
+.uc-shell .ctx-item:disabled { cursor: default; color: var(--text-tertiary); opacity: 0.68; background: transparent; }
 .uc-shell .ctx-item .ctx-shortcut { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--text-tertiary); }
 .uc-shell .ctx-item.danger { color: var(--red-text); }
 .uc-shell .ctx-item.danger:hover { background: var(--red-soft); }
