@@ -52,14 +52,29 @@ const sourceTarget = (source: Record<string, unknown>) => {
   return target || null;
 };
 
+const humanizeChatTimestamp = (value: string) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
+
 const cortexDisplayText = (text?: string | null) =>
   String(text || '')
     .replace(/\bNVIDIA\s*NIM\b/gi, 'Cortex')
     .replace(/\bNIM\b/g, 'Cortex')
     .replace(/\bNVIDIA\b/gi, 'Cortex')
+    .replace(/\blive Cortex\b/gi, 'Cortex')
+    .replace(/\bCortex\/Cortex\b/gi, 'Cortex')
+    .replace(/(?:Note:\s*)?Cortex did not respond, so this answer was generated from this account'?s scoped OMS data only\.?/gi, 'Answer generated from this account\u2019s scoped OMS data.')
+    .replace(/Cortex response unavailable; used scoped OMS fallback\.?/gi, 'Answer generated from this account\u2019s scoped OMS data.')
+    .replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b/g, humanizeChatTimestamp)
+    .replace(/[ \t]+([,.;!?])/g, '$1')
+    .replace(/([.!?])(?:\s*\1)+/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
     .replace(/Cortex could not produce a live response right now\.\s*/gi, '')
     .replace(/live Cortex\/Cortex did not respond, so this answer was generated from this account's scoped OMS data only\./gi, 'Answer generated from this account’s scoped OMS data.')
-    .replace(/live Cortex response unavailable; used scoped OMS fallback\./gi, 'Answer generated from this account’s scoped OMS data.');
+    .replace(/live Cortex response unavailable; used scoped OMS fallback\./gi, 'Answer generated from this account’s scoped OMS data.')
+    .trim();
 
 const shouldMuteMessage = (m: CortexChatMessage) => {
   const content = String(m.content || '').toLowerCase();
