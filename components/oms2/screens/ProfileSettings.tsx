@@ -230,7 +230,7 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
                   <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" style={{ display: 'none' }} disabled={saving === 'avatar'} onChange={(e) => uploadAvatar(e.target.files?.[0] || null)} />
                 </label>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="profile-name-grid" style={{ gap: 12 }}>
                 <Field label="First name" value={profile.firstName} onChange={(v) => setProfile((p) => ({ ...p, firstName: v }))} />
                 <Field label="Last name" value={profile.lastName} onChange={(v) => setProfile((p) => ({ ...p, lastName: v }))} />
               </div>
@@ -245,7 +245,7 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
               <Chip tone="purple" dot={false}>Billing profile</Chip>
               <Field label="Address line 1" value={profile.billingAddress.addressLine1} onChange={(v) => setProfile((p) => ({ ...p, billingAddress: { ...p.billingAddress, addressLine1: v } }))} />
               <Field label="Address line 2" value={profile.billingAddress.addressLine2} onChange={(v) => setProfile((p) => ({ ...p, billingAddress: { ...p.billingAddress, addressLine2: v } }))} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 140px', gap: 12 }}>
+              <div className="profile-address-grid" style={{ gap: 12 }}>
                 <Field label="City" value={profile.billingAddress.city} onChange={(v) => setProfile((p) => ({ ...p, billingAddress: { ...p.billingAddress, city: v } }))} />
                 <label style={labelStyle}>State<select value={profile.billingAddress.state} onChange={(e) => setProfile((p) => ({ ...p, billingAddress: { ...p.billingAddress, state: e.target.value } }))} style={inputStyle}><option value="">State</option>{STATES.map((s) => <option key={s} value={s}>{s}</option>)}</select></label>
                 <Field label="ZIP" value={profile.billingAddress.zipCode} onChange={(v) => setProfile((p) => ({ ...p, billingAddress: { ...p.billingAddress, zipCode: v } }))} />

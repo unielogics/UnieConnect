@@ -44,7 +44,7 @@ const SdkDocsModal = ({ onClose, onOpenBuilder }: { onClose: () => void; onOpenB
     }
   >
     <div style={{ display: 'grid', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+      <div className="app-studio-steps" style={{ gap: 12 }}>
         {[
           ['1. Create key', 'Generate a scoped key in App Studio with oms:read, workflows:run, events:write, or apps:manage.'],
           ['2. Send events', 'POST events from WMS, ERP, store apps, or custom tools with an Idempotency-Key header.'],
@@ -71,7 +71,7 @@ const SdkDocsModal = ({ onClose, onOpenBuilder }: { onClose: () => void; onOpenB
         </table>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="app-studio-examples" style={{ gap: 12 }}>
         <div className="card" style={{ padding: 14 }}>
           <div style={{ fontWeight: 800, marginBottom: 8 }}>Event example</div>
           <pre style={{ margin: 0, padding: 12, overflow: 'auto', borderRadius: 8, background: 'var(--bg-sunken)', fontSize: 11.5 }}>{`POST /api/v1/oms/events

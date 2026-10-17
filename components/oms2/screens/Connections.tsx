@@ -274,7 +274,7 @@ const ConnectNewModal = ({
         </>
       }
     >
-      <div style={{ maxWidth: 920, margin: '0 auto', display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
+      <div className="connection-setup-layout" style={{ maxWidth: 920, margin: '0 auto', gap: 16 }}>
         <div className="card" style={{ padding: 10 }}>
           {options.map((o) => (
             <button
