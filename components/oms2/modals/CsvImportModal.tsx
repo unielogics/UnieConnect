@@ -14,6 +14,7 @@ import {
   OmsSku,
 } from '../../../lib/oms';
 import { createSupplier } from '../../../lib/amazon-fba';
+import { parseCsvText } from '../../../lib/csv';
 
 export type CsvImportEntity = 'customers' | 'skus' | 'suppliers' | 'orders';
 
@@ -57,35 +58,7 @@ const field: React.CSSProperties = {
 };
 
 function parseCsv(text: string): Record<string, string>[] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = '';
-  let quoted = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i];
-    const next = text[i + 1];
-    if (ch === '"' && quoted && next === '"') {
-      cell += '"';
-      i += 1;
-    } else if (ch === '"') {
-      quoted = !quoted;
-    } else if (ch === ',' && !quoted) {
-      row.push(cell.trim());
-      cell = '';
-    } else if ((ch === '\n' || ch === '\r') && !quoted) {
-      if (ch === '\r' && next === '\n') i += 1;
-      row.push(cell.trim());
-      if (row.some(Boolean)) rows.push(row);
-      row = [];
-      cell = '';
-    } else {
-      cell += ch;
-    }
-  }
-  row.push(cell.trim());
-  if (row.some(Boolean)) rows.push(row);
-  const headers = (rows.shift() || []).map((h) => h.trim());
-  return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] || ''])));
+  return parseCsvText(text).rows;
 }
 
 const toNumber = (value: string | undefined, fallback = 0) => {

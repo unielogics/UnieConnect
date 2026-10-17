@@ -29,8 +29,10 @@ export async function omsFetch<T>(path: string, options: RequestInit = {}): Prom
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    const details = Array.isArray(err?.details?.errors) && err.details.errors.length ? ` ${err.details.errors.slice(0, 5).join(' ')}` : '';
-    throw new Error(`${err?.error || `OMS request failed (${res.status})`}${details}`);
+    const message = err?.error || `OMS request failed (${res.status})`;
+    const detailText = Array.isArray(err?.details?.errors) && err.details.errors.length ? err.details.errors.slice(0, 5).join(' ') : '';
+    const details = detailText && !String(message).includes(detailText) ? ` ${detailText}` : '';
+    throw new Error(`${message}${details}`);
   }
   return res.json();
 }

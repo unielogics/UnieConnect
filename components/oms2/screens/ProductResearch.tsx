@@ -15,43 +15,9 @@ import {
 } from '../../../lib/oms';
 import type { ScreenProps } from '../UnieConnectApp';
 import { ProductResearchFullView } from '../modals/ProductResearchFullView';
+import { parseCsvText } from '../../../lib/csv';
 
-const parseCsv = (text: string) => {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 2) return [];
-  const headers = splitCsvLine(lines[0]).map((h) => h.trim());
-  return lines.slice(1).map((line) => {
-    const cells = splitCsvLine(line);
-    return headers.reduce<Record<string, string>>((acc, h, i) => {
-      acc[h] = cells[i]?.trim() || '';
-      return acc;
-    }, {});
-  });
-};
-
-const splitCsvLine = (line: string) => {
-  const out: string[] = [];
-  let cur = '';
-  let quoted = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (quoted && line[i + 1] === '"') {
-        cur += '"';
-        i += 1;
-      } else {
-        quoted = !quoted;
-      }
-    } else if (ch === ',' && !quoted) {
-      out.push(cur);
-      cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  out.push(cur);
-  return out;
-};
+const parseCsv = (text: string) => parseCsvText(text).rows;
 
 const sourceLabel = (mode?: string) => {
   if (mode === 'marketplace_primary') return 'Marketplace primary';

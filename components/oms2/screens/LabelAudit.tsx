@@ -12,42 +12,66 @@ import {
   LabelAuditRun,
 } from '../../../lib/oms';
 import { num } from '../../../lib/oms-adapters';
+import { parseCsvText } from '../../../lib/csv';
 import type { ScreenProps } from '../UnieConnectApp';
 import { CortexInlineBadge, CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
 
 type F = LabelAuditResponse['findings'][number];
 
-const splitCsvLine = (line: string) => {
-  const out: string[] = [];
-  let cur = '';
-  let quoted = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (quoted && line[i + 1] === '"') {
-        cur += '"';
-        i += 1;
-      } else quoted = !quoted;
-    } else if (ch === ',' && !quoted) {
-      out.push(cur);
-      cur = '';
-    } else cur += ch;
-  }
-  out.push(cur);
-  return out;
+const normalizedCsvKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+const auditIdentityKeys = [
+  'order', 'orderid', 'ordernumber', 'orderno', 'ordernum', 'orderreference', 'orderref', 'reference', 'referencenumber',
+  'trackingnumber', 'tracking', 'trackingno', 'trackingid', 'trackingcode', 'waybill', 'airbill', 'labelid', 'shipmentid',
+];
+
+const auditCsvValue = (row: LabelAuditCsvRow, keys: string[], patterns: RegExp[] = []) => {
+  const entries = Object.entries(row);
+  const entry = entries.find(([key, value]) => {
+    if (value == null || String(value).trim() === '') return false;
+    const normalized = normalizedCsvKey(key);
+    return keys.includes(normalized) || patterns.some((pattern) => pattern.test(normalized));
+  });
+  return entry ? String(entry[1]).trim() : '';
 };
 
-const parseCsv = (text: string): LabelAuditCsvRow[] => {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 2) return [];
-  const headers = splitCsvLine(lines[0]).map((h) => h.trim());
-  return lines.slice(1).map((line) => {
-    const cells = splitCsvLine(line);
-    return headers.reduce<LabelAuditCsvRow>((acc, h, i) => {
-      acc[h] = cells[i]?.trim() || '';
-      return acc;
-    }, {});
+const validAuditNumber = (value: string) => {
+  if (!value) return true;
+  const cleaned = value
+    .replace(/^\((.*)\)$/, '$1')
+    .replace(/(?:USD|CAD|EUR|GBP)/gi, '')
+    .replace(/[$€£,\s]/g, '');
+  return cleaned !== '' && Number.isFinite(Number(cleaned));
+};
+
+const labelAuditPreflight = (rows: LabelAuditCsvRow[], parserErrors: string[]) => {
+  const errors = [...parserErrors];
+  rows.forEach((row, index) => {
+    const entries = Object.entries(row);
+    const hasIdentity = entries.some(([key, value]) => {
+      const normalized = normalizedCsvKey(key);
+      return value != null && String(value).trim() !== '' && (
+        auditIdentityKeys.includes(normalized) || /^(order|tracking|waybill|airbill|labelid|shipmentid|reference)/.test(normalized)
+      );
+    });
+    if (!hasIdentity) errors.push(`Row ${index + 1} needs an order number or tracking number.`);
+    const dates = [
+      ['shipped', auditCsvValue(row, ['shipped', 'shippeddate', 'shipdate', 'shipmentdate', 'labeldate', 'createddate', 'dateshipped'], [/ship.*date/, /label.*date/])],
+      ['delivered', auditCsvValue(row, ['delivered', 'delivereddate', 'deliverydate', 'actualdeliverydate', 'datedelivered'], [/deliver.*date/, /actualdelivery/])],
+      ['promised', auditCsvValue(row, ['promised', 'promiseddate', 'promisedate', 'estimateddeliverydate', 'expecteddeliverydate', 'commitmentdate', 'guaranteeddeliverydate'], [/promise/, /estimateddelivery/, /expecteddelivery/, /commitment/, /guarantee/])],
+    ] as const;
+    dates.forEach(([label, value]) => {
+      if (value && Number.isNaN(new Date(value).getTime())) errors.push(`Row ${index + 1} has an invalid ${label} date.`);
+    });
+    const numbers = [
+      ['cost', auditCsvValue(row, ['cost', 'labelcost', 'shippingcost', 'postage', 'charge', 'amount', 'netcharge', 'totalcharge', 'transportationcharge', 'shipmentcost'], [/cost/, /charge/, /postage/, /amount/])],
+      ['zone', auditCsvValue(row, ['zone', 'shippingzone', 'destinationzone', 'carrierzone'], [/zone/])],
+      ['weight', auditCsvValue(row, ['weight', 'weightlb', 'weightlbs', 'actualweight', 'billableweight', 'packageweight'], [/weight/])],
+    ] as const;
+    numbers.forEach(([label, value]) => {
+      if (!validAuditNumber(value)) errors.push(`Row ${index + 1} has an invalid ${label}.`);
+    });
   });
+  return errors;
 };
 
 const issueChip = (f: F) => {
@@ -398,14 +422,20 @@ const LabelAuditUploadModal = ({
   const [filename, setFilename] = useState('');
   const [rows, setRows] = useState<LabelAuditCsvRow[]>([]);
   const [message, setMessage] = useState('');
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   useCloseOnOmsNavigation(onClose);
   const handleFile = async (file: File | null) => {
     if (!file) return;
     const text = await file.text();
-    const parsed = parseCsv(text);
+    const parsed = parseCsvText(text);
+    const nextErrors = labelAuditPreflight(parsed.rows, parsed.errors);
     setFilename(file.name);
-    setRows(parsed);
-    setMessage(parsed.length ? `${parsed.length.toLocaleString()} rows ready for Cortex-style audit.` : 'CSV needs a header row and at least one data row.');
+    setRows(parsed.rows);
+    setValidationErrors(nextErrors);
+    const delimiterLabel = parsed.delimiter === '\t' ? 'tab-delimited' : parsed.delimiter === ';' ? 'semicolon-delimited' : 'comma-delimited';
+    setMessage(parsed.rows.length
+      ? `${parsed.rows.length.toLocaleString()} rows found in a ${delimiterLabel} file.${nextErrors.length ? ' Fix the issues below before running the audit.' : ' Identity mapping is ready.'}`
+      : 'CSV needs a header row and at least one data row.');
   };
   const sample = rows.slice(0, 5);
   const columns = rows[0] ? Object.keys(rows[0]) : [];
@@ -442,10 +472,20 @@ const LabelAuditUploadModal = ({
               </table>
             </div>
           )}
+          {validationErrors.length > 0 && (
+            <div className="inline-banner danger" role="alert" style={{ alignItems: 'flex-start' }}>
+              <Icon name="warning" size={14} style={{ marginTop: 2 }} />
+              <div>
+                <strong>CSV needs attention</strong>
+                {validationErrors.slice(0, 5).map((error, index) => <div key={`${index}-${error}`} style={{ marginTop: 3 }}>{error}</div>)}
+                {validationErrors.length > 5 && <div style={{ marginTop: 3 }}>And {validationErrors.length - 5} more rows.</div>}
+              </div>
+            </div>
+          )}
         </div>
         <div className="modal-foot">
           <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={busy || rows.length === 0} onClick={() => onSubmit(filename || 'label-audit.csv', rows)}>
+          <button className="btn primary" disabled={busy || rows.length === 0 || validationErrors.length > 0} onClick={() => onSubmit(filename || 'label-audit.csv', rows)}>
             <Icon name="sparkle" size={13} /> {busy ? 'Auditing...' : 'Run audit'}
           </button>
         </div>
