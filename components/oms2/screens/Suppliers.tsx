@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import {
@@ -111,16 +112,23 @@ const readiness = (supplier: OmsSupplier, activity?: SupplierActivityResponse | 
   return { tone: 'blue', label: 'Profile ready', detail: 'Ready for first Cortex pickup plan.' };
 };
 
+const supplierNeedsPickupProfile = (supplier: OmsSupplier) => {
+  const profile = supplier.pickupProfile || {};
+  return !profile.hoursOfOperation || !profile.maxVehicleSize || profile.loadingDock == null;
+};
+
 export const Suppliers = ({
   onNavigate,
   onCreateShipmentWithSupplier,
   onNewSupplier,
   onImportCsv,
 }: ScreenProps) => {
+  const router = useRouter();
   const [suppliers, setSuppliers] = useState<OmsSupplier[]>([]);
   const [skus, setSkus] = useState<OmsSku[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [pickupFilter, setPickupFilter] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('suppliers');
@@ -139,18 +147,26 @@ export const Suppliers = ({
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
+  useEffect(() => {
+    setPickupFilter(String(router.query.filter || '') === 'missing-pickup');
+  }, [router.query.filter]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return suppliers;
-    return suppliers.filter((s) =>
-      [s.name, s.email, s.phone, s.city, s.state, s.region, s.country, s.pickupProfile?.hoursOfOperation]
+    return suppliers.filter((s) => {
+      if (pickupFilter && !supplierNeedsPickupProfile(s)) return false;
+      if (!q) return true;
+      return [s.name, s.email, s.phone, s.city, s.state, s.region, s.country, s.pickupProfile?.hoursOfOperation]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(q)),
-    );
-  }, [query, suppliers]);
+        .some((value) => String(value).toLowerCase().includes(q));
+    });
+  }, [pickupFilter, query, suppliers]);
 
-  const supplier = suppliers.find((s) => s.id === selected) || filtered[0] || suppliers[0];
+  useEffect(() => {
+    if (filtered.length && !filtered.some((item) => item.id === selected)) setSelected(filtered[0].id);
+  }, [filtered, selected]);
+
+  const supplier = filtered.find((s) => s.id === selected) || filtered[0];
 
   if (err) return <div className="page fade-in"><div className="card"><ErrorState message={err} onRetry={load} /></div></div>;
   if (loading) return <div className="page fade-in"><div className="card"><Loading rows={6} /></div></div>;
@@ -203,6 +219,18 @@ export const Suppliers = ({
                   style={{ width: '100%', paddingLeft: 30 }}
                 />
               </div>
+              {pickupFilter && (
+                <button
+                  className="filter-chip applied"
+                  style={{ marginTop: 8 }}
+                  onClick={() => {
+                    setPickupFilter(false);
+                    router.replace({ pathname: '/oms', query: { view: 'suppliers' } }, undefined, { shallow: true });
+                  }}
+                >
+                  Needs pickup profile <Icon name="x" size={10} />
+                </button>
+              )}
             </div>
             <div>
               {filtered.length === 0 ? (
@@ -274,6 +302,7 @@ export const Suppliers = ({
               }}
               recommendation={supplier ? recFor(supplier.id, supplier.name) : null}
               onOpenRecommendation={(rec) => setSelectedRec(rec)}
+              autoOpenEdit={pickupFilter && supplierNeedsPickupProfile(supplier)}
             />
           )}
         </div>
@@ -291,6 +320,7 @@ const SupplierDetail = ({
   onCreateShipment,
   recommendation,
   onOpenRecommendation,
+  autoOpenEdit,
 }: {
   supplier: OmsSupplier;
   skus: OmsSku[];
@@ -299,12 +329,17 @@ const SupplierDetail = ({
   onCreateShipment: () => void;
   recommendation?: OmsRecommendation | null;
   onOpenRecommendation: (rec: OmsRecommendation) => void;
+  autoOpenEdit?: boolean;
 }) => {
   const [activity, setActivity] = useState<SupplierActivityResponse | null>(null);
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityErr, setActivityErr] = useState<string | null>(null);
   const [activeRecord, setActiveRecord] = useState<SupplierActivityRecord | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+
+  useEffect(() => {
+    if (autoOpenEdit) setEditOpen(true);
+  }, [autoOpenEdit, supplier.id]);
 
   useEffect(() => {
     let cancelled = false;
