@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchRecommendations, OmsRecommendation } from '../../lib/oms';
 import { Icon } from './icons';
 import { Chip } from './ui';
@@ -8,12 +8,17 @@ import { isActionableDecisionRecommendation } from './DecisionComparison';
 export const useInlineRecommendations = (screen: string, limit = 100, onChanged?: () => void) => {
   const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
   const [selectedRec, setSelectedRec] = useState<OmsRecommendation | null>(null);
-  const loadRecommendations = () => {
+  const [recommendationsError, setRecommendationsError] = useState<string | null>(null);
+  const loadRecommendations = useCallback(() => {
+    setRecommendationsError(null);
     fetchRecommendations({ screen, status: 'open', limit })
       .then((res) => setRecommendations((res.recommendations || []).filter(isActionableDecisionRecommendation)))
-      .catch(() => setRecommendations([]));
-  };
-  useEffect(loadRecommendations, [screen, limit]);
+      .catch((error: any) => setRecommendationsError(error?.message || 'Cortex recommendations could not be loaded.'));
+  }, [limit, screen]);
+  useEffect(() => {
+    setRecommendations([]);
+    loadRecommendations();
+  }, [loadRecommendations]);
 
   // After an approve/reject, refresh the rec list AND run any screen-level side-effect (e.g.
   // Billing refetches getBillingProfit so the "you save" projection updates immediately).
@@ -47,8 +52,17 @@ export const useInlineRecommendations = (screen: string, limit = 100, onChanged?
       onChanged={handleChanged}
     />
   ) : null;
+  const recommendationStatus = recommendationsError ? (
+    <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+      <Icon name="warning" size={13} />
+      <span style={{ flex: 1 }}>{recommendationsError}</span>
+      <button className="btn ghost sm" onClick={loadRecommendations}>
+        <Icon name="refresh" size={12} /> Retry Cortex
+      </button>
+    </div>
+  ) : null;
 
-  return { recommendations, recFor, screenRec, setSelectedRec, drawer, reloadRecommendations: loadRecommendations };
+  return { recommendations, recFor, screenRec, setSelectedRec, drawer, recommendationStatus, reloadRecommendations: loadRecommendations };
 };
 
 export const CortexRowAction = ({

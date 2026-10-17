@@ -25,7 +25,7 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
   const [acting, setActing] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
-  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('shipments');
+  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('shipments');
 
   const load = () => {
     setLoading(true);
@@ -104,6 +104,8 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
           <button className="btn primary" onClick={() => onNavigate('skus')}><Icon name="plus" size={13} /> Create ASN</button>
         </div>
       </div>
+
+      {recommendationStatus}
 
       {err ? (
         <div className="card"><ErrorState message={err} onRetry={load} /></div>

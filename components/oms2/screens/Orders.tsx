@@ -38,7 +38,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
   const [cancelling, setCancelling] = useState(false);
   useCloseOnOmsNavigation(() => setCancelTarget(null), !!cancelTarget);
   const ctx = useCtxMenu();
-  const { recFor, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('orders');
+  const { recFor, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('orders');
 
   const load = () => {
     setLoading(true);
@@ -116,6 +116,8 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
           <button className="btn primary" onClick={onNewOrder}><Icon name="plus" size={13} /> Manual order</button>
         </div>
       </div>
+
+      {recommendationStatus}
 
       <div className="stat-grid">
         <div className="stat">

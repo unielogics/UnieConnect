@@ -70,7 +70,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
 
   const ledgerRef = useRef<HTMLDivElement>(null);
   // Pass `load` so approving/rejecting a billing plan immediately refetches the profit + hero.
-  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('billing', 100, () => load());
+  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('billing', 100, () => load());
 
   const dateParams = () => (custom ? { from: custom.from, to: custom.to } : { range });
 
@@ -253,6 +253,8 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
           </button>
         </div>
       </div>
+
+      {recommendationStatus}
 
       {isEstimate && (
         <div className="card" style={{ marginBottom: 12, borderLeft: '3px solid var(--amber, #f59e0b)', padding: '12px 16px', fontSize: 12.5, color: 'var(--text-secondary)' }}>

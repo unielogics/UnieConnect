@@ -69,7 +69,7 @@ export const LabelAudit = (_: ScreenProps) => {
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'late' | 'refund' | 'ontime'>('all');
   const ctx = useCtxMenu();
-  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('labels');
+  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('labels');
 
   const load = () => {
     setLoading(true);
@@ -157,6 +157,8 @@ export const LabelAudit = (_: ScreenProps) => {
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Re-scan all labels</button>
         </div>
       </div>
+
+      {recommendationStatus}
 
       {err ? (
         <div className="card"><ErrorState message={err} onRetry={load} /></div>

@@ -131,7 +131,7 @@ export const Suppliers = ({
   const [pickupFilter, setPickupFilter] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer } = useInlineRecommendations('suppliers');
+  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('suppliers');
 
   const load = () => {
     setLoading(true);
@@ -191,6 +191,8 @@ export const Suppliers = ({
           <button className="btn primary" onClick={() => onNewSupplier?.()}><Icon name="plus" size={13} /> Add supplier</button>
         </div>
       </div>
+
+      {recommendationStatus}
 
       {suppliers.length === 0 ? (
         <div className="card">
