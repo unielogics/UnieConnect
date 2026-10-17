@@ -124,7 +124,7 @@ export const ProductResearchResultModal = ({ row, onClose, onListed }: {
 
   return (
     <Modal title={r.sku || 'Product research'} subtitle={r.title || keepa?.title || undefined} onClose={onClose} width={720}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="product-research-layout" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Verdict headline */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           {keepa?.image && <img src={keepa.image} alt="" style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }} />}

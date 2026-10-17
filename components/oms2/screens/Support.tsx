@@ -124,7 +124,7 @@ const TicketModal = ({
         </>
       }
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) 360px', gap: 16, maxWidth: 1180, margin: '0 auto' }}>
+      <div className="support-ticket-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(280px, 360px)', gap: 16, maxWidth: 1180, margin: '0 auto' }}>
         <div className="card">
           <div className="card-header">
             <div className="card-title">Conversation</div>

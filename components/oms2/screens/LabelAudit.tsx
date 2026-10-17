@@ -463,7 +463,7 @@ const RunDetailDrawer = ({ detail, onClose, onRetry }: {
 
   return (
     <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
-      <div className="modal" style={{ width: 'min(52vw, 820px)', minWidth: 560, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal oms-side-drawer wide" style={{ width: 'min(100vw, 820px)', minWidth: 0, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <div style={{ fontSize: 16, fontWeight: 800 }}>{detail.run.publicId} · {detail.run.filename || 'CSV upload'}</div>

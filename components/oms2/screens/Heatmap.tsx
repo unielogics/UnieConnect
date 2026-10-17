@@ -135,7 +135,7 @@ export const Heatmap = ({ onSelectState }: ScreenProps) => {
                 <span style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>{fmtV(maxVal)}</span>
               </div>
             </div>
-            <div style={{ padding: 18, display: 'grid', gridTemplateColumns: '1fr 280px', gap: 18 }}>
+            <div className="heatmap-map-layout" style={{ padding: 18, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 18 }}>
               <HeatmapMap
                 byState={byState}
                 metric={metric}

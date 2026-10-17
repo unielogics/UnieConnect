@@ -386,7 +386,7 @@ export const ProductResearchFullView = ({ row, onClose, onListed, onContinue, su
 
   return (
     <Modal title={`Research · ${r.sku || k.asin || 'product'}`} subtitle={subtitle ?? (r.title || lp.title || undefined)} onClose={onClose} fullscreen>
-      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="product-research-layout" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {/* 1. VERDICT HERO */}
         <div style={{ ...panel, padding: 18, display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>

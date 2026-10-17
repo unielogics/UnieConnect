@@ -456,8 +456,8 @@ const DrawerShell = ({
   return (
     <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
       <div
-        className="modal"
-        style={{ width: 'min(33vw, 480px)', minWidth: 380, maxHeight: '100vh', height: '100vh', borderRadius: 0 }}
+        className="modal oms-side-drawer"
+        style={{ width: 'min(100vw, 480px)', minWidth: 0, maxHeight: '100vh', height: '100vh', borderRadius: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
