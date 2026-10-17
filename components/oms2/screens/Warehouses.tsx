@@ -19,6 +19,7 @@ export const Warehouses = ({ onNavigate }: ScreenProps) => {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -33,10 +34,14 @@ export const Warehouses = ({ onNavigate }: ScreenProps) => {
   const openWarehouse = (warehouse: OmsWarehouseOverview) => {
     setSelected(warehouse);
     setDetail(null);
+    setDetailError(null);
     setDetailLoading(true);
     fetchWarehouseDetail(warehouse.warehouseCode)
       .then(setDetail)
-      .catch(() => setDetail(null))
+      .catch((error: any) => {
+        setDetail(null);
+        setDetailError(error?.message || 'Warehouse detail could not be loaded.');
+      })
       .finally(() => setDetailLoading(false));
   };
 
@@ -142,9 +147,12 @@ export const Warehouses = ({ onNavigate }: ScreenProps) => {
           warehouse={selected}
           detail={detail}
           loading={detailLoading}
+          error={detailError}
+          onRetry={() => openWarehouse(selected)}
           onClose={() => {
             setSelected(null);
             setDetail(null);
+            setDetailError(null);
           }}
         />
       )}
@@ -156,11 +164,15 @@ const WarehouseDrawer = ({
   warehouse,
   detail,
   loading,
+  error,
+  onRetry,
   onClose,
 }: {
   warehouse: OmsWarehouseOverview;
   detail: OmsWarehouseDetail | null;
   loading: boolean;
+  error: string | null;
+  onRetry: () => void;
   onClose: () => void;
 }) => {
   const [tab, setTab] = useState<Tab>('overview');
@@ -177,7 +189,7 @@ const WarehouseDrawer = ({
   ];
   return (
     <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
-      <div className="modal" style={{ width: 'min(72vw, 1080px)', minWidth: 720, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal warehouse-detail-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -199,6 +211,8 @@ const WarehouseDrawer = ({
           </div>
           {loading ? (
             <Loading rows={6} />
+          ) : error ? (
+            <ErrorState message={error} onRetry={onRetry} />
           ) : !detail ? (
             <EmptyState>Warehouse detail is unavailable.</EmptyState>
           ) : tab === 'overview' ? (

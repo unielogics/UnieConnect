@@ -453,6 +453,16 @@
 .uc-shell .modal-head { padding: 16px 20px 14px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .uc-shell .modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
 .uc-shell .modal-foot { padding: 12px 20px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--bg-sunken); }
+.uc-shell .warehouse-detail-modal { width: min(72vw, 1080px); min-width: min(720px, calc(100vw - 64px)); max-height: 100vh; height: 100vh; border-radius: 0; }
+.uc-shell .warehouse-detail-modal .tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: thin; }
+.uc-shell .warehouse-detail-modal .tabs > button { flex: 0 0 auto; }
+@media (max-width: 760px) {
+  .uc-shell .modal-overlay { left: 0; }
+  .uc-shell .modal { width: 100vw; max-height: 100vh; border-radius: 0; }
+  .uc-shell .warehouse-detail-modal { width: 100vw; min-width: 0; max-width: none; }
+  .uc-shell .warehouse-detail-modal .modal-head,
+  .uc-shell .warehouse-detail-modal .modal-body { padding-left: 14px; padding-right: 14px; }
+}
 
 .uc-shell .diff-up { color: var(--green-text); background: var(--green-soft); padding: 1px 5px; border-radius: 3px; font-weight: 700; }
 .uc-shell .diff-down { color: var(--red-text); background: var(--red-soft); padding: 1px 5px; border-radius: 3px; font-weight: 700; }
