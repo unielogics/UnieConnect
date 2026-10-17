@@ -243,6 +243,29 @@ export default function UnieConnectApp() {
       .catch((error: any) => setDetailLoadError(error?.message || 'The order detail could not be loaded.'));
   }, []);
 
+  useEffect(() => {
+    if (!router.isReady || section !== 'orders') return;
+    const orderId = typeof router.query.order === 'string' ? router.query.order.trim() : '';
+    if (!orderId || orderModal?.id === orderId) return;
+    openOrderById(orderId);
+  }, [openOrderById, orderModal?.id, router.isReady, router.query.order, section]);
+
+  const openOrder = useCallback((order: OmsOrder) => {
+    setOrderModal(order);
+    router.replace(
+      { pathname: '/oms', query: { view: 'orders', order: order.id } },
+      undefined,
+      { shallow: true }
+    );
+  }, [router]);
+
+  const closeOrder = useCallback(() => {
+    setOrderModal(null);
+    if (section === 'orders' && router.query.order) {
+      router.replace({ pathname: '/oms', query: { view: 'orders' } }, undefined, { shallow: true });
+    }
+  }, [router, section]);
+
   const openAsnById = useCallback((asnId: string) => {
     setDetailLoadError(null);
     setAsnModalLoading(true);
@@ -395,7 +418,7 @@ export default function UnieConnectApp() {
     selectedSkus,
     onOpenOrderById: openOrderById,
     onOpenAsnById: openAsnById,
-    onOpenOrder: setOrderModal,
+    onOpenOrder: openOrder,
     onCreateShipmentWithSupplier: createShipmentForSupplier,
     onNewProduct: () => setNewProductOpen(true),
     onNewSupplier: openNewSupplier,
@@ -515,7 +538,7 @@ export default function UnieConnectApp() {
           )}
 
           {orderModal && (
-            <OrderModal order={orderModal} onClose={() => setOrderModal(null)} onNavigate={navigate} />
+            <OrderModal order={orderModal} onClose={closeOrder} onNavigate={navigate} />
           )}
 
           {(asnModal || asnModalLoading) && (
