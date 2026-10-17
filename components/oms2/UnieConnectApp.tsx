@@ -415,6 +415,13 @@ export default function UnieConnectApp() {
     ledger: <Ledger {...sp} />,
     profile: <ProfileSettings {...sp} />,
   };
+  const cortexEntity = orderModal?.id
+    ? { type: 'order', id: orderModal.id }
+    : asnModal?.id
+      ? { type: 'asn', id: asnModal.id }
+      : section === 'sku-detail' && skuDetailId
+        ? { type: 'sku', id: skuDetailId }
+        : null;
 
   return (
     <div className="uc-shell" ref={shellRef} data-theme={tweaks.theme} data-density={tweaks.density}>
@@ -447,6 +454,8 @@ export default function UnieConnectApp() {
           {copilotOpen && (
             <AICopilot
               section={section}
+              entityType={cortexEntity?.type}
+              entityId={cortexEntity?.id}
               onClose={() => setCopilotOpen(false)}
               onNavigate={navigate}
             />

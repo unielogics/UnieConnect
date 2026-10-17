@@ -948,7 +948,8 @@
 /* ============================= AI Copilot drawer ============================= */
 .uc-shell .copilot { background: var(--bg-elev); border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
 .uc-shell .copilot-head { padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.uc-shell .copilot-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.uc-shell .copilot-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: 700; letter-spacing: 0; }
+.uc-shell .copilot-entity-context { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 11px; font-weight: 600; }
 .uc-shell .copilot-title .ai-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 4px var(--amber-soft); }
 .uc-shell .copilot-title .ai-dot.online { background: var(--green); box-shadow: 0 0 0 4px var(--green-soft); }
 .uc-shell .copilot-title .ai-dot.offline { background: var(--red); box-shadow: 0 0 0 4px var(--red-soft); }

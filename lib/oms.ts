@@ -1301,9 +1301,11 @@ export const fetchCortexChatHealth = (screen = 'command') =>
     `/intelligence/cortex/health?screen=${encodeURIComponent(screen)}`
   );
 
-export const fetchCortexChatThreads = (screen?: string) => {
+export const fetchCortexChatThreads = (screen?: string, entityType?: string | null, entityId?: string | null) => {
   const qs = new URLSearchParams();
   if (screen) qs.set('screen', screen);
+  if (entityType) qs.set('entityType', entityType);
+  if (entityId) qs.set('entityId', entityId);
   return omsFetch<{ threads: CortexChatThread[] }>(`/intelligence/cortex/chat/threads?${qs.toString()}`);
 };
 

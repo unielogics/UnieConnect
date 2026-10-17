@@ -110,10 +110,14 @@ const CopilotInput = ({ onSubmit, disabled }: { onSubmit: (q: string) => void; d
 
 export const AICopilot = ({
   section,
+  entityType,
+  entityId,
   onClose,
   onNavigate,
 }: {
   section: string;
+  entityType?: string | null;
+  entityId?: string | null;
   onClose: () => void;
   onNavigate?: (target: string, payload?: string) => void;
 }) => {
@@ -127,7 +131,7 @@ export const AICopilot = ({
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const loadThreads = () => {
-    fetchCortexChatThreads(section)
+    fetchCortexChatThreads(section, entityType, entityId)
       .then((r) => setThreads((r.threads || []).slice(0, 5)))
       .catch(() => setThreads([]));
   };
@@ -188,7 +192,7 @@ export const AICopilot = ({
       window.removeEventListener('focus', onFocus);
       window.clearInterval(healthTimer);
     };
-  }, [section]);
+  }, [section, entityType, entityId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
@@ -199,7 +203,13 @@ export const AICopilot = ({
     setHistory((h) => [...h, { role: 'user', body: q }]);
     setPending(true);
     try {
-      const res = await sendCortexChat({ screen: section, message: q, threadId });
+      const res = await sendCortexChat({
+        screen: section,
+        message: q,
+        threadId,
+        entityType: entityType || undefined,
+        entityId: entityId || undefined,
+      });
       if (res.thread?.id) setThreadId(res.thread.id);
       const cortexUnavailable = res.cortex?.health?.available === false;
       setCortexHealth(cortexUnavailable ? 'offline' : 'online');
@@ -256,6 +266,7 @@ export const AICopilot = ({
           <Chip tone={cortexHealth === 'online' ? 'green' : cortexHealth === 'offline' ? 'red' : 'amber'} dot={false}>
             {cortexHealth === 'online' ? 'Cortex ready' : cortexHealth === 'offline' ? 'Cortex unavailable' : 'Checking Cortex'}
           </Chip>
+          {entityId ? <span className="copilot-entity-context" title={entityId}>Focused on this {entityType || 'record'}</span> : null}
         </div>
         <button className="icon-btn" onClick={onClose} data-hint="Close">
           <Icon name="x" />
