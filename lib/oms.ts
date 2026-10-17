@@ -211,6 +211,16 @@ export type CommandCenterFull = {
 export type InventoryPlanFull = {
   horizon?: string;
   modelStatus?: 'modeled' | 'not_modeled';
+  decisionReady?: boolean;
+  impactStatus?: 'traceable' | 'scenario_only' | 'needs_model';
+  grounding?: {
+    observedMonthlyCost?: number;
+    modelBaselineMonthlyCost?: number;
+    connectedWarehouseNodes?: number;
+    modelBaselineWarehouseNodes?: number;
+    costVariancePct?: number | null;
+    issues?: string[];
+  };
   generatedAt?: string;
   source?: {
     authority?: string;

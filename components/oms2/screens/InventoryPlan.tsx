@@ -85,7 +85,9 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
 
   const cur = plan.current || {};
   const prop = plan.proposed || {};
-  const modeled = plan.modelStatus === 'modeled';
+  const hasModeledScenario = plan.modelStatus === 'modeled';
+  const decisionReady = hasModeledScenario && plan.decisionReady === true;
+  const groundingIssues = plan.grounding?.issues || [];
   const diffs = [
     { label: 'Stockout-risk SKUs', current: num(cur.stockoutRiskSkus), proposed: num(prop.stockoutRiskSkus), money: false },
     { label: 'Warehouse nodes', current: num(cur.warehouseCount), proposed: num(prop.warehouseCount), money: false, betterHigher: true },
@@ -110,8 +112,10 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
         <div>
           <h1 className="page-title">Inventory Plan</h1>
           <p className="page-subtitle">
-            {modeled
+            {decisionReady
               ? 'Observed inventory compared with Cortex quantities, placement, and timing.'
+              : hasModeledScenario
+                ? 'A Cortex scenario exists, but its cost or warehouse baseline does not yet match account truth.'
               : 'Observed demand, connected warehouses, and replenishment inputs. No optimized network has been modeled yet.'}
           </p>
         </div>
@@ -119,7 +123,7 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
           <Chip tone="purple" dot={false}>
             {intelligenceAuthorityLabel(plan.source?.authority)} · {plan.generatedAt ? new Date(plan.generatedAt).toLocaleDateString() : 'live'}
           </Chip>
-          {!modeled && <Chip tone="amber" dot={false}>Optimization required</Chip>}
+          {!decisionReady && <Chip tone="amber" dot={false}>{hasModeledScenario ? 'Baseline reconciliation required' : 'Optimization required'}</Chip>}
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Re-forecast</button>
           <button className="btn" onClick={() => downloadCsv('unieconnect-inventory-plan.csv', [
             ...(plan.months || []).map((month) => ({ Type: 'Month', Period: month.month, 'Projected units': month.projectedUnits, 'Proposed replenishment': month.proposedReplenishment, Savings: month.savings })),
@@ -128,29 +132,29 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
         </div>
       </div>
 
-      <div className="card" style={{ background: modeled ? 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 60%)' : 'var(--bg-elev)' }}>
+      <div className="card" style={{ background: decisionReady ? 'linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 60%)' : 'var(--bg-elev)' }}>
         <div className="card-body inventory-plan-summary-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr) auto', gap: 18, alignItems: 'center', padding: 18 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <Chip tone={modeled ? 'purple' : 'amber'} dot={false}>{modeled ? 'PROPOSED PLAN' : 'ACCOUNT BASELINE'}</Chip>
+              <Chip tone={decisionReady ? 'purple' : 'amber'} dot={false}>{decisionReady ? 'PROPOSED PLAN' : hasModeledScenario ? 'REFERENCE SCENARIO' : 'ACCOUNT BASELINE'}</Chip>
               <span className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{plan.horizon || '6m'}</span>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{modeled ? '6-month inventory & placement plan' : 'Observed inventory baseline'}</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{decisionReady ? '6-month inventory & placement plan' : 'Observed inventory baseline'}</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
               {num(cur.skuCount)} SKUs · {num(cur.warehouseCount)} connected warehouses · {plan.months?.length || 0} baseline periods
             </div>
           </div>
-          <SummaryStat label={modeled ? 'Monthly cost (plan)' : 'Current monthly cost'} value={fmt.money(num(modeled ? prop.estimatedMonthlyCost : cur.estimatedMonthlyCost), { compact: true })} tone={modeled ? 'green' : undefined} sub={modeled ? `was ${fmt.money(num(cur.estimatedMonthlyCost), { compact: true })}` : 'WMS billing · last 30 days'} />
-          <SummaryStat label="Stockout risk" value={`${num(modeled ? prop.stockoutRiskSkus : cur.stockoutRiskSkus)} SKUs`} tone={modeled ? 'green' : undefined} sub={modeled ? `vs ${num(cur.stockoutRiskSkus)} today` : 'observed today'} />
-          <SummaryStat label={modeled ? 'Shared pallets' : 'Replenishment candidates'} value={String(modeled ? num(prop.sharedPalletCandidates) : plan.skus.filter((item) => num(item.proposedUnits) > 0).length)} tone="purple" sub={modeled ? 'consolidation' : 'calculated from demand'} />
-          <SummaryStat label="Nodes" value={`${num(modeled ? prop.warehouseCount : cur.warehouseCount)}`} sub={modeled ? `vs ${num(cur.warehouseCount)}` : 'connected only'} />
+          <SummaryStat label={decisionReady ? 'Monthly cost (plan)' : 'Current monthly cost'} value={fmt.money(num(decisionReady ? prop.estimatedMonthlyCost : cur.estimatedMonthlyCost), { compact: true })} tone={decisionReady ? 'green' : undefined} sub={decisionReady ? `was ${fmt.money(num(cur.estimatedMonthlyCost), { compact: true })}` : 'observed billing · last 30 days'} />
+          <SummaryStat label="Stockout risk" value={`${num(decisionReady ? prop.stockoutRiskSkus : cur.stockoutRiskSkus)} SKUs`} tone={decisionReady ? 'green' : undefined} sub={decisionReady ? `vs ${num(cur.stockoutRiskSkus)} today` : 'observed today'} />
+          <SummaryStat label={decisionReady ? 'Shared pallets' : 'Replenishment candidates'} value={String(decisionReady ? num(prop.sharedPalletCandidates) : plan.skus.filter((item) => num(item.proposedUnits) > 0).length)} tone="purple" sub={decisionReady ? 'traceable consolidation' : 'calculated from observed demand'} />
+          <SummaryStat label="Nodes" value={`${num(decisionReady ? prop.warehouseCount : cur.warehouseCount)}`} sub={decisionReady ? `vs ${num(cur.warehouseCount)}` : 'connected only'} />
           <button className="btn primary lg" style={{ minWidth: 160 }} onClick={() => onNavigate('double')}>
-            <Icon name={modeled ? 'check' : 'sparkle'} size={13} /> {modeled ? 'Review & accept' : 'Run optimization'}
+            <Icon name={decisionReady ? 'check' : 'sparkle'} size={13} /> {decisionReady ? 'Review & accept' : hasModeledScenario ? 'Review scenario' : 'Run optimization'}
           </button>
         </div>
       </div>
 
-      {modeled ? <div className="card" style={{ marginTop: 14 }}>
+      {decisionReady ? <div className="card" style={{ marginTop: 14 }}>
         <div className="card-header">
           <div>
             <div className="card-title">Current business vs. proposed plan</div>
@@ -194,7 +198,23 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
             );
           })}
         </div>
-      </div> : (
+      </div> : hasModeledScenario ? (
+        <div className="card" style={{ marginTop: 14 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-title">Reference scenario requires reconciliation</div>
+              <div className="card-subtitle">Cortex modeled a possible network, but its baseline is not close enough to current account evidence for approval or projected savings.</div>
+            </div>
+            <Chip tone="amber" dot={false}>Scenario only</Chip>
+          </div>
+          <div className="card-body" style={{ display: 'grid', gap: 8 }}>
+            {(groundingIssues.length ? groundingIssues : ['Observed billing or connected warehouse evidence is incomplete.']).map((issue) => (
+              <div key={issue} className="inline-banner warn"><Icon name="warning" size={13} /> {issue}</div>
+            ))}
+            <div className="muted">The tables and forecasts below continue to use observed account data until the scenario becomes traceable.</div>
+          </div>
+        </div>
+      ) : (
         <div className="card" style={{ marginTop: 14 }}>
           <div className="card-header"><div><div className="card-title">Current vs. proposed plan</div><div className="card-subtitle">A comparison appears only after Cortex returns measurable changes.</div></div><Chip tone="amber" dot={false}>Not modeled</Chip></div>
           <div className="card-body"><EmptyState>No financial, stockout, or warehouse improvement is claimed from the baseline. Complete readiness work and run Seller Optimization to create a traceable proposal.</EmptyState></div>

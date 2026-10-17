@@ -390,11 +390,11 @@ const RevenueTrendCard = ({ data, bd, compact = false }: { data: CommandCenterFu
     if (data.range === '7d') return date.toLocaleDateString('en-US', { weekday: 'short' });
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   });
-  const modeled = bd?.plan?.modelStatus === 'modeled';
-  const revenueUpside = modeled ? Number(bd?.plan?.savings?.revenue ?? bd?.plan?.savings?.revenueUpside ?? 0) : 0;
-  const revenueUpsidePct = modeled ? Number(bd?.plan?.savings?.revenuePct ?? 0) : 0;
+  const traceable = bd?.plan?.modelStatus === 'modeled' && bd?.plan?.decisionReady === true;
+  const revenueUpside = traceable ? Number(bd?.plan?.savings?.revenue ?? bd?.plan?.savings?.revenueUpside ?? 0) : 0;
+  const revenueUpsidePct = traceable ? Number(bd?.plan?.savings?.revenuePct ?? 0) : 0;
   const totalOpt = revenue + (revenueUpside || (revenue * revenueUpsidePct) / 100);
-  const hasOptimizedRevenue = modeled && revenue > 0 && totalOpt > revenue;
+  const hasOptimizedRevenue = traceable && revenue > 0 && totalOpt > revenue;
   const optMult = hasOptimizedRevenue ? totalOpt / revenue : 1;
   const optimized = actual.map((v) => v * optMult);
 
