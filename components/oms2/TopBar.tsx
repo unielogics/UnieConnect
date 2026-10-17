@@ -189,9 +189,9 @@ export const TopBar = ({
   const highTaskCount = tasks.filter((task) => task.priority === 'high').length;
   const workAreas = Array.from(new Set(tasks.map((task) => task.actionTarget || task.screen).filter(Boolean))).slice(0, 3);
   const systemStatusCopy = cortexHealth === 'online'
-    ? 'Cortex online'
+    ? 'Cortex ready'
     : cortexHealth === 'offline'
-      ? 'Cortex offline'
+      ? 'Cortex unavailable'
       : 'Checking Cortex';
 
   return (
@@ -341,7 +341,7 @@ export const TopBar = ({
       <button
         className={`copilot-btn ${copilotOpen ? 'active' : ''}`}
         onClick={onToggleCopilot}
-        data-hint={cortexHealth === 'online' ? 'Cortex online' : cortexHealth === 'offline' ? 'Cortex offline' : 'Checking Cortex'}
+        data-hint={cortexHealth === 'online' ? 'Cortex ready' : cortexHealth === 'offline' ? 'Cortex unavailable' : 'Checking Cortex'}
       >
         <span className={`ai-dot ${cortexHealth}`} />
         Cortex

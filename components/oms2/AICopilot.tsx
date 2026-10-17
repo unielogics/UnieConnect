@@ -2,18 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
 import { Chip, Confidence } from './ui';
 import {
-  completeCortexTask,
   fetchCopilotContext,
   fetchCortexChatThread,
   fetchCortexChatThreads,
   fetchCortexChatHealth,
-  fetchCortexTasks,
-  dismissCortexTask,
   sendCortexChat,
   CopilotContext,
   CortexChatMessage,
   CortexChatThread,
-  CortexTask,
 } from '../../lib/oms';
 
 type ChatAction = {
@@ -123,55 +119,17 @@ export const AICopilot = ({
 }) => {
   const [ctx, setCtx] = useState<CopilotContext | null>(null);
   const [history, setHistory] = useState<Msg[]>([]);
-  const [tasks, setTasks] = useState<CortexTask[]>([]);
-  const [taskScope, setTaskScope] = useState<'screen' | 'account'>('screen');
   const [threadId, setThreadId] = useState<string | null>(null);
   const [threads, setThreads] = useState<CortexChatThread[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [pending, setPending] = useState(false);
-  const [guidanceOpen, setGuidanceOpen] = useState(false);
-  const [signalsOpen, setSignalsOpen] = useState(false);
-  const [taskError, setTaskError] = useState<string | null>(null);
-  const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const loadThreads = () => {
     fetchCortexChatThreads(section)
       .then((r) => setThreads((r.threads || []).slice(0, 5)))
       .catch(() => setThreads([]));
-  };
-
-  const loadTasks = (refresh = false) => {
-    return fetchCortexTasks({ status: 'open', screen: section, refresh, limit: 8 })
-      .then((r) => {
-        if (r.tasks?.length) {
-          setTaskScope('screen');
-          setTasks(r.tasks || []);
-          return;
-        }
-        return fetchCortexTasks({ status: 'open', refresh: false, limit: 8 })
-          .then((accountTasks) => {
-            setTaskScope('account');
-            setTasks(accountTasks.tasks || []);
-          })
-          .catch(() => setTasks([]));
-      })
-      .catch(() => setTasks([]));
-  };
-
-  const updateTask = async (task: CortexTask, action: 'done' | 'dismiss') => {
-    setTaskUpdatingId(task.id);
-    setTaskError(null);
-    try {
-      if (action === 'done') await completeCortexTask(task.id);
-      else await dismissCortexTask(task.id);
-      loadTasks(false);
-    } catch (error: any) {
-      setTaskError(error?.message || 'The task could not be updated.');
-    } finally {
-      setTaskUpdatingId(null);
-    }
   };
 
   const startNewThread = () => {
@@ -233,42 +191,6 @@ export const AICopilot = ({
   }, [section]);
 
   useEffect(() => {
-    let cancelled = false;
-    const refreshTasks = (refresh = false) => {
-      fetchCortexTasks({ status: 'open', screen: section, refresh, limit: 8 })
-        .then((r) => {
-          if (cancelled) return;
-          if (r.tasks?.length) {
-            setTaskScope('screen');
-            setTasks(r.tasks || []);
-            return;
-          }
-          fetchCortexTasks({ status: 'open', refresh: false, limit: 8 })
-            .then((accountTasks) => {
-              if (cancelled) return;
-              setTaskScope('account');
-              setTasks(accountTasks.tasks || []);
-            })
-            .catch(() => {
-              if (!cancelled) setTasks([]);
-            });
-        })
-        .catch(() => {
-          if (!cancelled) setTasks([]);
-        });
-    };
-    const onFocus = () => refreshTasks(false);
-    refreshTasks(true);
-    window.addEventListener('focus', onFocus);
-    const taskTimer = window.setInterval(() => refreshTasks(false), 90000);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('focus', onFocus);
-      window.clearInterval(taskTimer);
-    };
-  }, [section]);
-
-  useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
   }, [history.length, pending, loadingThread]);
 
@@ -279,10 +201,6 @@ export const AICopilot = ({
     try {
       const res = await sendCortexChat({ screen: section, message: q, threadId });
       if (res.thread?.id) setThreadId(res.thread.id);
-      if (res.context?.tasks) {
-        setTaskScope('account');
-        setTasks(res.context.tasks);
-      }
       const cortexUnavailable = res.cortex?.health?.available === false;
       setCortexHealth(cortexUnavailable ? 'offline' : 'online');
       setHistory((h) => [
@@ -336,7 +254,7 @@ export const AICopilot = ({
           <span className={`ai-dot ${cortexHealth}`} />
           Cortex
           <Chip tone={cortexHealth === 'online' ? 'green' : cortexHealth === 'offline' ? 'red' : 'amber'} dot={false}>
-            {cortexHealth === 'online' ? 'Cortex online' : cortexHealth === 'offline' ? 'Cortex offline' : 'Checking Cortex'}
+            {cortexHealth === 'online' ? 'Cortex ready' : cortexHealth === 'offline' ? 'Cortex unavailable' : 'Checking Cortex'}
           </Chip>
         </div>
         <button className="icon-btn" onClick={onClose} data-hint="Close">
@@ -360,74 +278,6 @@ export const AICopilot = ({
       </div>
 
       <div className="copilot-body">
-        {tasks.length > 0 && (
-          <div className={`ai-card cortex-task-card ${guidanceOpen ? 'open' : 'collapsed'}`}>
-            <button className="cortex-guidance-toggle" onClick={() => setGuidanceOpen((open) => !open)}>
-              <span>
-                <strong>{taskScope === 'screen' ? 'Screen guidance' : 'Account guidance'}</strong>
-                <small>Tasks stay in notifications and Command Center. Open here only when you need direction.</small>
-              </span>
-              <span className="guidance-toggle-right">
-                <Chip tone={tasks.some((task) => task.priority === 'high') ? 'red' : 'purple'} dot={false}>
-                  {tasks.length} open
-                </Chip>
-                <Icon name={guidanceOpen ? 'chevronUp' : 'chevronDown'} size={12} />
-              </span>
-            </button>
-            {guidanceOpen && tasks.slice(0, 3).map((task) => (
-              <div key={task.id} className="cortex-task-mini">
-                <div>
-                  <span className={`task-priority ${task.priority}`}>{task.priority}</span>
-                  <strong>{task.title}</strong>
-                  {task.detail && <span>{task.detail}</span>}
-                </div>
-                <div className="task-mini-actions">
-                  <button
-                    className="btn ghost sm task-action-label"
-                    title={task.actionLabel || 'Open'}
-                    onClick={() => onNavigate?.(task.actionTarget || task.screen || 'command', task.entityId || undefined)}
-                    disabled={taskUpdatingId === task.id}
-                  >
-                    <Icon name="arrowRight" size={12} /> {task.actionLabel || 'Open'}
-                  </button>
-                  <button className="icon-btn" data-hint="Done" disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'done')}>
-                    <Icon name="check" size={13} />
-                  </button>
-                  <button className="icon-btn" data-hint="Dismiss" disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'dismiss')}>
-                    <Icon name="x" size={13} />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {guidanceOpen && taskError && <div className="cortex-guidance-error" role="alert"><Icon name="warning" size={12} /> {taskError}</div>}
-          </div>
-        )}
-
-        {(ctx?.latestSignals || []).length > 0 && (
-          <div className={`ai-card cortex-signal-card ${signalsOpen ? 'open' : 'collapsed'}`}>
-            <button className="cortex-guidance-toggle" onClick={() => setSignalsOpen((open) => !open)}>
-              <span>
-                <strong>Latest signals</strong>
-                <small>{ctx?.latestSignals?.length || 0} account signal{(ctx?.latestSignals?.length || 0) === 1 ? '' : 's'} available</small>
-              </span>
-              <span className="guidance-toggle-right">
-                <Chip tone="purple" dot={false}>{ctx?.latestSignals?.length || 0}</Chip>
-                <Icon name={signalsOpen ? 'chevronUp' : 'chevronDown'} size={12} />
-              </span>
-            </button>
-            {signalsOpen && (ctx?.latestSignals || []).slice(0, 3).map((s, i) => (
-              <div key={i} className="cortex-signal-mini">
-                <div>
-                  <strong>{s.title || 'Signal'}</strong>
-                  {s.detail && <span>{s.detail}</span>}
-                  <small>Source: Cortex · {section}</small>
-                </div>
-                {s.confidence != null && <Confidence value={s.confidence} />}
-              </div>
-            ))}
-          </div>
-        )}
-
         {loadingThread && (
           <div className="ai-msg">
             <div className="ai-avatar">CX</div>

@@ -789,6 +789,7 @@ export type CortexChatResponse = {
       chatIntegrated?: boolean;
       status?: number;
       reason?: string;
+      mode?: 'live' | 'account_scoped' | 'unavailable' | string;
       liveRouteAvailable?: boolean;
       liveRouteStatus?: number;
       liveRouteReason?: string;
