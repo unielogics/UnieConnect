@@ -148,7 +148,17 @@ export const AICopilot = ({
   const [loadingThread, setLoadingThread] = useState(false);
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [pending, setPending] = useState(false);
+  const [pendingStage, setPendingStage] = useState<'reading' | 'comparing' | 'writing'>('reading');
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const requestInFlightRef = useRef(false);
+  const conversationEpochRef = useRef(0);
+
+  const welcomeMessage = () => {
+    const screenLabel = String(section || 'this screen').replace(/-/g, ' ');
+    return entityId
+      ? `Ask Cortex about this ${entityType || 'record'}. Answers are grounded in this account and the active ${screenLabel} context.`
+      : `Ask Cortex about this account or the ${screenLabel} screen. Answers use the account's current OMS data.`;
+  };
 
   const loadThreads = () => {
     setThreadsLoading(true);
@@ -160,31 +170,39 @@ export const AICopilot = ({
   };
 
   const startNewThread = () => {
+    if (requestInFlightRef.current || loadingThread) return;
+    conversationEpochRef.current += 1;
     setThreadOpenError(null);
     setFailedThreadId(null);
     setThreadId(null);
-    setHistory([
-      { role: 'ai', body: ctx?.summary || 'Cortex is grounded in this OMS account. Ask about the current screen, tasks, SKUs, orders, warehouses, audits, or readiness.' },
-    ]);
+    setHistory([{ role: 'ai', body: welcomeMessage() }]);
   };
 
   const openThread = async (id: string) => {
+    if (requestInFlightRef.current || loadingThread) return;
+    const epoch = ++conversationEpochRef.current;
     setLoadingThread(true);
     setThreadOpenError(null);
     setFailedThreadId(null);
     try {
       const r = await fetchCortexChatThread(id);
+      if (conversationEpochRef.current !== epoch) return;
       setThreadId(r.thread.id);
       setHistory((r.messages || []).filter((m) => m.role !== 'system').map(messageToHistory));
     } catch (error: any) {
+      if (conversationEpochRef.current !== epoch) return;
       setThreadOpenError(error?.message || 'That thread could not be opened.');
       setFailedThreadId(id);
     } finally {
-      setLoadingThread(false);
+      if (conversationEpochRef.current === epoch) setLoadingThread(false);
     }
   };
 
   useEffect(() => {
+    conversationEpochRef.current += 1;
+    requestInFlightRef.current = false;
+    setPending(false);
+    setLoadingThread(false);
     setThreadId(null);
     setThreads([]);
     let cancelled = false;
@@ -206,9 +224,7 @@ export const AICopilot = ({
       .then((c) => {
         if (cancelled) return;
         setCtx(c);
-        setHistory([
-          { role: 'ai', body: c.summary || 'Cortex is grounded in this OMS account. Ask about the current screen, tasks, SKUs, orders, warehouses, audits, or readiness.' },
-        ]);
+        setHistory([{ role: 'ai', body: welcomeMessage() }]);
       })
       .catch(() => {
         if (cancelled) return;
@@ -226,8 +242,24 @@ export const AICopilot = ({
     bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
   }, [history.length, pending, loadingThread]);
 
+  useEffect(() => {
+    if (!pending) {
+      setPendingStage('reading');
+      return;
+    }
+    setPendingStage('reading');
+    const compareTimer = window.setTimeout(() => setPendingStage('comparing'), 2500);
+    const writeTimer = window.setTimeout(() => setPendingStage('writing'), 7500);
+    return () => {
+      window.clearTimeout(compareTimer);
+      window.clearTimeout(writeTimer);
+    };
+  }, [pending]);
+
   const send = async (q: string, appendUser = true) => {
-    if (!q) return;
+    if (!q || requestInFlightRef.current || loadingThread) return;
+    requestInFlightRef.current = true;
+    const epoch = conversationEpochRef.current;
     if (appendUser) setHistory((h) => [...h, { role: 'user', body: q }]);
     setPending(true);
     try {
@@ -238,6 +270,7 @@ export const AICopilot = ({
         entityType: entityType || undefined,
         entityId: entityId || undefined,
       });
+      if (conversationEpochRef.current !== epoch) return;
       if (res.thread?.id) setThreadId(res.thread.id);
       const cortexUnavailable = res.cortex?.health?.available === false;
       setCortexHealth(cortexUnavailable ? 'offline' : 'online');
@@ -258,6 +291,7 @@ export const AICopilot = ({
       ]);
       loadThreads();
     } catch {
+      if (conversationEpochRef.current !== epoch) return;
       setCortexHealth('offline');
       setHistory((h) => [
         ...h,
@@ -283,7 +317,10 @@ export const AICopilot = ({
         },
       ]);
     } finally {
-      setPending(false);
+      if (conversationEpochRef.current === epoch) {
+        requestInFlightRef.current = false;
+        setPending(false);
+      }
     }
   };
 
@@ -307,7 +344,7 @@ export const AICopilot = ({
         </button>
       </div>
       <div className="copilot-thread-bar">
-        <button className={`copilot-thread-pill ${!threadId ? 'active' : ''}`} onClick={startNewThread}>
+        <button className={`copilot-thread-pill ${!threadId ? 'active' : ''}`} onClick={startNewThread} disabled={pending || loadingThread}>
           <Icon name="plus" size={11} /> New
         </button>
         {threads.map((thread) => (
@@ -316,6 +353,7 @@ export const AICopilot = ({
             className={`copilot-thread-pill ${threadId === thread.id ? 'active' : ''}`}
             onClick={() => openThread(thread.id)}
             title={thread.title}
+            disabled={pending || loadingThread}
           >
             {thread.title || 'Cortex thread'}
           </button>
@@ -383,7 +421,22 @@ export const AICopilot = ({
         {pending && (
           <div className="ai-msg">
             <div className="ai-avatar">CX</div>
-            <div className="ai-body pulsing">Thinking...</div>
+            <div className="ai-body ai-thinking" role="status" aria-live="polite">
+              <strong>
+                {pendingStage === 'reading'
+                  ? 'Reading account context'
+                  : pendingStage === 'comparing'
+                    ? 'Comparing account signals'
+                    : 'Preparing a grounded answer'}
+              </strong>
+              <span>
+                {pendingStage === 'reading'
+                  ? 'Loading the records relevant to your question.'
+                  : pendingStage === 'comparing'
+                    ? 'Checking current evidence, readiness, and related activity.'
+                    : 'Turning the evidence into a clear answer and next action.'}
+              </span>
+            </div>
           </div>
         )}
         <div ref={bottomRef} className="copilot-scroll-anchor" />
@@ -392,7 +445,7 @@ export const AICopilot = ({
       <div className="copilot-foot">
         <div className="copilot-chips">
           {prompts.map((ex) => (
-            <button key={ex} className="copilot-chip" onClick={() => send(ex)}>
+            <button key={ex} className="copilot-chip" onClick={() => send(ex)} disabled={pending || loadingThread}>
               {ex}
             </button>
           ))}
