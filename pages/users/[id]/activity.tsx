@@ -86,8 +86,8 @@ export default function UserActivityPage() {
         <div className="card">
           <div className="title">Access denied</div>
           <div className="muted">You do not have permission to view user activity.</div>
-          <button className="button-primary" onClick={() => router.push('/dashboard')}>
-            Go to dashboard
+          <button className="button-primary" onClick={() => router.push('/oms?view=command')}>
+            Go to Command Center
           </button>
         </div>
       </DashboardLayout>

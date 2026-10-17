@@ -44,7 +44,7 @@ export default function Register() {
 
   useEffect(() => {
     if (!mounted) return;
-    if (localStorage.getItem(TOKEN_KEY)) window.location.href = '/dashboard';
+    if (localStorage.getItem(TOKEN_KEY)) window.location.href = '/oms?view=command';
   }, [mounted]);
 
   const handleSignup = async (e: FormEvent) => {
@@ -73,7 +73,7 @@ export default function Register() {
       if (data.token) {
         localStorage.setItem(TOKEN_KEY, data.token);
         setStatusMessage('Account created. Redirecting…');
-        window.location.href = '/dashboard';
+        window.location.href = '/oms?view=command';
         return;
       }
       setError('Unexpected response. Please try again.');

@@ -71,15 +71,15 @@ export default function Navigation({ sidebarCollapsed = false, onNavigate, canMa
 
   // Regular (core) navigation items
   const coreItems: NavItem[] = [
-    { label: 'Integrations', href: '/dashboard', icon: 'integrations', order: 0, category: 'core' },
-    { label: 'My 3PLs', href: '/connect-warehouse', icon: 'warehouse', order: 0.5, category: 'core' },
-    { label: 'Orders', href: '/orders', icon: 'orders', order: 1, category: 'core' },
-    { label: 'Customers', href: '/customers', icon: 'customers', order: 2, category: 'core' },
-    { label: 'Activity', href: '/activity', icon: 'activity', order: 3, category: 'core' },
-    { label: 'Catalog', href: '/catalog', icon: 'items', order: 5, category: 'core' },
-    { label: 'Shipment plans', href: '/shipment-plans', icon: 'package', order: 6, category: 'core' },
-    { label: 'Ship-from', href: '/suppliers', icon: 'users', order: 8, category: 'core' },
-    { label: 'Marketplace', href: '/marketplace', icon: 'marketplace', order: 99, category: 'core' },
+    { label: 'Integrations', href: '/oms?view=connections', icon: 'integrations', order: 0, category: 'core' },
+    { label: 'My 3PLs', href: '/oms?view=warehouses', icon: 'warehouse', order: 0.5, category: 'core' },
+    { label: 'Orders', href: '/oms?view=orders', icon: 'orders', order: 1, category: 'core' },
+    { label: 'Customers', href: '/oms?view=customers', icon: 'customers', order: 2, category: 'core' },
+    { label: 'Activity', href: '/oms?view=ledger', icon: 'activity', order: 3, category: 'core' },
+    { label: 'Catalog', href: '/oms?view=skus', icon: 'items', order: 5, category: 'core' },
+    { label: 'Shipment plans', href: '/oms?view=shipments', icon: 'package', order: 6, category: 'core' },
+    { label: 'Ship-from', href: '/oms?view=suppliers', icon: 'users', order: 8, category: 'core' },
+    { label: 'Marketplace', href: '/oms?view=marketplace', icon: 'marketplace', order: 99, category: 'core' },
   ];
 
   // Admin-only items

@@ -58,9 +58,9 @@ const sections: OmsSection[] = [
     label: 'Command',
     icon: <Home size={20} />,
     items: [
-      { label: 'Command Center', href: '/oms', description: 'Sales, risk, and autonomous activity' },
-      { label: 'Business Double', href: '/oms?view=business', description: 'Current vs optimized business plan' },
-      { label: 'Integrations', href: '/dashboard', description: 'Marketplace and channel connections' },
+      { label: 'Command Center', href: '/oms?view=command', description: 'Sales, risk, and autonomous activity' },
+      { label: 'Business Double', href: '/oms?view=double', description: 'Current vs optimized business plan' },
+      { label: 'Integrations', href: '/oms?view=connections', description: 'Marketplace and channel connections' },
     ],
   },
   {
@@ -68,9 +68,9 @@ const sections: OmsSection[] = [
     label: 'Inventory',
     icon: <Boxes size={20} />,
     items: [
-      { label: 'Inventory Plan', href: '/oms?view=inventory', description: 'Six-month placement and pallet economics' },
+      { label: 'Inventory Plan', href: '/oms?view=plan', description: 'Six-month placement and pallet economics' },
       { label: 'SKUs', href: '/oms?view=skus', description: 'SKU intelligence and warehouse truth' },
-      { label: 'Catalog', href: '/catalog', description: 'Legacy item management' },
+      { label: 'Catalog', href: '/oms?view=skus', description: 'Product and SKU management' },
       { label: 'Heatmap', href: '/oms?view=heatmap', description: 'Demand and warehouse inventory map' },
     ],
   },
@@ -81,8 +81,8 @@ const sections: OmsSection[] = [
     items: [
       { label: 'Orders', href: '/oms?view=orders', description: 'Order flow and customer drilldown' },
       { label: 'Shipments', href: '/oms?view=shipments', description: 'ASNs, shipment plans, and WMS receiving' },
-      { label: 'Shipment Plans', href: '/shipment-plans', description: 'Legacy shipment plan workspace' },
-      { label: 'Warehouses', href: '/connect-warehouse', description: '3PL and warehouse connections' },
+      { label: 'Shipment Plans', href: '/oms?view=shipments', description: 'Shipment plans and ASN workspace' },
+      { label: 'Warehouses', href: '/oms?view=warehouses', description: '3PL and warehouse operations' },
     ],
   },
   {
@@ -92,8 +92,8 @@ const sections: OmsSection[] = [
     items: [
       { label: 'Customers', href: '/oms?view=customers', description: 'Customer LTV, service, and order behavior' },
       { label: 'Suppliers', href: '/oms?view=suppliers', description: 'Lead time, quality, and supplied SKUs' },
-      { label: 'Ship-from', href: '/suppliers', description: 'Supplier and ship-from master data' },
-      { label: 'Activity', href: '/activity', description: 'Legacy activity stream' },
+      { label: 'Ship-from', href: '/oms?view=suppliers', description: 'Supplier and ship-from master data' },
+      { label: 'Activity', href: '/oms?view=ledger', description: 'Account execution and intelligence activity' },
     ],
   },
   {
@@ -127,8 +127,8 @@ function getSectionForPath(pathname: string, queryView?: string): string {
   if (pathname === '/marketplace') return 'finance';
   if (pathname === '/users' || pathname === '/oms-admin') return 'admin';
   if (pathname === '/oms') {
-    if (queryView === 'inventory' || queryView === 'skus' || queryView === 'heatmap') return 'inventory';
-    if (queryView === 'orders' || queryView === 'shipments') return 'operations';
+    if (queryView === 'plan' || queryView === 'skus' || queryView === 'heatmap') return 'inventory';
+    if (queryView === 'orders' || queryView === 'shipments' || queryView === 'warehouses') return 'operations';
     if (queryView === 'customers' || queryView === 'suppliers') return 'network';
     if (queryView === 'billing' || queryView === 'labels' || queryView === 'ledger' || queryView === 'marketplace') return 'finance';
     return 'command';

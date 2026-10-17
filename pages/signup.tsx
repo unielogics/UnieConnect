@@ -83,7 +83,7 @@ export default function Signup() {
     if (!mounted) return;
     const existing = localStorage.getItem(TOKEN_KEY);
     if (existing) {
-      window.location.href = '/dashboard';
+      window.location.href = '/oms?view=command';
     }
   }, [mounted]);
 
@@ -129,7 +129,9 @@ export default function Signup() {
         localStorage.setItem(TOKEN_KEY, data.token);
         setStatusMessage('Account created. Redirecting…');
         const ref = data.auditReference || auditReference;
-        window.location.href = ref ? `/dashboard?audit=${encodeURIComponent(ref)}&source=public_audit` : '/dashboard';
+        window.location.href = ref
+          ? `/oms?view=command&audit=${encodeURIComponent(ref)}&source=public_audit`
+          : '/oms?view=command';
         return;
       }
       setError('Unexpected response. Please try again.');

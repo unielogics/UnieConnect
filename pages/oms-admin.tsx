@@ -183,8 +183,8 @@ export default function OmsAdminPage() {
         <div className="card">
           <div className="title">Access denied</div>
           <div className="muted">You need management or super admin role.</div>
-          <button className="button-primary" style={{ marginTop: 16 }} onClick={() => router.push('/dashboard')}>
-            Go to dashboard
+          <button className="button-primary" style={{ marginTop: 16 }} onClick={() => router.push('/oms?view=command')}>
+            Go to Command Center
           </button>
         </div>
       </DashboardLayout>
