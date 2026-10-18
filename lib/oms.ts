@@ -326,7 +326,7 @@ export type OmsSkuDetail = {
   nextShipments: Array<{ id: string; date: string; origin: string; destination: string; quantity: number; status: string; cube?: number; mode?: string }>;
   warehouses: Array<{ code: string; name?: string; region?: string; available: number; inbound: number; daysOfCover: number; storageCost?: number; velocityPerDay?: number; status?: string }>;
   history: Array<{ ts: string; type: string; actor: string; subject: string; impact?: number | null }>;
-  channels?: Array<{ channel: string; units30d: number; revenue30d: number; shareOfDemand: number; refundRate: number }>;
+  channels?: Array<{ channel: string; mapped?: boolean; orders30d?: number; units30d: number; revenue30d: number; shareOfDemand: number; refundRate: number }>;
   billing?: {
     currentMonthly: number;
     optimizedMonthly: number;

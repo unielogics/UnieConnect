@@ -1763,7 +1763,7 @@ const ChannelBreakdownCard = ({ data }: { data: OmsSkuDetail }) => {
         <div className="card-title">Channel breakdown</div>
       </div>
       <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {channels.length === 0 && <EmptyState>Channel breakdown not yet available for this SKU.</EmptyState>}
+        {channels.length === 0 && <EmptyState>This SKU is not mapped to a marketplace and has no channel sales in the last 30 days.</EmptyState>}
         {channels.map((c) => (
           <div key={c.channel}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
@@ -1943,7 +1943,7 @@ const Channels = ({ data }: { data: OmsSkuDetail }) => {
   if (channels.length === 0)
     return (
       <div className="card">
-        <div className="card-body"><EmptyState>Per-channel performance not yet available for this SKU.</EmptyState></div>
+        <div className="card-body"><EmptyState>This SKU is not mapped to a marketplace and has no channel sales in the last 30 days.</EmptyState></div>
       </div>
     );
   return (
@@ -1952,9 +1952,10 @@ const Channels = ({ data }: { data: OmsSkuDetail }) => {
         <div key={c.channel} className="card">
           <div className="card-header">
             <div className="card-title">{c.channel}</div>
-            <Chip tone="green" dot={false}>Live</Chip>
+            <Chip tone={c.mapped ? 'green' : 'blue'} dot={false}>{c.mapped ? 'Connected' : 'Observed'}</Chip>
           </div>
           <div className="card-body sku-channel-metrics" style={{ gap: 14 }}>
+            <div className="kv"><div className="kv-label">30d orders</div><div className="kv-value">{num(c.orders30d).toLocaleString()}</div></div>
             <div className="kv"><div className="kv-label">30d units</div><div className="kv-value">{num(c.units30d).toLocaleString()}</div></div>
             <div className="kv"><div className="kv-label">30d revenue</div><div className="kv-value">{fmt.money(num(c.revenue30d), { compact: true })}</div></div>
             <div className="kv"><div className="kv-label">Share of demand</div><div className="kv-value">{Math.round(num(c.shareOfDemand) * 100)}%</div></div>
