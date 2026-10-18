@@ -78,6 +78,34 @@ const capabilityLabel = (label: string) =>
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+const marketplaceRefreshNotice = (connection: Conn, result: any) => {
+  const entities = result?.entities || {};
+  const synchronized = ['products', 'orders', 'inventory']
+    .map((entity) => {
+      const count = Number(entities?.[entity]?.count ?? result?.syncResult?.[entity]);
+      return Number.isFinite(count) ? `${count} ${entity}` : '';
+    })
+    .filter(Boolean)
+    .join(', ');
+  const summary = synchronized ? ` ${synchronized} synchronized.` : '';
+  const inventoryWarning = String(
+    result?.syncResult?.warnings?.inventory
+      || entities?.inventory?.metadata?.warning
+      || entities?.inventory?.error
+      || '',
+  );
+  const webhookError = String(result?.webhookResult?.error || '');
+
+  if (String(connection.raw?.channel || '').toLowerCase() === 'shopify'
+    && /location-level inventory|read_locations|location inventory/i.test(inventoryWarning)) {
+    return `${connection.name} refreshed.${summary} Products and orders are current. Warehouse-level inventory still needs Shopify authorization. Select Repair Shopify access and approve location inventory access.`;
+  }
+  if (result?.syncStatus === 'partial') {
+    return `${connection.name} refreshed with partial coverage.${summary}${webhookError ? ' Real-time updates could not be verified.' : ''} Review the highlighted capability and use Repair when authorization is required.`;
+  }
+  return `${connection.name} refreshed successfully.${summary}`;
+};
+
 const normalizeShop = (value: string) =>
   value
     .trim()
@@ -657,9 +685,7 @@ export const Connections = (_: ScreenProps) => {
     try {
       if (c.owner === 'marketplace' && c.raw?.id) {
         const result = await apiFetch<any>(`/channel-accounts/${encodeURIComponent(c.raw.id)}/refresh`, { method: 'POST' });
-        setNotice(result?.syncStatus === 'partial'
-          ? `${c.name} refreshed with provider issues. Review the connection warning and reconnect if authorization is missing.`
-          : `${c.name} refreshed successfully.`);
+        setNotice(marketplaceRefreshNotice(c, result));
       } else if (c.owner === 'wms' && c.raw?.warehouseCode) {
         await apiFetch(`/oms/warehouses/${encodeURIComponent(c.raw.warehouseCode)}/test`, { method: 'POST' });
         setNotice(`${c.name} connection is reachable.`);
