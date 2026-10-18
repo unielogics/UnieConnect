@@ -92,24 +92,59 @@ const ANSWER_SECTION_LABELS = new Set([
   'expected impact',
 ]);
 
+type ParsedAnswerBlock = { label?: string; content: string };
+
+const parseAnswerBlocks = (text?: string | null): ParsedAnswerBlock[] => {
+  const sectionNames = Array.from(ANSWER_SECTION_LABELS)
+    .sort((a, b) => b.length - a.length)
+    .map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  const sectionPattern = new RegExp(`(^|[.!?]\\s+|\\n+)(${sectionNames}):\\s*`, 'gi');
+
+  return cortexDisplayText(text)
+    .split(/\n{2,}/)
+    .filter(Boolean)
+    .flatMap((block): ParsedAnswerBlock[] => {
+      const matches = Array.from(block.matchAll(sectionPattern));
+      if (!matches.length) return [{ content: block }];
+
+      const parsed: ParsedAnswerBlock[] = [];
+      const firstBoundary = matches[0][1] || '';
+      const prefixEnd = (matches[0].index || 0) + (/[.!?]/.test(firstBoundary) ? 1 : 0);
+      const prefix = block.slice(0, prefixEnd).trim();
+      if (prefix) parsed.push({ content: prefix });
+
+      matches.forEach((match, index) => {
+        const next = matches[index + 1];
+        const nextBoundary = next?.[1] || '';
+        const contentStart = (match.index || 0) + match[0].length;
+        const contentEnd = next
+          ? (next.index || 0) + (/[.!?]/.test(nextBoundary) ? 1 : 0)
+          : block.length;
+        const content = block.slice(contentStart, contentEnd).trim();
+        if (content) parsed.push({ label: match[2].trim(), content });
+      });
+      return parsed;
+    });
+};
+
 const CortexAnswer = ({ text }: { text?: string | null }) => {
-  const blocks = cortexDisplayText(text).split(/\n{2,}/).filter(Boolean);
+  const blocks = parseAnswerBlocks(text);
   return (
     <div className="ai-answer-text">
       {blocks.map((block, index) => {
-        const match = block.match(/^([^:\n]{1,40}):\s*([\s\S]*)$/);
-        const label = match?.[1]?.trim() || '';
+        const label = block.label || '';
         const normalizedLabel = label.toLowerCase();
-        if (match && ANSWER_SECTION_LABELS.has(normalizedLabel)) {
+        if (label && ANSWER_SECTION_LABELS.has(normalizedLabel)) {
           const sectionClass = normalizedLabel.replace(/[^a-z0-9]+/g, '-');
           return (
             <section key={`${normalizedLabel}-${index}`} className={`ai-answer-section ${sectionClass}`}>
               <span>{label}</span>
-              <div>{match[2].trim()}</div>
+              <div>{block.content}</div>
             </section>
           );
         }
-        return <p key={index}>{block}</p>;
+        return <p key={index}>{block.content}</p>;
       })}
     </div>
   );
@@ -495,7 +530,7 @@ export const AICopilot = ({
             </button>
           ))}
         </div>
-        <CopilotInput onSubmit={send} disabled={pending} />
+        <CopilotInput onSubmit={send} disabled={pending || loadingThread} />
       </div>
     </aside>
   );
