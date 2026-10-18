@@ -106,6 +106,12 @@ const ANSWER_SECTION_LABELS = new Set([
   'synchronized data',
   'attention required',
   'expected impact',
+  'cost baseline',
+  'warehouse baseline',
+  'next steps',
+  'current evidence',
+  'suggested change',
+  'measurable impact',
 ]);
 
 type ParsedAnswerBlock = { label?: string; content: string };
@@ -235,7 +241,7 @@ const CopilotInput = ({ onSubmit, disabled }: { onSubmit: (q: string) => void; d
         ref={inputRef}
         className="copilot-input"
         aria-label="Ask Cortex"
-        placeholder="Ask Cortex about this account, screen, SKUs, orders, warehouses, or tasks"
+        placeholder="Ask Cortex about this account or what you see on this screen"
         rows={1}
         value={text}
         disabled={disabled}
@@ -538,7 +544,7 @@ export const AICopilot = ({
 
   const prompts = ctx?.recommendedPrompts?.length
     ? ctx.recommendedPrompts
-    : ['What should I work on next?', 'Which SKUs need enrichment?', 'Audit recent carrier labels', 'What tasks are blocking Cortex readiness?'];
+    : ['Summarize what is happening in my account', 'Where am I losing money right now?', 'Which orders need attention?', 'Is the AI plan ready for approval?'];
   const showSuggestedPrompts = !pending && !loadingThread && history.every((message) => message.role !== 'user');
 
   return (
