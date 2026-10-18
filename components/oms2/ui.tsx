@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Icon } from './icons';
 import { AuthenticatedImage } from '../AuthenticatedImage';
 
@@ -520,10 +520,79 @@ export const Modal = ({
   chrome?: React.ReactNode;
 }) => {
   useCloseOnOmsNavigation(onClose);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const titleId = useId();
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    const focusableSelector = [
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      'button:not([disabled])',
+      'a[href]',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+    const focusInitialControl = window.requestAnimationFrame(() => {
+      const preferred = dialog?.querySelector<HTMLElement>('.modal-body')?.querySelector<HTMLElement>(focusableSelector);
+      const fallback = dialog?.querySelector<HTMLElement>(focusableSelector);
+      (preferred || fallback || dialog)?.focus({ preventScroll: true });
+    });
+    const isTopmost = () => {
+      const overlays = document.querySelectorAll('.uc-shell .modal-overlay');
+      return overlays.length > 0 && overlays[overlays.length - 1] === overlayRef.current;
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isTopmost()) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
+        .filter((element) => element.getClientRects().length > 0 && element.getAttribute('aria-hidden') !== 'true');
+      if (!controls.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusInitialControl);
+      document.removeEventListener('keydown', onKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus({ preventScroll: true });
+    };
+  }, []);
 
   return (
-    <div className={`modal-overlay ${fullscreen ? 'fullscreen' : ''}`} onClick={fullscreen ? undefined : onClose}>
-      <div className="modal" style={!fullscreen ? { width: width || undefined } : undefined} onClick={(e) => e.stopPropagation()}>
+    <div ref={overlayRef} className={`modal-overlay ${fullscreen ? 'fullscreen' : ''}`} onClick={fullscreen ? undefined : onClose}>
+      <div
+        ref={dialogRef}
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        style={!fullscreen ? { width: width || undefined } : undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-head">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1 }}>
             {fullscreen && (
@@ -532,12 +601,12 @@ export const Modal = ({
               </button>
             )}
             <div>
-              <div style={{ fontSize: fullscreen ? 18 : 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{title}</div>
+              <div id={titleId} style={{ fontSize: fullscreen ? 18 : 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{title}</div>
               {subtitle && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{subtitle}</div>}
             </div>
             {chrome}
           </div>
-          <button className="icon-btn" onClick={onClose}>
+          <button className="icon-btn" onClick={onClose} aria-label="Close dialog" data-hint="Close">
             <Icon name="x" />
           </button>
         </div>
