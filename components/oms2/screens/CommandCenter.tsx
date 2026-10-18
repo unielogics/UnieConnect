@@ -40,6 +40,8 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [tasks, setTasks] = useState<CortexTask[]>([]);
   const [taskTotal, setTaskTotal] = useState(0);
   const [taskSummary, setTaskSummary] = useState<CortexTaskSummary>({ highPriority: 0, workAreas: [], sources: [] });
+  const [intelligenceLoading, setIntelligenceLoading] = useState(true);
+  const [intelligenceErrors, setIntelligenceErrors] = useState<{ plan?: string; readiness?: string; tasks?: string }>({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
@@ -52,22 +54,27 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [decisionUpdatingId, setDecisionUpdatingId] = useState<string | null>(null);
 
   const refreshIntelligencePanels = useCallback(async (refreshTasks = false) => {
+    setIntelligenceLoading(true);
     const [planResult, latestResult, tasksResult] = await Promise.allSettled([
       fetchBusinessDouble(),
       fetchLatestOptimization(),
       fetchCortexTasks({ status: 'open', refresh: refreshTasks, limit: 10 }),
     ]);
+    const nextErrors: { plan?: string; readiness?: string; tasks?: string } = {};
     if (planResult.status === 'fulfilled') setBd(planResult.value);
+    else nextErrors.plan = planResult.reason?.message || 'The AI plan could not be loaded.';
     if (latestResult.status === 'fulfilled') {
       setReadiness(latestResult.value.readiness);
       setLatestOpt(latestResult.value.latest || null);
       setRecommendations(latestResult.value.recommendations || []);
-    }
+    } else nextErrors.readiness = latestResult.reason?.message || 'Current Cortex decisions could not be loaded.';
     if (tasksResult.status === 'fulfilled') {
       setTasks(tasksResult.value.tasks || []);
       setTaskTotal(tasksResult.value.total ?? tasksResult.value.tasks?.length ?? 0);
       setTaskSummary(tasksResult.value.summary || { highPriority: 0, workAreas: [], sources: [] });
-    }
+    } else nextErrors.tasks = tasksResult.reason?.message || 'Cortex tasks could not be loaded.';
+    setIntelligenceErrors(nextErrors);
+    setIntelligenceLoading(false);
   }, []);
 
   const load = (r: Range) => {
@@ -94,9 +101,17 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
             setTasks(result.tasks || []);
             setTaskTotal(result.total ?? result.tasks?.length ?? 0);
             setTaskSummary(result.summary || { highPriority: 0, workAreas: [], sources: [] });
+            setIntelligenceErrors((current) => ({ ...current, tasks: undefined }));
           }
         })
-        .catch(() => undefined);
+        .catch((error) => {
+          if (!cancelled) {
+            setIntelligenceErrors((current) => ({
+              ...current,
+              tasks: error?.message || 'Cortex tasks could not be refreshed.',
+            }));
+          }
+        });
     };
     window.addEventListener(CORTEX_TASKS_CHANGED_EVENT, onTasksChanged);
     return () => {
@@ -277,6 +292,9 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           onDecision={decideRecommendation}
           feedback={decisionFeedback}
           updatingId={decisionUpdatingId}
+          loading={intelligenceLoading}
+          error={intelligenceErrors.readiness}
+          onRetry={() => void refreshIntelligencePanels(true)}
         />
         {loading && !data ? (
           <div className="card"><Loading rows={3} /></div>
@@ -296,6 +314,9 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           onDecision={decideTask}
           feedback={taskFeedback}
           updatingId={taskUpdatingId}
+          loading={intelligenceLoading}
+          error={intelligenceErrors.tasks}
+          onRetry={() => void refreshIntelligencePanels(true)}
         />
         <AiPlanCard
           bd={bd}
@@ -307,6 +328,9 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           taskSummary={taskSummary}
           optimizing={optimizing}
           optimizationNotice={optimizationNotice}
+          loading={intelligenceLoading}
+          error={intelligenceErrors.plan}
+          onRetry={() => void refreshIntelligencePanels(true)}
           onRun={triggerOptimization}
           onNavigate={onNavigate}
         />
@@ -355,6 +379,14 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   );
 };
 
+const IntelligencePanelNotice = ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
+  <div className="intelligence-panel-notice" role="alert">
+    <Icon name="warning" size={13} />
+    <span>{message} Showing the last available data.</span>
+    {onRetry && <button className="btn ghost sm" onClick={onRetry}>Retry</button>}
+  </div>
+);
+
 const AiPlanCard = ({
   bd,
   upside,
@@ -365,6 +397,9 @@ const AiPlanCard = ({
   taskSummary,
   optimizing,
   optimizationNotice,
+  loading,
+  error,
+  onRetry,
   onRun,
   onNavigate,
 }: {
@@ -377,6 +412,9 @@ const AiPlanCard = ({
   taskSummary: CortexTaskSummary;
   optimizing: boolean;
   optimizationNotice: string | null;
+  loading?: boolean;
+  error?: string;
+  onRetry?: () => void;
   onRun: () => void;
   onNavigate: (target: string, payload?: string) => void;
 }) => {
@@ -428,29 +466,36 @@ const AiPlanCard = ({
         </div>
         <Chip tone={status === 'active' ? 'green' : status === 'proposed' ? 'purple' : 'amber'} dot={false}>{status}</Chip>
       </div>
-      <div className="card-body ai-plan-body">
-        <div>
-          <div className="ai-plan-title">Your business, optimized for the next 30 days</div>
-          <div className="ai-plan-summary">
-            {bd?.plan?.summary || 'Cortex models seller demand, WMS truth, pallet economics, and transport consolidation to lower cost while improving delivery speed.'}
-          </div>
-        </div>
-        <div className="ai-plan-metrics">
-          <MiniMetric label="Revenue upside" value={hasModeledImpact && upside ? fmt.money(upside, { compact: true, sign: true }) : '—'} sub={groundedNoChange ? 'no change modeled' : decisionReady ? 'modeled gain' : 'awaiting traceable baseline'} tone={hasModeledImpact && upside ? 'green' : undefined} />
-          <MiniMetric
-            label="Cost reduction"
-            value={hasModeledImpact
-              ? costRed
-                ? `−${Math.abs(costRed).toFixed(1)}%`
-                : costRedAmount
-                  ? `${fmt.money(Math.abs(costRedAmount), { compact: true })}/mo`
-                  : '—'
-              : '—'}
-            sub={groundedNoChange ? 'current network retained' : decisionReady ? (costRed ? 'network cost' : costRedAmount ? 'monthly modeled savings' : 'no measurable change') : 'awaiting traceable baseline'}
-            tone={hasModeledImpact && (costRed || costRedAmount) ? 'green' : undefined}
-          />
-          <MiniMetric label="SLA improvement" value={hasModeledImpact && slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'} sub={groundedNoChange ? 'no change modeled' : decisionReady ? 'delivery speed' : 'awaiting traceable baseline'} tone={hasModeledImpact && slaImp ? 'green' : undefined} />
-        </div>
+      {loading && !bd ? (
+        <div className="card-body"><Loading rows={4} /></div>
+      ) : error && !bd ? (
+        <div className="card-body"><ErrorState message={error} onRetry={onRetry} /></div>
+      ) : (
+        <>
+          {error && <IntelligencePanelNotice message={error} onRetry={onRetry} />}
+          <div className="card-body ai-plan-body">
+            <div>
+              <div className="ai-plan-title">Your business, optimized for the next 30 days</div>
+              <div className="ai-plan-summary">
+                {bd?.plan?.summary || 'Cortex models seller demand, WMS truth, pallet economics, and transport consolidation to lower cost while improving delivery speed.'}
+              </div>
+            </div>
+            <div className="ai-plan-metrics">
+              <MiniMetric label="Revenue upside" value={hasModeledImpact && upside ? fmt.money(upside, { compact: true, sign: true }) : '—'} sub={groundedNoChange ? 'no change modeled' : decisionReady ? 'modeled gain' : 'awaiting traceable baseline'} tone={hasModeledImpact && upside ? 'green' : undefined} />
+              <MiniMetric
+                label="Cost reduction"
+                value={hasModeledImpact
+                  ? costRed
+                    ? `−${Math.abs(costRed).toFixed(1)}%`
+                    : costRedAmount
+                      ? `${fmt.money(Math.abs(costRedAmount), { compact: true })}/mo`
+                      : '—'
+                  : '—'}
+                sub={groundedNoChange ? 'current network retained' : decisionReady ? (costRed ? 'network cost' : costRedAmount ? 'monthly modeled savings' : 'no measurable change') : 'awaiting traceable baseline'}
+                tone={hasModeledImpact && (costRed || costRedAmount) ? 'green' : undefined}
+              />
+              <MiniMetric label="SLA improvement" value={hasModeledImpact && slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'} sub={groundedNoChange ? 'no change modeled' : decisionReady ? 'delivery speed' : 'awaiting traceable baseline'} tone={hasModeledImpact && slaImp ? 'green' : undefined} />
+            </div>
         <div className="ai-plan-readiness">
           <Chip tone={planStateTone} dot={false}>
             {planStateLabel}
@@ -514,8 +559,10 @@ const AiPlanCard = ({
             Open Business Double <Icon name="arrowRight" size={12} />
           </button>
         </div>
-        {optimizationNotice && <div className={`ai-plan-run-status ${optimizing ? 'running' : 'complete'}`} role="status"><Icon name={optimizing ? 'refresh' : 'check'} size={12} /> {optimizationNotice}</div>}
-      </div>
+            {optimizationNotice && <div className={`ai-plan-run-status ${optimizing ? 'running' : 'complete'}`} role="status"><Icon name={optimizing ? 'refresh' : 'check'} size={12} /> {optimizationNotice}</div>}
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -624,6 +671,9 @@ const CortexTasksPanel = ({
   onDecision,
   feedback,
   updatingId,
+  loading,
+  error,
+  onRetry,
 }: {
   tasks: CortexTask[];
   total: number;
@@ -632,6 +682,9 @@ const CortexTasksPanel = ({
   onDecision: (task: CortexTask, action: 'done' | 'dismiss') => void;
   feedback?: { tone: 'info' | 'success' | 'error'; text: string } | null;
   updatingId?: string | null;
+  loading?: boolean;
+  error?: string;
+  onRetry?: () => void;
 }) => {
   const screens = summary.workAreas.slice(0, 4);
   const sources = summary.sources.slice(0, 3);
@@ -644,6 +697,17 @@ const CortexTasksPanel = ({
     if (task.dedupeKey === 'readiness:supplier-pickup-profiles') return 'filter:missing-pickup';
     return task.entityId || undefined;
   };
+  const displayWorkArea = (value: string) => {
+    const normalized = String(value || 'command').replace(/-/g, ' ');
+    if (normalized.toLowerCase() === 'skus') return 'SKUs';
+    return normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
+  const displayTaskSource = (source: string) => {
+    if (source === 'readiness') return 'Account readiness';
+    if (source === 'connection_health') return 'Connection health';
+    if (source === 'recommendation') return 'Cortex recommendation';
+    return source.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
   return (
     <div id="cortex-task-inbox" className="card cortex-task-panel" tabIndex={-1}>
       <div className="card-header">
@@ -653,10 +717,15 @@ const CortexTasksPanel = ({
         </div>
         <Chip tone={total ? 'purple' : 'green'} dot={false}>{total} open</Chip>
       </div>
-      {tasks.length === 0 ? (
+      {loading && tasks.length === 0 ? (
+        <div className="card-body"><Loading rows={5} /></div>
+      ) : error && tasks.length === 0 ? (
+        <div className="card-body"><ErrorState message={error} onRetry={onRetry} /></div>
+      ) : tasks.length === 0 ? (
         <div className="card-body"><EmptyState>No open Cortex tasks. Readiness and connection work will appear here when evidence needs attention.</EmptyState></div>
       ) : (
         <>
+          {error && <IntelligencePanelNotice message={error} onRetry={onRetry} />}
           {feedback && (
             <div className={`cortex-task-feedback ${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>
               <Icon name={feedback.tone === 'success' ? 'check' : feedback.tone === 'info' ? 'info' : 'warning'} size={13} /> {feedback.text}
@@ -686,8 +755,8 @@ const CortexTasksPanel = ({
                       {task.detail && <div className="muted">{task.detail}</div>}
                     </td>
                     <td data-label="Priority"><span className={`task-priority ${task.priority}`}>{task.priority}</span></td>
-                    <td data-label="Where">{(task.screen || task.actionTarget || 'command').replace(/-/g, ' ')}</td>
-                    <td data-label="Source"><Chip dot={false}>{task.source.replace(/_/g, ' ')}</Chip></td>
+                    <td data-label="Where">{displayWorkArea(task.screen || task.actionTarget || 'command')}</td>
+                    <td data-label="Source"><Chip dot={false}>{displayTaskSource(task.source)}</Chip></td>
                     <td data-label="Actions">
                       <div className="row-actions">
                         <button
@@ -844,12 +913,18 @@ const OptimizationImpactPanel = ({
   onDecision,
   feedback,
   updatingId,
+  loading,
+  error,
+  onRetry,
 }: {
   recommendations: OmsRecommendation[];
   onNavigate: (target: string, payload?: string) => void;
   onDecision: (rec: OmsRecommendation, action: 'approve' | 'reject') => void;
   feedback?: { tone: 'success' | 'error'; text: string } | null;
   updatingId?: string | null;
+  loading?: boolean;
+  error?: string;
+  onRetry?: () => void;
 }) => (
   <div className="card">
     <div className="card-header">
@@ -864,8 +939,13 @@ const OptimizationImpactPanel = ({
         <Icon name={feedback.tone === 'success' ? 'check' : 'warning'} size={13} /> {feedback.text}
       </div>
     )}
+    {error && recommendations.length > 0 && <IntelligencePanelNotice message={error} onRetry={onRetry} />}
     <div style={{ padding: 12, maxHeight: 360, overflow: 'auto' }}>
-      {recommendations.length === 0 ? (
+      {loading && recommendations.length === 0 ? (
+        <Loading rows={4} />
+      ) : error && recommendations.length === 0 ? (
+        <ErrorState message={error} onRetry={onRetry} />
+      ) : recommendations.length === 0 ? (
         <EmptyState>Run Seller Optimization to generate account-level opportunities.</EmptyState>
       ) : recommendations.slice(0, 5).map((rec) => (
         <DecisionComparison
