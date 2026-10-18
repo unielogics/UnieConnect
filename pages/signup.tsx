@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { Moon, Sun } from 'lucide-react';
 import { apiUrl, TOKEN_KEY } from '../lib/api';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -198,9 +199,12 @@ export default function Signup() {
           type="button"
           className="auth-theme-corner"
           onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-          aria-label="Toggle theme"
+          aria-label={theme === 'light' ? 'Use dark mode' : 'Use light mode'}
+          title={theme === 'light' ? 'Dark mode' : 'Light mode'}
         >
-          <span suppressHydrationWarning>{mounted ? (theme === 'light' ? 'Dark' : 'Light') : ' '}</span>
+          <span suppressHydrationWarning aria-hidden>
+            {mounted ? (theme === 'light' ? <Moon size={17} /> : <Sun size={17} />) : null}
+          </span>
         </button>
         <div className="auth-card">
           <div className="auth-card-head">

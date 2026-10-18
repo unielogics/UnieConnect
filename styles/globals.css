@@ -1229,7 +1229,11 @@ a {
   top: max(24px, env(safe-area-inset-top));
   right: max(24px, env(safe-area-inset-right));
   z-index: 10;
-  padding: 10px 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  padding: 0;
   min-height: 44px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -1241,6 +1245,12 @@ a {
   font-weight: 600;
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.auth-theme-corner > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .auth-theme-corner:hover {
