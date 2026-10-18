@@ -54,6 +54,76 @@ export function useCloseOnOmsNavigation(onClose: () => void, enabled = true) {
   }, [enabled, onClose]);
 }
 
+export function useModalOverlayKeyboard(onClose: () => void, enabled = true) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!enabled || typeof document === 'undefined') return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusableSelector = [
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      'button:not([disabled])',
+      'a[href]',
+      '[contenteditable="true"]',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+    const dialog = overlayRef.current?.querySelector<HTMLElement>('[role="dialog"], .modal') || null;
+    const initialFocusFrame = window.requestAnimationFrame(() => {
+      const preferred = dialog?.querySelector<HTMLElement>('.modal-body')?.querySelector<HTMLElement>(focusableSelector);
+      const fallback = dialog?.querySelector<HTMLElement>(focusableSelector);
+      (preferred || fallback || dialog)?.focus({ preventScroll: true });
+    });
+    const isTopmost = () => {
+      const scoped = document.querySelectorAll('.uc-shell .modal-overlay');
+      const overlays = scoped.length ? scoped : document.querySelectorAll('.modal-overlay');
+      return overlays.length > 0 && overlays[overlays.length - 1] === overlayRef.current;
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isTopmost()) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
+        .filter((element) => element.getClientRects().length > 0 && element.getAttribute('aria-hidden') !== 'true');
+      if (!controls.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(initialFocusFrame);
+      document.removeEventListener('keydown', onKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus({ preventScroll: true });
+    };
+  }, [enabled]);
+
+  return overlayRef;
+}
+
 export type Tone = 'default' | 'green' | 'amber' | 'red' | 'blue' | 'purple' | 'outline';
 
 export const Chip = ({

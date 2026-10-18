@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation } from '../ui';
+import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation, useModalOverlayKeyboard } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
 import {
   createLabelAuditRun,
@@ -424,6 +424,7 @@ const LabelAuditUploadModal = ({
   const [message, setMessage] = useState('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   useCloseOnOmsNavigation(onClose);
+  const overlayRef = useModalOverlayKeyboard(onClose);
   const handleFile = async (file: File | null) => {
     if (!file) return;
     const text = await file.text();
@@ -440,8 +441,8 @@ const LabelAuditUploadModal = ({
   const sample = rows.slice(0, 5);
   const columns = rows[0] ? Object.keys(rows[0]) : [];
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ width: 'min(760px, 92vw)' }} onClick={(e) => e.stopPropagation()}>
+    <div ref={overlayRef} className="modal-overlay" onClick={onClose}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label="Upload label audit CSV" tabIndex={-1} style={{ width: 'min(760px, 92vw)' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <div style={{ fontSize: 16, fontWeight: 800 }}>Upload label audit CSV</div>
@@ -500,10 +501,11 @@ const RunDetailDrawer = ({ detail, onClose, onRetry }: {
   onRetry: () => void;
 }) => {
   useCloseOnOmsNavigation(onClose);
+  const overlayRef = useModalOverlayKeyboard(onClose);
 
   return (
-    <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
-      <div className="modal oms-side-drawer wide" style={{ width: 'min(100vw, 820px)', minWidth: 0, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(e) => e.stopPropagation()}>
+    <div ref={overlayRef} className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
+      <div className="modal oms-side-drawer wide" role="dialog" aria-modal="true" aria-label={`Audit run ${detail.run.publicId}`} tabIndex={-1} style={{ width: 'min(100vw, 820px)', minWidth: 0, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <div style={{ fontSize: 16, fontWeight: 800 }}>{detail.run.publicId} · {detail.run.filename || 'CSV upload'}</div>

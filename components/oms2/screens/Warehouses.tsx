@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
-import { Chip, EmptyState, ErrorState, fmt, Loading, StatusChip, Thumb, useCloseOnOmsNavigation } from '../ui';
+import { Chip, EmptyState, ErrorState, fmt, Loading, StatusChip, Thumb, useCloseOnOmsNavigation, useModalOverlayKeyboard } from '../ui';
 import {
   fetchWarehouseDetail,
   fetchWarehouseOverview,
@@ -196,6 +196,7 @@ const WarehouseDrawer = ({
 }) => {
   const [tab, setTab] = useState<Tab>('overview');
   useCloseOnOmsNavigation(onClose);
+  const overlayRef = useModalOverlayKeyboard(onClose);
   const wh = detail?.warehouse || warehouse;
   const tabs: Array<[Tab, string, number | undefined]> = [
     ['overview', 'Overview', undefined],
@@ -207,8 +208,8 @@ const WarehouseDrawer = ({
     ['cortex', 'Cortex', detail?.cortex?.signals?.length],
   ];
   return (
-    <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
-      <div className="modal warehouse-detail-modal" onClick={(e) => e.stopPropagation()}>
+    <div ref={overlayRef} className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
+      <div className="modal warehouse-detail-modal" role="dialog" aria-modal="true" aria-label={`${wh.name || wh.facilityName || wh.warehouseCode} warehouse details`} tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

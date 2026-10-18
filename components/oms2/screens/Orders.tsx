@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
-import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation, downloadCsv } from '../ui';
+import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation, useModalOverlayKeyboard, downloadCsv } from '../ui';
 import { useCtxMenu, type CtxItem } from '../ContextMenu';
 import { CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
 import { cancelOrder, fetchOmsOrders, OmsOrder, publicEntityId } from '../../../lib/oms';
@@ -41,6 +41,9 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
   useCloseOnOmsNavigation(() => setCancelTarget(null), !!cancelTarget);
+  const cancelOverlayRef = useModalOverlayKeyboard(() => {
+    if (!cancelling) setCancelTarget(null);
+  }, !!cancelTarget);
   const ctx = useCtxMenu();
   const { recFor, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('orders');
 
@@ -313,8 +316,8 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
       )}
       {recDrawer}
       {cancelTarget && (
-        <div className="modal-overlay" onClick={() => setCancelTarget(null)}>
-          <div className="modal" style={{ width: 460 }} onClick={(e) => e.stopPropagation()}>
+        <div ref={cancelOverlayRef} className="modal-overlay" onClick={() => !cancelling && setCancelTarget(null)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-label="Cancel order" tabIndex={-1} style={{ width: 460 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>Cancel order</div>
@@ -322,7 +325,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                   {cancelTarget.displayId || cancelTarget.publicId || publicEntityId('OR', cancelTarget.id)}
                 </div>
               </div>
-              <button className="icon-btn" onClick={() => setCancelTarget(null)}><Icon name="x" /></button>
+              <button className="icon-btn" aria-label="Close cancellation dialog" disabled={cancelling} onClick={() => setCancelTarget(null)}><Icon name="x" /></button>
             </div>
             <div className="modal-body">
               <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>

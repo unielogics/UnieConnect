@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
-import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
+import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, downloadCsv, useCloseOnOmsNavigation, useModalOverlayKeyboard } from '../ui';
 import {
   cancelAsn,
   fetchCopilotContext,
@@ -34,6 +34,12 @@ export const Shipments = ({ onNavigate, onOpenAsnById, toggleSelect, isSelected,
   const [actionFeedback, setActionFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   const [asnActionTarget, setAsnActionTarget] = useState<AsnActionTarget | null>(null);
+  useCloseOnOmsNavigation(() => {
+    if (!acting) setAsnActionTarget(null);
+  }, !!asnActionTarget);
+  const asnActionOverlayRef = useModalOverlayKeyboard(() => {
+    if (!acting) setAsnActionTarget(null);
+  }, !!asnActionTarget);
   const ctxMenu = useCtxMenu();
   const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('shipments');
 
@@ -431,8 +437,8 @@ export const Shipments = ({ onNavigate, onOpenAsnById, toggleSelect, isSelected,
           </div>
           {recDrawer}
           {asnActionTarget && (
-            <div className="modal-overlay" onClick={() => !acting && setAsnActionTarget(null)}>
-              <div className="modal" style={{ width: 460 }} onClick={(event) => event.stopPropagation()}>
+            <div ref={asnActionOverlayRef} className="modal-overlay" onClick={() => !acting && setAsnActionTarget(null)}>
+              <div className="modal" role="dialog" aria-modal="true" aria-label={asnActionTarget.action === 'stop' ? 'Stop ASN' : 'Cancel ASN'} tabIndex={-1} style={{ width: 460 }} onClick={(event) => event.stopPropagation()}>
                 <div className="modal-head">
                   <div>
                     <div style={{ fontSize: 16, fontWeight: 700 }}>

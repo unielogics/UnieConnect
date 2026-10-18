@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../icons';
-import { StatusChip, Loading, ErrorState, EmptyState } from '../ui';
+import { StatusChip, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation, useModalOverlayKeyboard } from '../ui';
 import { fetchOmsReturns, fetchOmsReturn, OmsReturn } from '../../../lib/oms';
 import type { ScreenProps } from '../UnieConnectApp';
 
@@ -52,6 +52,8 @@ export const Returns = ({ onNavigate, onCortexEntityChange }: ScreenProps) => {
     setDetailError(null);
     onCortexEntityChange?.(null);
   };
+  useCloseOnOmsNavigation(closeDetail, !!selected);
+  const detailOverlayRef = useModalOverlayKeyboard(closeDetail, !!selected);
 
   const openCount = returns.filter((r) => !['closed', 'cancelled'].includes(r.status)).length;
   const withMedia = returns.filter((r) => (r.mediaCaptures || []).length > 0).length;
@@ -130,11 +132,11 @@ export const Returns = ({ onNavigate, onCortexEntityChange }: ScreenProps) => {
       </div>
 
       {selected && (
-        <div className="modal-overlay" onClick={closeDetail}>
-          <div className="modal" style={{ width: 560 }} onClick={(e) => e.stopPropagation()}>
+        <div ref={detailOverlayRef} className="modal-overlay" onClick={closeDetail}>
+          <div className="modal" role="dialog" aria-modal="true" aria-label={`Return ${selected.rmaNumber || selected.displayId || selected.id}`} tabIndex={-1} style={{ width: 560 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <div style={{ fontSize: 16, fontWeight: 700 }}>RMA {selected.rmaNumber || selected.displayId}</div>
-              <button className="icon-btn" onClick={closeDetail}>
+              <button className="icon-btn" aria-label="Close return details" onClick={closeDetail}>
                 <Icon name="x" size={16} />
               </button>
             </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
-import { Chip, Sparkline, Loading, ErrorState, EmptyState, Thumb, useCloseOnOmsNavigation, downloadCsv } from '../ui';
+import { Chip, Sparkline, Loading, ErrorState, EmptyState, Thumb, useCloseOnOmsNavigation, useModalOverlayKeyboard, downloadCsv } from '../ui';
 import { DecisionComparison } from '../DecisionComparison';
 import { CortexPlanApprovals } from '../CortexPlanApprovals';
 import { useCtxMenu } from '../ContextMenu';
@@ -452,11 +452,16 @@ const DrawerShell = ({
   footer?: React.ReactNode;
 }) => {
   useCloseOnOmsNavigation(onClose);
+  const overlayRef = useModalOverlayKeyboard(onClose);
 
   return (
-    <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
+    <div ref={overlayRef} className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
       <div
         className="modal oms-side-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
         style={{ width: 'min(100vw, 480px)', minWidth: 0, maxHeight: '100vh', height: '100vh', borderRadius: 0 }}
         onClick={(e) => e.stopPropagation()}
       >

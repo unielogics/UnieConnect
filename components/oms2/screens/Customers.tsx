@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
-import { Chip, Avatar, fmt, Loading, ErrorState, EmptyState, downloadCsv, useCloseOnOmsNavigation } from '../ui';
+import { Chip, Avatar, fmt, Loading, ErrorState, EmptyState, downloadCsv, useCloseOnOmsNavigation, useModalOverlayKeyboard } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
 import { fetchOmsCustomerDetail, fetchOmsCustomers, OmsCustomer, OmsCustomerDetail } from '../../../lib/oms';
 import { num, channelColor } from '../../../lib/oms-adapters';
@@ -305,11 +305,12 @@ const CustomerDetailDrawer = ({ detail, loading, error, onClose, onRetry, onOpen
   onOpenOrder: (orderId: string) => void;
 }) => {
   useCloseOnOmsNavigation(onClose);
+  const overlayRef = useModalOverlayKeyboard(onClose);
   const customer = detail?.customer;
 
   return (
-    <div className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
-      <div className="modal oms-side-drawer" style={{ width: 'min(100vw, 620px)', minWidth: 0, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(event) => event.stopPropagation()}>
+    <div ref={overlayRef} className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
+      <div className="modal oms-side-drawer" role="dialog" aria-modal="true" aria-label={customer?.name ? `${customer.name} customer profile` : 'Customer profile'} tabIndex={-1} style={{ width: 'min(100vw, 620px)', minWidth: 0, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(event) => event.stopPropagation()}>
         <div className="modal-head">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             <Avatar name={customer?.name || 'Customer'} size={34} />
