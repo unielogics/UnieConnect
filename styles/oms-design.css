@@ -1245,6 +1245,33 @@
 .uc-shell .ai-card .source { font-size: 11px; color: var(--text-tertiary); }
 .uc-shell .ai-card .actions { display: flex; gap: 6px; margin-top: 2px; }
 
+@media (max-width: 700px) {
+  .uc-shell .app.copilot-open,
+  .uc-shell .app.copilot-open.nav-panel-open,
+  .uc-shell .app.copilot-open:has(.sb-panel) { grid-template-columns: 64px minmax(0, 1fr); }
+  .uc-shell .app.copilot-open .sb-panel { display: none; }
+  .uc-shell .app.copilot-open > .copilot {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    width: 100vw;
+    min-width: 0;
+    height: 100vh;
+    height: 100dvh;
+    border-left: 0;
+  }
+  .uc-shell .copilot-head {
+    padding-top: max(14px, env(safe-area-inset-top));
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-left: max(14px, env(safe-area-inset-left));
+  }
+  .uc-shell .copilot-foot {
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    padding-left: max(12px, env(safe-area-inset-left));
+  }
+}
+
 /* ============================= Misc ============================= */
 .uc-shell .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 .uc-shell .empty { padding: 32px; text-align: center; color: var(--text-tertiary); font-size: 12.5px; }
