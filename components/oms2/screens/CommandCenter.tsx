@@ -331,7 +331,7 @@ const AiPlanCard = ({
   const approvals = bd?.plan?.approvalRequiredFor?.length || 0;
   const modeled = bd?.plan?.modelStatus === 'modeled';
   const decisionReady = modeled && bd?.plan?.decisionReady === true;
-  const status = bd?.plan?.status === 'approved' ? 'active' : decisionReady ? 'proposed' : modeled ? 'scenario only' : 'needs data';
+  const status = bd?.plan?.status === 'approved' ? 'active' : modeled ? 'proposed' : 'needs data';
   const hasModeledImpact = decisionReady && Boolean(upside || costRed || slaImp);
   const horizon = bd?.plan?.forecastHorizonMonths || 6;
   const highPriorityTasks = tasks.filter((task) => task.priority === 'high').length;
@@ -345,7 +345,7 @@ const AiPlanCard = ({
           <div className="card-title"><Icon name="double" size={15} /> AI plan</div>
           <div className="card-subtitle">{bd?.plan?.title || 'Six-month multi-warehouse operating plan'}</div>
         </div>
-        <Chip tone={status === 'active' ? 'green' : decisionReady ? 'purple' : 'amber'} dot={false}>{status}</Chip>
+        <Chip tone={status === 'active' ? 'green' : status === 'proposed' ? 'purple' : 'amber'} dot={false}>{status}</Chip>
       </div>
       <div className="card-body ai-plan-body">
         <div>

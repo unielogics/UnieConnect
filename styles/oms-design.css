@@ -556,6 +556,11 @@
   .uc-shell .topbar-search kbd { display: none; }
   .uc-shell .topbar-search input { padding-right: 32px; }
   .uc-shell .copilot-btn { padding: 0 9px; }
+  .uc-shell .page { padding: 16px 12px 32px; }
+  .uc-shell .page-header { align-items: stretch; flex-direction: column; gap: 12px; }
+  .uc-shell .page-actions { width: 100%; flex-wrap: wrap; }
+  .uc-shell .page-actions .seg { flex: 1 1 auto; min-width: 0; }
+  .uc-shell .page-actions .seg button { flex: 1 1 0; padding: 0 8px; }
 }
 .uc-shell .icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius); color: var(--text-secondary); position: relative; }
 .uc-shell .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
