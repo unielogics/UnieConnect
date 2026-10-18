@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, fmt, Loading, ErrorState, EmptyState, downloadJson } from '../ui';
+import { Chip, confidencePercent, fmt, Loading, ErrorState, EmptyState, downloadJson } from '../ui';
 import {
   fetchBusinessDouble,
   approveBusinessDouble,
@@ -236,7 +236,7 @@ export const BusinessDouble = (_: ScreenProps) => {
           </div>
           <div className="kv">
             <div className="kv-label">AI confidence</div>
-            <div className="kv-value">{latestOpt?.confidence != null ? `${Math.round(latestOpt.confidence * 100)}%` : '—'}</div>
+            <div className="kv-value">{latestOpt?.confidence != null ? `${confidencePercent(latestOpt.confidence)}%` : '—'}</div>
           </div>
           <div className="kv">
             <div className="kv-label">Source mode</div>

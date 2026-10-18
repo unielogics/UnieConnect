@@ -1,6 +1,6 @@
 import React from 'react';
 import { Icon } from './icons';
-import { Chip } from './ui';
+import { Chip, confidencePercent } from './ui';
 import type { ShipmentPricingPreview } from '../../lib/shipment-plan';
 
 /**
@@ -291,7 +291,7 @@ export const CortexPricingPanel = ({
   const storageTotal = hasSkuAggregate ? skuAggregate.storage : asNumber(totals.storageMonthlyEstimate, 0);
   const total = hasSkuAggregate ? skuAggregate.total : Number(totals.estimatedTotal ?? previewWarehouseTotal(current));
   const dueToday = previewDueToday(preview);
-  const confidence = preview.confidence == null ? null : Math.round(Number(preview.confidence) * 100);
+  const confidence = preview.confidence == null ? null : confidencePercent(preview.confidence);
   const degraded = Boolean((preview as any).fallbackAvailable || (preview as any).cortex?.ok === false || String(preview.source || '').includes('fallback'));
   const singleCodes = skuAggregate.singleWarehouseCodes.length ? skuAggregate.singleWarehouseCodes : [String((current as any)?.warehouseCode || 'anchor')].filter(Boolean);
   const multiCodes = skuAggregate.multiWarehouseCodes;

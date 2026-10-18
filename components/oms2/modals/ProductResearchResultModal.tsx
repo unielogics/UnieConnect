@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Chip } from '../ui';
+import { Modal, Chip, confidencePercent } from '../ui';
 import { fetchChannelAccounts, mapItemToChannel, createCatalogItem, ChannelAccount, ProductResearchResult } from '../../../lib/oms';
 
 /**
@@ -137,7 +137,7 @@ export const ProductResearchResultModal = ({ row, onClose, onListed }: {
                 <span style={{ fontSize: 13, fontWeight: 700 }}>Sell: {verdict.recommended_to_sell_label}</span>
               )}
               {verdict?.decision_confidence != null && (
-                <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>confidence {(verdict.decision_confidence * 100).toFixed(0)}%</span>
+                <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>confidence {confidencePercent(verdict.decision_confidence)}%</span>
               )}
             </div>
             {keepa?.brand && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{keepa.brand}{keepa.category ? ` · ${keepa.category}` : ''}</div>}

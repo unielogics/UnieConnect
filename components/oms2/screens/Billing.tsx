@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
-import { Chip, ProgressBar, Sparkline, fmt, Loading, ErrorState, EmptyState } from '../ui';
+import { Chip, ProgressBar, Sparkline, confidencePercent, confidenceRatio, fmt, Loading, ErrorState, EmptyState } from '../ui';
 import {
   fetchBillingProfit,
   fetchBillingInvoices,
@@ -346,8 +346,8 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
             <Chip dot={false} tone="amber">Preliminary — too early to project</Chip>
           ) : (
             data.forecast.storage.confidence != null && data.forecast.storage.confidence > 0 && (
-              <Chip dot={false} tone={data.forecast.storage.confidence >= 0.5 ? 'green' : 'amber'}>
-                {Math.round(data.forecast.storage.confidence * 100)}% confidence
+              <Chip dot={false} tone={confidenceRatio(data.forecast.storage.confidence) >= 0.5 ? 'green' : 'amber'}>
+                {confidencePercent(data.forecast.storage.confidence)}% confidence
               </Chip>
             )
           )}

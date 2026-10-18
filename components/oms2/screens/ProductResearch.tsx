@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, Confidence, EmptyState, Loading, Sparkline, Thumb } from '../ui';
+import { Chip, Confidence, confidencePercent, EmptyState, Loading, Sparkline, Thumb } from '../ui';
 import {
   fetchIntelligenceReadiness,
   fetchOmsSkus,
@@ -158,7 +158,7 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
         sku: input.sku || input.asin || input.identifier || run.publicId || run.id,
         title: input.title || String(run.runType).replace(/_/g, ' '),
         image: null,
-        score: run.confidence != null ? Math.round(Number(run.confidence) * 100) : null,
+        score: run.confidence != null ? confidencePercent(run.confidence) : null,
         salesRank: null,
         spark: [],
         statusLabel: run.status.replace(/_/g, ' '),

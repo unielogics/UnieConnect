@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, StatusChip, ProgressBar, fmt, Loading, ErrorState, EmptyState, type Tone } from '../ui';
+import { Chip, StatusChip, ProgressBar, confidencePercent, fmt, Loading, ErrorState, EmptyState, type Tone } from '../ui';
 import {
   fetchOmsSkuDetail,
   fetchOmsSkus,
@@ -145,7 +145,7 @@ const skuPricingSummary = (preview?: ShipmentPricingPreview | null) => {
     labelAvg: Number(preview.totals?.labelWeightedAverage ?? (current as any)?.weightedLabelCostPerUnit ?? 0),
     storage: Number(preview.totals?.storageMonthlyEstimate ?? 0),
     fulfillment: Number(preview.feePreview?.fulfillmentFeePerUnit ?? warehousePerUnit(current, preview.totals?.estimatedPerUnit)),
-    confidence: preview.confidence == null ? null : Math.round(Number(preview.confidence) * 100),
+    confidence: preview.confidence == null ? null : confidencePercent(preview.confidence),
   };
 };
 
@@ -734,7 +734,7 @@ const SkuCortexEconomicsCard = ({
     const networkRightsCopy = economics.networkPolicy?.policySource === 'wms_client'
       ? 'Network rights are managed by your warehouse.'
       : 'Cortex may optimize across the available network.';
-    const confidence = Math.round(Number(economics.confidence || 0) * 100);
+    const confidence = confidencePercent(economics.confidence || 0);
     const isPrep = workflow === 'FBA' || workflow === 'FBW';
     const comparison = economicsNetworkComparison(economics);
     const single = comparison?.singleWarehouse || {};

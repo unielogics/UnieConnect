@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../icons';
-import { Chip, Sparkline, ProgressBar, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
+import { Chip, Sparkline, ProgressBar, confidencePercent, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import {
   CORTEX_TASKS_CHANGED_EVENT,
   approveRecommendation,
@@ -873,7 +873,7 @@ const AutonomousActivityRail = ({ activity }: { activity: CommandCenterFull['aut
                 </div>
               </div>
               <span style={{ fontSize: 12, fontWeight: 700, color: `var(--${tone}-text)` }}>
-                {e.impact || (e.confidence ? `${Math.round(e.confidence * 100)}%` : 'auto')}
+                {e.impact || (e.confidence ? `${confidencePercent(e.confidence)}%` : 'auto')}
               </span>
             </div>
           );

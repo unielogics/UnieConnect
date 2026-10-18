@@ -359,9 +359,18 @@ export const Gauge = ({
   );
 };
 
+export const confidenceRatio = (value: unknown) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(1, numeric > 1 ? numeric / 100 : numeric));
+};
+
+export const confidencePercent = (value: unknown) => Math.round(confidenceRatio(value) * 100);
+
 export const Confidence = ({ value }: { value: number }) => {
-  const pct = Math.round(value * 100);
-  const tone = value > 0.85 ? 'green' : value > 0.7 ? 'amber' : 'red';
+  const normalized = confidenceRatio(value);
+  const pct = confidencePercent(value);
+  const tone = normalized > 0.85 ? 'green' : normalized > 0.7 ? 'amber' : 'red';
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 12 }}>
@@ -371,7 +380,7 @@ export const Confidence = ({ value }: { value: number }) => {
             style={{
               width: 3,
               height: 4 + i * 2,
-              background: value >= t - 0.001 ? `var(--${tone})` : 'var(--bg-active)',
+              background: normalized >= t - 0.001 ? `var(--${tone})` : 'var(--bg-active)',
               borderRadius: 1,
             }}
           />

@@ -1,7 +1,7 @@
 import React from 'react';
 import { OmsRecommendation } from '../../lib/oms';
 import { Icon } from './icons';
-import { Chip, fmt } from './ui';
+import { Chip, confidencePercent, fmt } from './ui';
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -75,7 +75,7 @@ const impactLabel = (impact: Record<string, unknown>) => {
   if (monthly) return `${fmt.money(monthly, { compact: true })}/mo`;
   if (fill) return `${Math.round(fill)}% fill`;
   if (confidenceGain) return `+${Math.round(confidenceGain)} pts`;
-  if (confidence) return `${Math.round(confidence * 100)}% confidence${palletUnits ? ` · ${palletUnits.toLocaleString()} units/pallet` : ''}`;
+  if (confidence) return `${confidencePercent(confidence)}% confidence${palletUnits ? ` · ${palletUnits.toLocaleString()} units/pallet` : ''}`;
   return formatValue(impact);
 };
 

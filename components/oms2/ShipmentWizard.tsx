@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from './icons';
-import { Modal, Chip, ErrorState, Loading } from './ui';
+import { Modal, Chip, confidencePercent, ErrorState, Loading } from './ui';
 import type { SelSku } from './SelectionBar';
 import { fetchOmsSuppliers, createShipmentDraft, confirmShipmentDraft, fetchShipmentPalletLabels, retryShipmentVendorEmail, fetchWarehouseOverview, OmsSupplier, OmsWarehouseOverview } from '../../lib/oms';
 import { fetchShipmentPricingPreview, type ShipmentPricingPreview } from '../../lib/shipment-plan';
@@ -443,7 +443,7 @@ const CortexPricingPanel = ({
   const transferTotal = hasSkuAggregate ? skuAggregate.transfer : asNumber(totals.transportationEstimate, 0);
   const total = hasSkuAggregate ? skuAggregate.total : Number(totals.estimatedTotal ?? previewWarehouseTotal(current));
   const dueToday = previewDueToday(preview);
-  const confidence = preview.confidence == null ? null : Math.round(Number(preview.confidence) * 100);
+  const confidence = preview.confidence == null ? null : confidencePercent(preview.confidence);
   const degraded = Boolean((preview as any).fallbackAvailable || (preview as any).cortex?.ok === false || String(preview.source || '').includes('fallback'));
   const evidenceBacked = preview.costStatus === 'evidence_backed' && !degraded;
   const pricingSourceCopy = !evidenceBacked
@@ -584,7 +584,7 @@ const CortexPricingPanel = ({
                   const labelPerUnit = economicsShippingLabelPerUnit(row);
                   const transferPerUnit = economicsTransferPerUnit(row);
                   const optimizedBlocker = economicsOptimizedBlockedReason(row);
-                  const rowConfidence = row.confidence == null ? null : Math.round(Number(row.confidence) * 100);
+                  const rowConfidence = row.confidence == null ? null : confidencePercent(row.confidence);
                   return (
                     <tr key={`${row.itemId || row.sku || index}`}>
                       <td>
@@ -1392,7 +1392,7 @@ export const ShipmentWizard = ({
                     const routedWarehouse = warehouseByCode(warehouses, routedCode);
                     const skuPricing = pricingEconomicsForSku(pricingPreview, sku);
                     const skuPricingBlocker = economicsOptimizedBlockedReason(skuPricing);
-                    const skuConfidence = skuPricing?.confidence == null ? null : Math.round(Number(skuPricing.confidence) * 100);
+                    const skuConfidence = skuPricing?.confidence == null ? null : confidencePercent(skuPricing.confidence);
                     return (
                       <tr key={sku.id}>
                         <td className="mono strong">{(sku as any).sku || sku.id}</td>
