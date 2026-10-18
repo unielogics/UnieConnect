@@ -27,7 +27,7 @@ const priceLabel = (f: Feature) => {
 
 const unlockedScreens = (f: Feature) => f.unlockedScreens || f.metadata?.unlockedScreens || [];
 const requiredConnections = (f: Feature) => f.requiredConnections || f.metadata?.requiredConnections || [];
-const MANAGED_FEATURE_IDS = new Set(['app-studio', 'cortex-intelligence', 'carrier-rates', 'carrier-label-audit']);
+const MANAGED_FEATURE_IDS = new Set(['app-studio', 'cortex-intelligence', 'carrier-rates', 'carrier-label-audit', 'label-audit']);
 const isManagedFeature = (feature: Feature) => Boolean(
   feature.isStandard
   || feature.payload?.isCore
