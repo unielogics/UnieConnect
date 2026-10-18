@@ -520,7 +520,7 @@ const CortexTasksPanel = ({
         <Chip tone={tasks.length ? 'purple' : 'green'} dot={false}>{tasks.length} open</Chip>
       </div>
       {tasks.length === 0 ? (
-        <div className="card-body"><EmptyState>No open Cortex tasks. Readiness blockers and recommendations will appear here.</EmptyState></div>
+        <div className="card-body"><EmptyState>No open Cortex tasks. Readiness and connection work will appear here when evidence needs attention.</EmptyState></div>
       ) : (
         <>
           {feedback && (
