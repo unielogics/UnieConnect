@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Loading, ErrorState, EmptyState, Modal } from '../ui';
-import { fetchMarketplaceFeatures, enableFeature, Feature } from '../../../lib/features';
+import { fetchMarketplaceFeatures, enableFeature, disableFeature, Feature } from '../../../lib/features';
 import type { ScreenProps } from '../UnieConnectApp';
 import { AppStudioModal } from './AppStudioModal';
 import { useCtxMenu } from '../ContextMenu';
@@ -27,6 +27,14 @@ const priceLabel = (f: Feature) => {
 
 const unlockedScreens = (f: Feature) => f.unlockedScreens || f.metadata?.unlockedScreens || [];
 const requiredConnections = (f: Feature) => f.requiredConnections || f.metadata?.requiredConnections || [];
+const MANAGED_FEATURE_IDS = new Set(['app-studio', 'cortex-intelligence', 'carrier-rates', 'carrier-label-audit']);
+const isManagedFeature = (feature: Feature) => Boolean(
+  feature.isStandard
+  || feature.payload?.isCore
+  || feature.payload?.isStandard
+  || feature.payload?.systemManaged
+  || MANAGED_FEATURE_IDS.has(feature.id),
+);
 
 const SdkDocsModal = ({ onClose, onOpenBuilder }: { onClose: () => void; onOpenBuilder: () => void }) => (
   <Modal
@@ -110,6 +118,7 @@ export const Marketplace = (props: ScreenProps) => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [studioOpen, setStudioOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
   const [selected, setSelected] = useState<Feature | null>(null);
@@ -127,15 +136,44 @@ export const Marketplace = (props: ScreenProps) => {
   };
   useEffect(load, []);
 
-  const toggle = async (f: Feature) => {
+  const replaceFeature = (feature: Feature) => {
+    setFeatures((current) => current.map((item) => (item.id === feature.id ? feature : item)));
+    setSelected((current) => (current?.id === feature.id ? feature : current));
+  };
+
+  const openDetails = (feature: Feature) => {
+    setActionFeedback(null);
+    setSelected(feature);
+  };
+
+  const installFeature = async (f: Feature) => {
     if (f.isEnabled) return;
     setBusy(f.id);
+    setActionFeedback(null);
     try {
-      await enableFeature(f.id);
-      setFeatures((prev) => prev.map((x) => (x.id === f.id ? { ...x, isEnabled: true, userStatus: 'enabled' } : x)));
+      const result = await enableFeature(f.id);
+      replaceFeature(result.feature);
+      setActionFeedback({ tone: 'success', text: result.message || `${f.name} installed.` });
       props.onFeaturesChanged?.();
-    } catch (e) {
-      /* surfaced via reload */
+    } catch (e: any) {
+      setActionFeedback({ tone: 'error', text: e?.message || `${f.name} could not be installed.` });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const uninstallFeature = async (f: Feature) => {
+    if (!f.isEnabled || isManagedFeature(f)) return;
+    if (!window.confirm(`Uninstall ${f.name}? Its gated screens will be removed from this account.`)) return;
+    setBusy(f.id);
+    setActionFeedback(null);
+    try {
+      const result = await disableFeature(f.id);
+      replaceFeature(result.feature);
+      setActionFeedback({ tone: 'success', text: result.message || `${f.name} uninstalled.` });
+      props.onFeaturesChanged?.();
+    } catch (e: any) {
+      setActionFeedback({ tone: 'error', text: e?.message || `${f.name} could not be uninstalled.` });
     } finally {
       setBusy(null);
     }
@@ -176,6 +214,14 @@ export const Marketplace = (props: ScreenProps) => {
           <button className="btn primary" onClick={() => setStudioOpen(true)}><Icon name="studio" size={13} /> Open App Studio</button>
         </div>
       </div>
+
+      {actionFeedback && (
+        <div className={`inline-banner ${actionFeedback.tone === 'error' ? 'danger' : 'success'}`} role={actionFeedback.tone === 'error' ? 'alert' : 'status'} style={{ marginBottom: 12 }}>
+          <Icon name={actionFeedback.tone === 'error' ? 'warning' : 'check'} size={13} />
+          <span style={{ flex: 1 }}>{actionFeedback.text}</span>
+          <button className="icon-btn" aria-label="Dismiss marketplace message" data-hint="Dismiss" onClick={() => setActionFeedback(null)}><Icon name="x" size={12} /></button>
+        </div>
+      )}
 
       {err ? (
         <div className="card"><ErrorState message={err} onRetry={load} /></div>
@@ -228,12 +274,14 @@ export const Marketplace = (props: ScreenProps) => {
                     <tr
                       key={app.id}
                       className="clickable"
-                      onClick={() => setSelected(app)}
+                      onClick={() => openDetails(app)}
                       onContextMenu={(e) =>
                         ctx.open(e, [
                           { label: app.name },
-                          { icon: 'eye', title: 'Open details', onClick: () => setSelected(app) },
-                          ...(app.isEnabled ? [] : [{ icon: 'plus', title: 'Install app', onClick: () => toggle(app) }]),
+                          { icon: 'eye', title: 'Open details', onClick: () => openDetails(app) },
+                          ...(app.isEnabled
+                            ? isManagedFeature(app) ? [] : [{ icon: 'x', title: 'Uninstall app', onClick: () => uninstallFeature(app) }]
+                            : [{ icon: 'plus', title: 'Install app', onClick: () => installFeature(app) }]),
                           { icon: 'studio', title: 'Open App Studio', onClick: () => setStudioOpen(true) },
                         ])
                       }
@@ -254,7 +302,7 @@ export const Marketplace = (props: ScreenProps) => {
                       <td className="muted">{unlockedScreens(app).length ? unlockedScreens(app).map((s) => s.replace(/-/g, ' ')).join(', ') : '—'}</td>
                       <td>{priceLabel(app)}</td>
                       <td className="num" onClick={(e) => e.stopPropagation()}>
-                        <button className={`btn sm ${app.isEnabled ? '' : 'primary'}`} onClick={() => (app.isEnabled ? setSelected(app) : toggle(app))} disabled={busy === app.id}>
+                        <button className={`btn sm ${app.isEnabled ? '' : 'primary'}`} onClick={() => (app.isEnabled ? openDetails(app) : installFeature(app))} disabled={busy === app.id}>
                           {app.isEnabled ? 'Details' : busy === app.id ? 'Installing...' : 'Install'}
                         </button>
                       </td>
@@ -291,13 +339,28 @@ export const Marketplace = (props: ScreenProps) => {
           footer={
             <>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{priceLabel(selected)}</div>
-              <button className={`btn ${selected.isEnabled ? '' : 'primary'}`} onClick={() => (selected.isEnabled ? setSelected(null) : toggle(selected))} disabled={selected.isEnabled || busy === selected.id}>
-                {selected.isEnabled ? 'Installed' : 'Install'}
-              </button>
+              {selected.isEnabled ? (
+                isManagedFeature(selected) ? (
+                  <button className="btn" disabled data-hint="Managed by UnieConnect. Admin-only disable."><Icon name="lock" size={12} /> Managed</button>
+                ) : (
+                  <button className="btn danger" onClick={() => uninstallFeature(selected)} disabled={busy === selected.id}>
+                    {busy === selected.id ? 'Uninstalling...' : 'Uninstall'}
+                  </button>
+                )
+              ) : (
+                <button className="btn primary" onClick={() => installFeature(selected)} disabled={busy === selected.id}>
+                  {busy === selected.id ? 'Installing...' : 'Install'}
+                </button>
+              )}
             </>
           }
         >
           <div style={{ display: 'grid', gap: 14 }}>
+            {actionFeedback && (
+              <div className={`inline-banner ${actionFeedback.tone === 'error' ? 'danger' : 'success'}`} role={actionFeedback.tone === 'error' ? 'alert' : 'status'}>
+                <Icon name={actionFeedback.tone === 'error' ? 'warning' : 'check'} size={12} /> {actionFeedback.text}
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 44, height: 44, borderRadius: 10, background: colorFor(selected.id), color: 'white', display: 'grid', placeItems: 'center' }}>
                 <Icon name={iconFor(selected)} size={20} />
@@ -307,6 +370,9 @@ export const Marketplace = (props: ScreenProps) => {
               </div>
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{selected.longDescription || selected.description}</div>
+            {selected.isEnabled && isManagedFeature(selected) && (
+              <div className="inline-banner" style={{ margin: 0 }}><Icon name="lock" size={12} /> Managed by UnieConnect. Admin-only disable.</div>
+            )}
             <div className="kv"><div className="kv-label">Unlocks</div><div className="kv-value" style={{ fontSize: 13 }}>{unlockedScreens(selected).length ? unlockedScreens(selected).map((s) => s.replace(/-/g, ' ')).join(', ') : 'No dedicated screen'}</div></div>
             <div className="kv"><div className="kv-label">Required connections</div><div className="kv-value" style={{ fontSize: 13 }}>{requiredConnections(selected).length ? requiredConnections(selected).join(', ') : 'None'}</div></div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
