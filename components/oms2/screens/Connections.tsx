@@ -654,15 +654,27 @@ export const Connections = (_: ScreenProps) => {
     setNotice(null);
     try {
       const actionable = conns.filter((c) => (c.owner === 'marketplace' && c.raw?.id) || (c.owner === 'wms' && c.raw?.warehouseCode));
-      for (const c of actionable) {
-        if (c.owner === 'marketplace') {
-          await apiFetch(`/channel-accounts/${encodeURIComponent(c.raw!.id)}/refresh`, { method: 'POST' });
-        } else {
-          await apiFetch(`/oms/warehouses/${encodeURIComponent(c.raw!.warehouseCode)}/test`, { method: 'POST' });
-        }
+      if (actionable.length === 0) {
+        setNotice('No external connections to check yet.');
+        return;
       }
-      setNotice(actionable.length ? `${actionable.length} connection checks queued.` : 'No external connections to sync yet.');
-      load();
+
+      const checks = await Promise.allSettled(actionable.map(async (c) => {
+        if (c.owner === 'marketplace') {
+          const result = await apiFetch<any>(`/channel-accounts/${encodeURIComponent(c.raw!.id)}/refresh`, { method: 'POST' });
+          return { name: c.name, healthy: result?.syncStatus !== 'partial' };
+        }
+        await apiFetch(`/oms/warehouses/${encodeURIComponent(c.raw!.warehouseCode)}/test`, { method: 'POST' });
+        return { name: c.name, healthy: true };
+      }));
+      const failed = checks.filter((result) => result.status === 'rejected').length;
+      const degraded = checks.filter((result) => result.status === 'fulfilled' && !result.value.healthy).length;
+      const healthy = checks.length - failed - degraded;
+      const attention = failed + degraded;
+      setNotice(attention
+        ? `${healthy} connection${healthy === 1 ? '' : 's'} checked successfully; ${attention} need${attention === 1 ? 's' : ''} attention. Review the highlighted rows for repair actions.`
+        : `${healthy} connection${healthy === 1 ? '' : 's'} checked successfully.`);
+      await load();
     } catch (err: any) {
       setNotice(err?.message || 'Sync all failed');
     } finally {
