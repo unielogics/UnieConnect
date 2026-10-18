@@ -209,6 +209,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const savings = bd?.plan?.savings || {};
   const upside = Number(savings.revenue ?? savings.revenueUpside ?? 0);
   const costRed = Number(savings.costPct ?? savings.costReductionPct ?? savings.pct ?? 0);
+  const costRedAmount = Number(savings.monthly ?? savings.total ?? 0);
   const slaImp = Number(savings.sla ?? savings.slaDays ?? 0);
   const decisionRecommendations = useMemo(
     () => recommendations.filter(isActionableDecisionRecommendation),
@@ -294,8 +295,9 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
               bd={bd}
               upside={upside}
               costRed={costRed}
+              costRedAmount={costRedAmount}
               slaImp={slaImp}
-              tasks={tasks}
+              taskSummary={taskSummary}
               optimizing={optimizing}
               optimizationNotice={optimizationNotice}
               onRun={triggerOptimization}
@@ -323,8 +325,9 @@ const AiPlanCard = ({
   bd,
   upside,
   costRed,
+  costRedAmount,
   slaImp,
-  tasks,
+  taskSummary,
   optimizing,
   optimizationNotice,
   onRun,
@@ -333,8 +336,9 @@ const AiPlanCard = ({
   bd: BusinessDoubleResponse | null;
   upside: number;
   costRed: number;
+  costRedAmount: number;
   slaImp: number;
-  tasks: CortexTask[];
+  taskSummary: CortexTaskSummary;
   optimizing: boolean;
   optimizationNotice: string | null;
   onRun: () => void;
@@ -345,11 +349,12 @@ const AiPlanCard = ({
   const modeled = bd?.plan?.modelStatus === 'modeled';
   const decisionReady = modeled && bd?.plan?.decisionReady === true;
   const status = bd?.plan?.status === 'approved' ? 'active' : modeled ? 'proposed' : 'needs data';
-  const hasModeledImpact = decisionReady && Boolean(upside || costRed || slaImp);
+  const hasModeledImpact = decisionReady && Boolean(upside || costRed || costRedAmount || slaImp);
   const horizon = bd?.plan?.forecastHorizonMonths || 6;
-  const highPriorityTasks = tasks.filter((task) => task.priority === 'high').length;
+  const highPriorityTasks = taskSummary.highPriority;
   const warehouseNodes = Number(bd?.plan?.grounding?.connectedWarehouseNodes ?? bd?.plan?.currentMetrics?.warehouseNodes ?? 0);
   const sourceConfidence = Number(bd?.plan?.source?.confidence || 0);
+  const sourceConfidencePct = sourceConfidence > 1 ? sourceConfidence : sourceConfidence * 100;
   const sourceGeneratedAt = bd?.plan?.source?.generatedAt;
   return (
     <div className="card ai-plan-card">
@@ -369,7 +374,18 @@ const AiPlanCard = ({
         </div>
         <div className="ai-plan-metrics">
           <MiniMetric label="Revenue upside" value={hasModeledImpact && upside ? fmt.money(upside, { compact: true, sign: true }) : '—'} sub={decisionReady ? 'modeled gain' : 'awaiting traceable baseline'} tone={hasModeledImpact && upside ? 'green' : undefined} />
-          <MiniMetric label="Cost reduction" value={hasModeledImpact && costRed ? `−${Math.abs(costRed).toFixed(1)}%` : '—'} sub={decisionReady ? 'network cost' : 'awaiting traceable baseline'} tone={hasModeledImpact && costRed ? 'green' : undefined} />
+          <MiniMetric
+            label="Cost reduction"
+            value={hasModeledImpact
+              ? costRed
+                ? `−${Math.abs(costRed).toFixed(1)}%`
+                : costRedAmount
+                  ? `${fmt.money(Math.abs(costRedAmount), { compact: true })}/mo`
+                  : '—'
+              : '—'}
+            sub={decisionReady ? (costRed ? 'network cost' : costRedAmount ? 'monthly modeled savings' : 'no measurable change') : 'awaiting traceable baseline'}
+            tone={hasModeledImpact && (costRed || costRedAmount) ? 'green' : undefined}
+          />
           <MiniMetric label="SLA improvement" value={hasModeledImpact && slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'} sub={decisionReady ? 'delivery speed' : 'awaiting traceable baseline'} tone={hasModeledImpact && slaImp ? 'green' : undefined} />
         </div>
         <div className="ai-plan-readiness">
@@ -385,7 +401,7 @@ const AiPlanCard = ({
           </span>
           <span className="ai-plan-evidence">
             {warehouseNodes} connected warehouse node{warehouseNodes === 1 ? '' : 's'}
-            {sourceConfidence ? ` · ${Math.round(sourceConfidence * 100)}% latest-run confidence` : ''}
+            {sourceConfidence ? ` · ${Math.round(sourceConfidencePct)}% latest-run confidence` : ''}
             {sourceGeneratedAt ? ` · ${timeAgo(sourceGeneratedAt)}` : ''}
           </span>
         </div>
