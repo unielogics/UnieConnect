@@ -73,40 +73,49 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCs
 
   const ledgerRef = useRef<HTMLDivElement>(null);
   // Pass `load` so approving/rejecting a billing plan immediately refetches the profit + hero.
-  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('billing', 100, () => load());
+  const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('billing', 100, () => void load());
 
   const dateParams = () => (custom ? { from: custom.from, to: custom.to } : { range });
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
     setErr(null);
-    fetchBillingProfit(dateParams())
-      .then(setData)
-      .catch((e) => setErr(e.message || 'Failed to load billing'))
-      .finally(() => setLoading(false));
+    try {
+      setData(await fetchBillingProfit(dateParams()));
+    } catch (error: any) {
+      setErr(error?.message || 'Failed to load billing');
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(load, [range, custom]);
+  useEffect(() => {
+    void load();
+  }, [range, custom]);
 
-  const loadLedger = () => {
+  const loadLedger = async () => {
     setLedgerLoading(true);
     setLedgerErr(null);
-    fetchBillingInvoices({
-      ...dateParams(),
-      category: category || undefined,
-      warehouseCode: warehouseCode || undefined,
-      status: status || undefined,
-      search: search || undefined,
-      limit: LEDGER_LIMIT,
-      offset,
-    })
-      .then((res) => {
-        setLedgerRows(res.rows);
-        setLedgerTotal(res.total);
-      })
-      .catch((e) => setLedgerErr(e.message || 'Failed to load invoice ledger'))
-      .finally(() => setLedgerLoading(false));
+    try {
+      const response = await fetchBillingInvoices({
+        ...dateParams(),
+        category: category || undefined,
+        warehouseCode: warehouseCode || undefined,
+        status: status || undefined,
+        search: search || undefined,
+        limit: LEDGER_LIMIT,
+        offset,
+      });
+      setLedgerRows(response.rows);
+      setLedgerTotal(response.total);
+    } catch (error: any) {
+      setLedgerErr(error?.message || 'Failed to load invoice ledger');
+    } finally {
+      setLedgerLoading(false);
+    }
   };
-  useEffect(loadLedger, [range, custom, category, warehouseCode, status, search, offset]);
+  useEffect(() => {
+    void loadLedger();
+  }, [range, custom, category, warehouseCode, status, search, offset]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -201,7 +210,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCs
       if (result.outcome === 'failed') {
         setPayError({ invoiceNumber, message: result.reason || 'Payment failed' });
       } else {
-        loadLedger();
+        await loadLedger();
       }
     } catch (e: any) {
       setPayError({ invoiceNumber, message: e?.message || 'Payment failed' });
@@ -210,7 +219,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCs
     }
   };
 
-  if (err) return <div className="page fade-in"><div className="card"><ErrorState message={err} onRetry={load} /></div></div>;
+  if (err) return <div className="page fade-in"><div className="card"><ErrorState message={err} onRetry={() => void load()} /></div></div>;
   if (loading || !data) return <div className="page fade-in"><div className="card"><Loading rows={6} /></div></div>;
 
   const cur = data.current || ({} as any);
