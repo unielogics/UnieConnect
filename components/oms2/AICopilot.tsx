@@ -19,6 +19,7 @@ type ChatAction = {
   screen?: string;
   actionTarget?: string;
   actionLabel?: string;
+  entityType?: string;
   entityId?: string;
 };
 
