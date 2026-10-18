@@ -59,17 +59,19 @@ export const BusinessDouble = (_: ScreenProps) => {
   const [runStatus, setRunStatus] = useState<string | null>(null);
   const runAbortRef = useRef<AbortController | null>(null);
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
     setErr(null);
-    fetchBusinessDouble()
-      .then((d) => {
-        setBd(d);
-        setAccepted(d.plan?.status === 'approved' || d.latestApproved?.sourcePlanId === d.plan?.id);
-        setDenied(d.latestRejected?.sourcePlanId === d.plan?.id);
-      })
-      .catch((e) => setErr(e.message || 'Failed to load business double'))
-      .finally(() => setLoading(false));
+    try {
+      const data = await fetchBusinessDouble();
+      setBd(data);
+      setAccepted(data.plan?.status === 'approved' || data.latestApproved?.sourcePlanId === data.plan?.id);
+      setDenied(data.latestRejected?.sourcePlanId === data.plan?.id);
+    } catch (error: any) {
+      setErr(error?.message || 'Failed to load business double');
+    } finally {
+      setLoading(false);
+    }
   };
   const loadSupportingContext = async () => {
     setContextError(null);
@@ -86,7 +88,7 @@ export const BusinessDouble = (_: ScreenProps) => {
     if (failures.length) setContextError(`Could not load ${failures.join(' and ')} context. Plan comparisons may be incomplete.`);
   };
   useEffect(() => {
-    load();
+    void load();
     void loadSupportingContext();
   }, []);
   useEffect(() => () => runAbortRef.current?.abort(), []);
@@ -106,7 +108,7 @@ export const BusinessDouble = (_: ScreenProps) => {
       setRunStatus(final.completed
         ? 'Plan updated with the latest Cortex model.'
         : 'Cortex is still processing. The latest completed plan remains available.');
-      load();
+      await load();
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       setErr(e.message || 'Seller Optimization failed');
@@ -124,7 +126,7 @@ export const BusinessDouble = (_: ScreenProps) => {
     setAccepting(true);
     try {
       await approveBusinessDouble(bd.plan.id);
-      load();
+      await load();
     } catch (e: any) {
       setErr(e.message || 'Approval failed');
     } finally {
@@ -137,7 +139,7 @@ export const BusinessDouble = (_: ScreenProps) => {
     setRejecting(true);
     try {
       await rejectBusinessDouble(bd.plan.id);
-      load();
+      await load();
     } catch (e: any) {
       setErr(e.message || 'Rejection failed');
     } finally {
@@ -145,7 +147,7 @@ export const BusinessDouble = (_: ScreenProps) => {
     }
   };
 
-  if (err) return <div className="page fade-in"><div className="card"><ErrorState message={err} onRetry={load} /></div></div>;
+  if (err) return <div className="page fade-in"><div className="card"><ErrorState message={err} onRetry={() => void load()} /></div></div>;
   if (loading || !bd) return <div className="page fade-in"><div className="card"><Loading rows={5} /></div></div>;
 
   const plan = bd.plan;
