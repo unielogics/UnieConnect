@@ -383,7 +383,22 @@ const AiPlanCard = ({
         ? 'Impact traceable'
         : 'No measurable improvement';
   const planStateTone = decisionReady ? (hasModeledImpact ? 'green' : 'default') : 'amber';
-  const warehouseNodes = Number(bd?.plan?.grounding?.connectedWarehouseNodes ?? bd?.plan?.currentMetrics?.warehouseNodes ?? 0);
+  const grounding = bd?.plan?.grounding;
+  const warehouseNodes = Number(grounding?.connectedWarehouseNodes ?? bd?.plan?.currentMetrics?.warehouseNodes ?? 0);
+  const modeledWarehouseNodes = Number(grounding?.modelBaselineWarehouseNodes ?? 0);
+  const observedMonthlyCost = Number(grounding?.observedMonthlyCost ?? 0);
+  const modeledMonthlyCost = Number(grounding?.modelBaselineMonthlyCost ?? 0);
+  const costVariancePct = Number(grounding?.costVariancePct ?? 0);
+  const costBaselineMismatch = modeled && !decisionReady && (
+    observedMonthlyCost <= 0
+    || modeledMonthlyCost <= 0
+    || costVariancePct > 20
+  );
+  const warehouseBaselineMismatch = modeled && !decisionReady && (
+    warehouseNodes <= 0
+    || modeledWarehouseNodes <= 0
+    || warehouseNodes !== modeledWarehouseNodes
+  );
   const sourceConfidence = Number(bd?.plan?.source?.confidence || 0);
   const sourceConfidencePct = sourceConfidence > 1 ? sourceConfidence : sourceConfidence * 100;
   const sourceGeneratedAt = bd?.plan?.source?.generatedAt;
@@ -438,9 +453,43 @@ const AiPlanCard = ({
             {sourceGeneratedAt ? ` · ${timeAgo(sourceGeneratedAt)}` : ''}
           </span>
         </div>
+        {modeled && !decisionReady && (costBaselineMismatch || warehouseBaselineMismatch) && (
+          <div className="ai-plan-blockers" aria-label="AI plan approval blockers">
+            <div className="ai-plan-blockers-title">Resolve before approval</div>
+            {costBaselineMismatch && (
+              <div className="ai-plan-blocker-row">
+                <div>
+                  <strong>Cost baseline</strong>
+                  <span>
+                    Model {modeledMonthlyCost > 0 ? `${fmt.money(modeledMonthlyCost)}/mo` : 'missing'}
+                    {' · '}Observed {observedMonthlyCost > 0 ? `${fmt.money(observedMonthlyCost)}/mo` : 'missing'}
+                    {costVariancePct > 0 ? ` · ${costVariancePct.toFixed(2)}% apart` : ''}
+                  </span>
+                </div>
+                <button className="btn ghost sm" onClick={() => onNavigate('billing')}>
+                  Review billing <Icon name="arrowRight" size={12} />
+                </button>
+              </div>
+            )}
+            {warehouseBaselineMismatch && (
+              <div className="ai-plan-blocker-row">
+                <div>
+                  <strong>Warehouse baseline</strong>
+                  <span>
+                    Model {modeledWarehouseNodes || 'missing'}
+                    {' · '}Connected {warehouseNodes}
+                  </span>
+                </div>
+                <button className="btn ghost sm" onClick={() => onNavigate('warehouses')}>
+                  Review network <Icon name="arrowRight" size={12} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <div className="ai-plan-footer">
           <button className="btn ghost sm" onClick={onRun} disabled={optimizing}>
-            <Icon name="sparkle" size={12} /> {optimizing ? 'Running...' : 'Run optimization'}
+            <Icon name="sparkle" size={12} /> {optimizing ? 'Running...' : modeled && !decisionReady ? 'Rerun after fixes' : 'Run optimization'}
           </button>
           <button className="btn primary sm" onClick={() => onNavigate('double')}>
             Open Business Double <Icon name="arrowRight" size={12} />

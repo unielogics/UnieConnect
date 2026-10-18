@@ -982,6 +982,14 @@
 .uc-shell .ai-plan-readiness { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius); background: var(--bg-subtle); color: var(--text-secondary); font-size: 11.5px; line-height: 1.35; }
 .uc-shell .ai-plan-readiness .chip { width: fit-content; }
 .uc-shell .ai-plan-evidence { color: var(--text-tertiary); font-size: 10.5px; }
+.uc-shell .ai-plan-blockers { display: grid; border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); }
+.uc-shell .ai-plan-blockers-title { padding: 9px 0 7px; color: var(--text-tertiary); font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+.uc-shell .ai-plan-blocker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 0; }
+.uc-shell .ai-plan-blocker-row + .ai-plan-blocker-row { border-top: 1px solid var(--border-subtle); }
+.uc-shell .ai-plan-blocker-row > div { display: grid; min-width: 0; gap: 3px; }
+.uc-shell .ai-plan-blocker-row strong { color: var(--text); font-size: 12px; line-height: 1.3; }
+.uc-shell .ai-plan-blocker-row span { color: var(--text-secondary); font-size: 11px; line-height: 1.35; font-variant-numeric: tabular-nums; }
+.uc-shell .ai-plan-blocker-row .btn { justify-content: center; white-space: nowrap; }
 .uc-shell .ai-plan-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 4px; flex-wrap: wrap; }
 .uc-shell .ai-plan-footer .btn { flex: 1 1 140px; justify-content: center; }
 .uc-shell .ai-plan-run-status,
@@ -1023,6 +1031,8 @@
   .uc-shell .ai-plan-metrics { grid-template-columns: 1fr; gap: 10px; }
   .uc-shell .ai-plan-metrics > div { padding: 0; }
   .uc-shell .ai-plan-metrics > div + div { border-left: 0; border-top: 1px solid var(--border-subtle); padding-top: 10px; }
+  .uc-shell .ai-plan-blocker-row { grid-template-columns: 1fr; }
+  .uc-shell .ai-plan-blocker-row .btn { width: 100%; }
   .uc-shell .cortex-task-panel .table-wrap { max-height: min(620px, 70vh); overflow-x: hidden; overflow-y: auto; }
   .uc-shell .cortex-task-table,
   .uc-shell .cortex-task-table tbody { display: block; min-width: 0; width: 100%; }
