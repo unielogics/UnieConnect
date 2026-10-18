@@ -154,7 +154,10 @@ export type BusinessDoubleResponse = {
     status: string;
     modelStatus?: 'modeled' | 'not_modeled';
     decisionReady?: boolean;
-    impactStatus?: 'traceable' | 'scenario_only' | 'needs_model';
+    noChangeRecommended?: boolean;
+    recommendationVerdict?: string | null;
+    approvalRequired?: boolean;
+    impactStatus?: 'traceable' | 'scenario_only' | 'needs_model' | 'no_change';
     title: string;
     summary: string;
     forecastHorizonMonths?: number;

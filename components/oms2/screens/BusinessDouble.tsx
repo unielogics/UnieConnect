@@ -152,7 +152,8 @@ export const BusinessDouble = (_: ScreenProps) => {
   const cur = plan.currentMetrics || {};
   const opt = plan.optimizedMetrics || {};
   const hasModeledPlan = plan.modelStatus === 'modeled' && Object.keys(opt).length > 0;
-  const decisionReady = hasModeledPlan && plan.decisionReady === true;
+  const noChangeRecommended = hasModeledPlan && plan.noChangeRecommended === true;
+  const decisionReady = hasModeledPlan && !noChangeRecommended && plan.decisionReady === true;
   const sum = (o: Record<string, number>) =>
     ['freight', 'storage', 'handling', 'accessorials', 'materials', 'lostRevenue'].reduce((s, k) => s + num(o[k]), 0);
   const totalCur = num(cur.monthlyCost) || sum(cur);
@@ -183,8 +184,8 @@ export const BusinessDouble = (_: ScreenProps) => {
         <div>
           <h1 className="page-title">Business Double</h1>
           <p className="page-subtitle">
-            Your business today vs. your business if you accept the AI plan.{' '}
-            <strong style={{ color: 'var(--text)' }}>This is the only thing you approve</strong> — everything else runs autonomously.
+            Your current business compared with a traceable Cortex operating plan.{' '}
+            <strong style={{ color: 'var(--text)' }}>Approval appears only when Cortex recommends a material change.</strong>
           </p>
         </div>
         <div className="page-actions">
@@ -207,7 +208,16 @@ export const BusinessDouble = (_: ScreenProps) => {
         </div>
       )}
 
-      {hasModeledPlan && !decisionReady && (
+      {noChangeRecommended && (
+        <div className="inline-banner" role="status" style={{ marginBottom: 12, borderColor: 'var(--green-soft)', background: 'var(--green-soft)', color: 'var(--green-text)' }}>
+          <Icon name="check" size={13} />
+          <span style={{ flex: 1 }}>
+            Cortex completed the model and recommends keeping the current network. There is no material change to approve or deny.
+          </span>
+        </div>
+      )}
+
+      {hasModeledPlan && !decisionReady && !noChangeRecommended && (
         <div className="inline-banner" role="status" style={{ marginBottom: 12, borderColor: 'var(--amber-border)', background: 'var(--amber-soft)', color: 'var(--amber-text)' }}>
           <Icon name="warning" size={13} />
           <span style={{ flex: 1 }}>
@@ -258,19 +268,25 @@ export const BusinessDouble = (_: ScreenProps) => {
             note="Observed account data for the last 30 days"
           />
           <StrategyCard
-            badge={decisionReady ? 'Recommended' : hasModeledPlan ? 'Reference only' : 'Recommended'}
+            badge={noChangeRecommended ? 'No change' : decisionReady ? 'Recommended' : hasModeledPlan ? 'Reference only' : 'Recommended'}
             tone="purple"
             active={accepted}
-            title={decisionReady ? (plan.title || 'Optimized operating model') : hasModeledPlan ? 'Modeled reference scenario' : 'Optimization not modeled yet'}
-            nodes={decisionReady
+            title={noChangeRecommended ? 'Current network retained' : decisionReady ? (plan.title || 'Optimized operating model') : hasModeledPlan ? 'Modeled reference scenario' : 'Optimization not modeled yet'}
+            nodes={noChangeRecommended
+              ? `${plan.grounding?.connectedWarehouseNodes || cur.warehouseNodes || 0} connected nodes remain the recommended operating model.`
+              : decisionReady
               ? (plan.summary || `${plan.autonomousAfterApproval?.length || 0} autonomous actions`)
               : hasModeledPlan
                 ? 'Reconcile modeled cost and warehouse assumptions before comparing outcomes.'
                 : 'Run Seller Optimization after completing the required account data.'}
-            cost={decisionReady ? totalOpt : null}
-            sla={decisionReady && num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays) > 0 ? `${num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays).toFixed(1)} days avg` : 'Not traceable'}
+            cost={noChangeRecommended ? totalCur : decisionReady ? totalOpt : null}
+            sla={noChangeRecommended
+              ? (num(cur.sla ?? cur.slaDays ?? cur.averageDeliveryDays) > 0 ? `${num(cur.sla ?? cur.slaDays ?? cur.averageDeliveryDays).toFixed(1)} days avg` : 'No modeled change')
+              : decisionReady && num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays) > 0 ? `${num(opt.sla ?? opt.slaDays ?? opt.averageDeliveryDays).toFixed(1)} days avg` : 'Not traceable'}
             savings={decisionReady ? savings : undefined}
-            note={decisionReady
+            note={noChangeRecommended
+              ? `Cortex · ${plan.forecastHorizonMonths || 6}-month horizon · no approval required`
+              : decisionReady
               ? `Cortex · ${plan.forecastHorizonMonths || 6}-month horizon · traceable to account truth`
               : hasModeledPlan
                 ? 'Reference scenario only · reconcile billing and warehouse baselines before approval'
@@ -281,7 +297,17 @@ export const BusinessDouble = (_: ScreenProps) => {
 
       <div className="row-2-eq" style={{ marginBottom: 16 }}>
         <ScenarioPanel label="Current strategy" accent="default" warehouses={warehouses} activeNodes={curNodes} scenario={cur} />
-        {decisionReady ? (
+        {noChangeRecommended ? (
+          <div className="card">
+            <div className="card-header">
+              <div className="card-title">Cortex recommendation</div>
+              <Chip tone="green" dot={false}>Keep current network</Chip>
+            </div>
+            <div className="card-body">
+              <EmptyState>The modeled evidence does not support a material network change. Continue operating the current connected warehouse network and rerun when demand, costs, or capacity change.</EmptyState>
+            </div>
+          </div>
+        ) : decisionReady ? (
           <ScenarioPanel
             label="Optimized strategy"
             accent="purple"
@@ -325,7 +351,7 @@ export const BusinessDouble = (_: ScreenProps) => {
           <div className="card-title">
             <Icon name="bolt" size={15} /> Cash & service impact, next 30 days
           </div>
-          <Chip tone={decisionReady ? 'purple' : 'amber'} dot={false}>{decisionReady ? 'Traceable Cortex impact' : hasModeledPlan ? 'Reference scenario' : 'Awaiting model'}</Chip>
+          <Chip tone={noChangeRecommended ? 'green' : decisionReady ? 'purple' : 'amber'} dot={false}>{noChangeRecommended ? 'No change recommended' : decisionReady ? 'Traceable Cortex impact' : hasModeledPlan ? 'Reference scenario' : 'Awaiting model'}</Chip>
         </div>
         <div className="card-body" style={{ paddingTop: 18 }}>
           {uniqueImpact.length === 0 ? (
@@ -357,7 +383,9 @@ export const BusinessDouble = (_: ScreenProps) => {
               )}
               <div className="business-observed-note">
                 <Icon name="info" size={13} />
-                <span>{hasModeledPlan && !decisionReady
+                <span>{noChangeRecommended
+                  ? 'Cortex completed the model and found no material improvement to approve. Current account evidence remains the operating baseline.'
+                  : hasModeledPlan && !decisionReady
                   ? 'Cortex produced a reference scenario, but suggested values stay hidden until its billing and warehouse baseline matches account truth.'
                   : 'Run Seller Optimization after resolving readiness gaps to produce traceable suggested values and approval actions.'}</span>
               </div>
@@ -390,6 +418,7 @@ export const BusinessDouble = (_: ScreenProps) => {
         plan={plan}
         modeled={hasModeledPlan}
         decisionReady={decisionReady}
+        noChangeRecommended={noChangeRecommended}
       />
     </div>
   );
@@ -596,6 +625,7 @@ const ApprovalSurface = ({
   plan,
   modeled,
   decisionReady,
+  noChangeRecommended,
 }: {
   savings: number;
   accepted: boolean;
@@ -607,6 +637,7 @@ const ApprovalSurface = ({
   plan: BusinessDoubleResponse['plan'];
   modeled: boolean;
   decisionReady: boolean;
+  noChangeRecommended: boolean;
 }) => {
   const areas = (plan.autonomousAfterApproval || []).map((a) => {
     const key = Object.keys(AREA_ICON).find((k) => a.toLowerCase().includes(k)) || 'cortex';
@@ -614,7 +645,7 @@ const ApprovalSurface = ({
   });
   const cur = plan.currentMetrics || {};
   const opt = plan.optimizedMetrics || {};
-  const state = accepted ? 'approved' : denied ? 'denied' : decisionReady ? 'needs decision' : modeled ? 'reference only' : 'not ready';
+  const state = accepted ? 'approved' : denied ? 'denied' : noChangeRecommended ? 'no action needed' : decisionReady ? 'needs decision' : modeled ? 'reference only' : 'not ready';
 
   return (
     <div
@@ -641,10 +672,12 @@ const ApprovalSurface = ({
           <div>
             <div style={{ fontSize: 10.5, color: 'var(--purple-text)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Suggested</div>
             <div style={{ fontSize: 15, fontWeight: 800 }}>
-              {decisionReady ? (plan.title || 'Optimized operating model') : modeled ? 'Modeled reference scenario' : 'No suggested plan yet'}
+              {noChangeRecommended ? 'Current network retained' : decisionReady ? (plan.title || 'Optimized operating model') : modeled ? 'Modeled reference scenario' : 'No suggested plan yet'}
             </div>
             <div className="mono" style={{ fontSize: 11.5, color: 'var(--purple-text)', whiteSpace: 'pre-wrap', marginTop: 6, fontWeight: 700 }}>
-              {decisionReady
+              {noChangeRecommended
+                ? 'Cortex found no material improvement over the current account network.'
+                : decisionReady
                 ? `Cost: ${fmt.money(num(opt.monthlyCost ?? opt.freight))}\nWarehouses: ${num(opt.warehouseNodes)}\nSLA: ${num(opt.averageDeliveryDays ?? opt.sla ?? opt.slaDays).toFixed(1)} days`
                 : modeled
                   ? 'Reference scenario hidden until modeled costs and warehouses reconcile with observed account data.'
@@ -660,7 +693,7 @@ const ApprovalSurface = ({
           </div>
           <div>
             <div style={{ fontSize: 10.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800, marginBottom: 7 }}>Status</div>
-            <Chip tone={accepted ? 'green' : denied ? 'red' : decisionReady ? 'purple' : 'amber'} dot={false}>{state}</Chip>
+            <Chip tone={accepted ? 'green' : denied ? 'red' : noChangeRecommended ? 'green' : decisionReady ? 'purple' : 'amber'} dot={false}>{state}</Chip>
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>
               {plan.id} · {plan.status}
             </div>
@@ -676,6 +709,10 @@ const ApprovalSurface = ({
                 <>
                   <Icon name="check" size={15} /> Plan accepted
                 </>
+              ) : noChangeRecommended ? (
+                <>
+                  <Icon name="check" size={15} /> No approval required
+                </>
               ) : !decisionReady ? (
                 <>
                   <Icon name="warning" size={15} /> Reconcile baseline first
@@ -687,17 +724,17 @@ const ApprovalSurface = ({
               )}
             </button>
             <button className="btn lg" disabled={!decisionReady || accepting || rejecting || accepted || denied} onClick={onDeny} style={{ height: 40, fontSize: 14 }}>
-              {denied ? 'Plan denied' : rejecting ? 'Denying…' : 'Deny plan'}
+              {noChangeRecommended ? 'No decision needed' : denied ? 'Plan denied' : rejecting ? 'Denying…' : 'Deny plan'}
             </button>
           </div>
         </div>
 
         <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--border-subtle)' }}>
           <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: 12 }}>
-            {decisionReady ? `What happens autonomously ${accepted ? '(running now)' : 'if you accept'}` : 'Autonomous execution'}
+            {noChangeRecommended ? 'Autonomous execution' : decisionReady ? `What happens autonomously ${accepted ? '(running now)' : 'if you accept'}` : 'Autonomous execution'}
           </div>
           {!decisionReady ? (
-            <EmptyState>Autonomous actions appear here only after the operating plan is traceable and ready for approval.</EmptyState>
+            <EmptyState>{noChangeRecommended ? 'No autonomous changes are staged because Cortex recommends retaining the current network.' : 'Autonomous actions appear here only after the operating plan is traceable and ready for approval.'}</EmptyState>
           ) : areas.length === 0 ? (
             <EmptyState>No autonomous actions defined for this plan.</EmptyState>
           ) : (

@@ -370,31 +370,34 @@ const AiPlanCard = ({
   const staged = bd?.plan?.autonomousAfterApproval?.length || 0;
   const approvals = bd?.plan?.approvalRequiredFor?.length || 0;
   const modeled = bd?.plan?.modelStatus === 'modeled';
-  const decisionReady = modeled && bd?.plan?.decisionReady === true;
+  const noChangeRecommended = modeled && bd?.plan?.noChangeRecommended === true;
+  const decisionReady = modeled && !noChangeRecommended && bd?.plan?.decisionReady === true;
   const status = bd?.plan?.status === 'approved' ? 'active' : modeled ? 'proposed' : 'needs data';
   const hasModeledImpact = decisionReady && Boolean(upside || costRed || costRedAmount || slaImp);
   const horizon = bd?.plan?.forecastHorizonMonths || 6;
   const highPriorityTasks = taskSummary.highPriority;
-  const planStateLabel = !modeled
+  const planStateLabel = noChangeRecommended
+    ? 'No change recommended'
+    : !modeled
     ? 'Needs optimization run'
     : !decisionReady
       ? 'Scenario modeled · baseline mismatch'
       : hasModeledImpact
         ? 'Impact traceable'
         : 'No measurable improvement';
-  const planStateTone = decisionReady ? (hasModeledImpact ? 'green' : 'default') : 'amber';
+  const planStateTone = noChangeRecommended ? 'green' : decisionReady ? (hasModeledImpact ? 'green' : 'default') : 'amber';
   const grounding = bd?.plan?.grounding;
   const warehouseNodes = Number(grounding?.connectedWarehouseNodes ?? bd?.plan?.currentMetrics?.warehouseNodes ?? 0);
   const modeledWarehouseNodes = Number(grounding?.modelBaselineWarehouseNodes ?? 0);
   const observedMonthlyCost = Number(grounding?.observedMonthlyCost ?? 0);
   const modeledMonthlyCost = Number(grounding?.modelBaselineMonthlyCost ?? 0);
   const costVariancePct = Number(grounding?.costVariancePct ?? 0);
-  const costBaselineMismatch = modeled && !decisionReady && (
+  const costBaselineMismatch = modeled && !decisionReady && !noChangeRecommended && (
     observedMonthlyCost <= 0
     || modeledMonthlyCost <= 0
     || costVariancePct > 20
   );
-  const warehouseBaselineMismatch = modeled && !decisionReady && (
+  const warehouseBaselineMismatch = modeled && !decisionReady && !noChangeRecommended && (
     warehouseNodes <= 0
     || modeledWarehouseNodes <= 0
     || warehouseNodes !== modeledWarehouseNodes
@@ -419,7 +422,7 @@ const AiPlanCard = ({
           </div>
         </div>
         <div className="ai-plan-metrics">
-          <MiniMetric label="Revenue upside" value={hasModeledImpact && upside ? fmt.money(upside, { compact: true, sign: true }) : '—'} sub={decisionReady ? 'modeled gain' : 'awaiting traceable baseline'} tone={hasModeledImpact && upside ? 'green' : undefined} />
+          <MiniMetric label="Revenue upside" value={hasModeledImpact && upside ? fmt.money(upside, { compact: true, sign: true }) : '—'} sub={noChangeRecommended ? 'no change modeled' : decisionReady ? 'modeled gain' : 'awaiting traceable baseline'} tone={hasModeledImpact && upside ? 'green' : undefined} />
           <MiniMetric
             label="Cost reduction"
             value={hasModeledImpact
@@ -429,17 +432,19 @@ const AiPlanCard = ({
                   ? `${fmt.money(Math.abs(costRedAmount), { compact: true })}/mo`
                   : '—'
               : '—'}
-            sub={decisionReady ? (costRed ? 'network cost' : costRedAmount ? 'monthly modeled savings' : 'no measurable change') : 'awaiting traceable baseline'}
+            sub={noChangeRecommended ? 'current network retained' : decisionReady ? (costRed ? 'network cost' : costRedAmount ? 'monthly modeled savings' : 'no measurable change') : 'awaiting traceable baseline'}
             tone={hasModeledImpact && (costRed || costRedAmount) ? 'green' : undefined}
           />
-          <MiniMetric label="SLA improvement" value={hasModeledImpact && slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'} sub={decisionReady ? 'delivery speed' : 'awaiting traceable baseline'} tone={hasModeledImpact && slaImp ? 'green' : undefined} />
+          <MiniMetric label="SLA improvement" value={hasModeledImpact && slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'} sub={noChangeRecommended ? 'no change modeled' : decisionReady ? 'delivery speed' : 'awaiting traceable baseline'} tone={hasModeledImpact && slaImp ? 'green' : undefined} />
         </div>
         <div className="ai-plan-readiness">
           <Chip tone={planStateTone} dot={false}>
             {planStateLabel}
           </Chip>
           <span>
-            {decisionReady
+            {noChangeRecommended
+              ? `${horizon}-month model complete · current network retained · no approval required`
+              : decisionReady
               ? `${horizon}-month plan · ${approvals} approval gates · ${staged} staged actions`
               : modeled
                 ? 'Approval is blocked until modeled costs and warehouse count reconcile with account truth.'
@@ -489,7 +494,7 @@ const AiPlanCard = ({
         )}
         <div className="ai-plan-footer">
           <button className="btn ghost sm" onClick={onRun} disabled={optimizing}>
-            <Icon name="sparkle" size={12} /> {optimizing ? 'Running...' : modeled && !decisionReady ? 'Rerun after fixes' : 'Run optimization'}
+            <Icon name="sparkle" size={12} /> {optimizing ? 'Running...' : noChangeRecommended ? 'Run again' : modeled && !decisionReady ? 'Rerun after fixes' : 'Run optimization'}
           </button>
           <button className="btn primary sm" onClick={() => onNavigate('double')}>
             Open Business Double <Icon name="arrowRight" size={12} />
