@@ -57,6 +57,16 @@ const sourceTarget = (source: Record<string, unknown>) => {
   return target || null;
 };
 
+const sourcePayload = (source: Record<string, unknown>) => {
+  const payload = String(source.navigationPayload || source.entityId || '').trim();
+  return payload || undefined;
+};
+
+const humanizeScreen = (screen?: string | null) =>
+  String(screen || 'command')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
 const humanizeChatTimestamp = (value: string) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
@@ -318,6 +328,13 @@ export const AICopilot = ({
   const conversationEpochRef = useRef(0);
   const chatAbortRef = useRef<AbortController | null>(null);
   const threadStorageKey = activeThreadKey(section, entityType, entityId);
+  const screenLabel = humanizeScreen(section);
+
+  const navigateFromCortex = (target: string, payload?: string) => {
+    if (!onNavigate) return;
+    onNavigate(target, payload);
+    onClose();
+  };
 
   const rememberActiveThread = (id?: string | null) => {
     try {
@@ -329,10 +346,10 @@ export const AICopilot = ({
   };
 
   const welcomeMessage = () => {
-    const screenLabel = String(section || 'this screen').replace(/-/g, ' ');
+    const conversationalScreenLabel = String(section || 'this screen').replace(/-/g, ' ');
     return entityId
-      ? `Ask Cortex about this ${entityType || 'record'}. Answers are grounded in this account and the active ${screenLabel} context.`
-      : `Ask Cortex about this account or the ${screenLabel} screen. Answers use the account's current OMS data.`;
+      ? `Ask Cortex about this ${entityType || 'record'}. Answers are grounded in this account and the active ${conversationalScreenLabel} context.`
+      : `Ask Cortex about this account or the ${conversationalScreenLabel} screen. Answers use the account's current OMS data.`;
   };
 
   const loadThreads = () => {
@@ -581,7 +598,9 @@ export const AICopilot = ({
                 {cortexHealth === 'online' ? 'Ready' : cortexHealth === 'offline' ? 'Unavailable' : 'Checking'}
               </Chip>
             </div>
-            {entityId ? <span className="copilot-entity-context" title={entityId}>Focused on this {entityType || 'record'}</span> : <span className="copilot-entity-context">Account intelligence</span>}
+            {entityId
+              ? <span className="copilot-entity-context" title={`${screenLabel} · ${entityId}`}>Focused on this {entityType || 'record'} · {screenLabel}</span>
+              : <span className="copilot-entity-context">Account intelligence · {screenLabel}</span>}
           </div>
         </div>
         <button className="icon-btn" onClick={onClose} data-hint="Close" aria-label="Close Cortex">
@@ -589,7 +608,14 @@ export const AICopilot = ({
         </button>
       </div>
       <div className="copilot-thread-bar">
-        <button className={`copilot-thread-pill ${!threadId ? 'active' : ''}`} onClick={startNewThread} disabled={pending || loadingThread}>
+        <button
+          type="button"
+          className={`copilot-thread-pill ${!threadId ? 'active' : ''}`}
+          onClick={startNewThread}
+          disabled={pending || loadingThread}
+          aria-current={!threadId ? 'true' : undefined}
+          aria-label="Start a new Cortex conversation"
+        >
           <Icon name="plus" size={11} /> New
         </button>
         {threads.map((thread) => (
@@ -599,6 +625,8 @@ export const AICopilot = ({
             onClick={() => openThread(thread.id)}
             title={thread.title}
             disabled={pending || loadingThread}
+            type="button"
+            aria-current={threadId === thread.id ? 'true' : undefined}
           >
             {thread.title || 'Cortex thread'}
           </button>
@@ -644,7 +672,7 @@ export const AICopilot = ({
                         key={idx}
                         type="button"
                         title={`Open ${sourceLabel(source)}`}
-                        onClick={() => onNavigate?.(target)}
+                        onClick={() => navigateFromCortex(target, sourcePayload(source))}
                       >
                         <Icon name="arrowRight" size={10} /> {sourceLabel(source)}
                       </button>
@@ -660,7 +688,7 @@ export const AICopilot = ({
                       className="ai-answer-action"
                       title={action.actionLabel || action.title || 'Open'}
                       aria-label={action.actionLabel || action.title || 'Open Cortex action'}
-                      onClick={() => onNavigate?.(
+                      onClick={() => navigateFromCortex(
                         action.actionTarget || action.screen || 'command',
                         action.navigationPayload || action.entityId || undefined,
                       )}
