@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import {
@@ -19,7 +20,9 @@ import { useCtxMenu, type CtxItem } from '../ContextMenu';
 
 type AsnActionTarget = { asn: OmsAsn; action: 'cancel' | 'stop' };
 
-export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus = [] }: ScreenProps) => {
+export const Shipments = ({ onNavigate, onOpenAsnById, toggleSelect, isSelected, selectedSkus = [] }: ScreenProps) => {
+  const router = useRouter();
+  const openedAsnRef = useRef<string | null>(null);
   const [plan, setPlan] = useState<InventoryPlanFull | null>(null);
   const [asns, setAsns] = useState<OmsAsn[]>([]);
   const [ctx, setCtx] = useState<CopilotContext | null>(null);
@@ -57,6 +60,25 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
     load();
     loadGuidance();
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const requested = String(router.query.asn || '').trim();
+    if (!requested) {
+      openedAsnRef.current = null;
+      return;
+    }
+    const asn = asns.find((candidate) => [
+      candidate.id,
+      candidate.publicId,
+      candidate.displayId,
+      candidate.asnNumber,
+      candidate.shipmentPlanId,
+    ].some((value) => String(value || '') === requested));
+    if (!asn || openedAsnRef.current === requested) return;
+    openedAsnRef.current = requested;
+    onOpenAsnById?.(asn.id);
+  }, [asns, onOpenAsnById, router.isReady, router.query.asn]);
 
   const inbound = (plan?.skus || []).filter((s) => num(s.inbound) > 0 || num(s.proposedUnits) > 0);
   const months = plan?.months || [];
@@ -281,7 +303,9 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                           return (
                             <tr
                               key={asn.id}
+                              className="clickable"
                               style={{ boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : undefined, background: rec ? 'var(--purple-soft)' : undefined }}
+                              onClick={() => onOpenAsnById?.(asn.id)}
                               onContextMenu={(event) => ctxMenu.open(event, asnMenuItems(asn, rec, locked))}
                             >
                               <td>
@@ -308,7 +332,7 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                               </td>
                               <td className="num mono">{num(asn.units).toLocaleString()}</td>
                               <td><StatusChip status={asn.status || 'created'} /></td>
-                              <td>
+                              <td onClick={(event) => event.stopPropagation()}>
                                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                   <CortexRowAction rec={rec} onOpen={() => rec && setSelectedRec(rec)} />
                                   <button

@@ -235,6 +235,15 @@ export default function UnieConnectApp() {
       if (safeTarget === 'warehouses' && payload) {
         q.warehouse = payload;
       }
+      if (safeTarget === 'plan' && payload) {
+        q.sku = payload;
+      }
+      if (safeTarget === 'shipments' && payload) {
+        q.asn = payload;
+      }
+      if (safeTarget === 'ledger' && payload) {
+        q.entity = payload;
+      }
       setSection(safeTarget);
       router.push({ pathname: '/oms', query: q }, undefined, { shallow: true });
     },

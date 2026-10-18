@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { StatusChip, Confidence, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import { fetchLedger, LedgerResponse } from '../../../lib/oms';
@@ -15,6 +16,7 @@ const classify = (e: LE): 'cortex' | 'autonomous' | 'operator' => {
 };
 
 export const Ledger = (_: ScreenProps) => {
+  const router = useRouter();
   const [data, setData] = useState<LedgerResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -31,10 +33,19 @@ export const Ledger = (_: ScreenProps) => {
   useEffect(load, []);
 
   const events = data?.events || [];
-  const filtered = useMemo(
-    () => (filter === 'all' ? events : events.filter((e) => classify(e) === filter)),
-    [events, filter]
-  );
+  const entityFilter = String(router.query.entity || '').trim();
+  const filtered = useMemo(() => {
+    const actorFiltered = filter === 'all' ? events : events.filter((event) => classify(event) === filter);
+    if (!entityFilter) return actorFiltered;
+    return actorFiltered.filter((event) => [event.entity_id, event.id]
+      .some((value) => String(value || '') === entityFilter));
+  }, [entityFilter, events, filter]);
+
+  const clearEntityFilter = () => {
+    const query = { ...router.query };
+    delete query.entity;
+    void router.replace({ pathname: '/oms', query }, undefined, { shallow: true });
+  };
 
   return (
     <div className="page fade-in">
@@ -68,9 +79,14 @@ export const Ledger = (_: ScreenProps) => {
         <div className="table-wrap">
           <div className="table-toolbar">
             <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{filtered.length} events</span>
+            {entityFilter && (
+              <button className="btn ghost sm" onClick={clearEntityFilter} title="Show every ledger event">
+                <Icon name="x" size={11} /> Evidence for <span className="mono">{entityFilter}</span>
+              </button>
+            )}
           </div>
           {filtered.length === 0 ? (
-            <EmptyState>No ledger events recorded yet.</EmptyState>
+            <EmptyState>{entityFilter ? 'No ledger evidence is recorded for this entity yet.' : 'No ledger events recorded yet.'}</EmptyState>
           ) : (
             <table className="data">
               <thead>

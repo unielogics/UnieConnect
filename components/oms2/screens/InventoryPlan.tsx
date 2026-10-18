@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
@@ -29,6 +30,7 @@ const intelligenceAuthorityLabel = (authority?: string) => {
 };
 
 export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenProps) => {
+  const router = useRouter();
   const [plan, setPlan] = useState<InventoryPlanFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -53,6 +55,14 @@ export const InventoryPlan = ({ onNavigate, toggleSelect, isSelected }: ScreenPr
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
+
+  useEffect(() => {
+    if (!router.isReady || !plan?.skus?.length) return;
+    const requested = String(router.query.sku || '').trim();
+    if (!requested) return;
+    const match = plan.skus.find((item) => item.id === requested || item.sku === requested);
+    if (match && match.id !== selectedSku) setSelectedSku(match.id);
+  }, [plan, router.isReady, router.query.sku, selectedSku]);
 
   useEffect(() => {
     if (!selectedSku) return;
