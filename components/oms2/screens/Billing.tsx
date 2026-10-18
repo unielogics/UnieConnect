@@ -55,6 +55,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCs
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const [ledgerRows, setLedgerRows] = useState<BillingInvoiceRow[]>([]);
   const [ledgerTotal, setLedgerTotal] = useState(0);
@@ -174,6 +175,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCs
 
   const exportStatement = async () => {
     setExporting(true);
+    setExportError(null);
     try {
       const blob = await fetchBillingStatementPdf({
         ...dateParams(),
@@ -183,8 +185,8 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCs
         search: search || undefined,
       });
       downloadBlob(blob, 'billing-statement.pdf');
-    } catch {
-      /* noop — Export stays clickable for retry */
+    } catch (error: any) {
+      setExportError(error?.message || 'The billing statement could not be exported.');
     } finally {
       setExporting(false);
     }
@@ -295,6 +297,16 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCs
       </div>
 
       {recommendationStatus}
+
+      {exportError && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{exportError}</span>
+          <button className="btn ghost sm" onClick={exportStatement} disabled={exporting}>
+            <Icon name="refresh" size={11} /> {exporting ? 'Retrying' : 'Retry export'}
+          </button>
+        </div>
+      )}
 
       {isEstimate && (
         <div className="card" style={{ marginBottom: 12, borderLeft: '3px solid var(--amber, #f59e0b)', padding: '12px 16px', fontSize: 12.5, color: 'var(--text-secondary)' }}>

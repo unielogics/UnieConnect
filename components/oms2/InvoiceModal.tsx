@@ -20,10 +20,12 @@ export const InvoiceModal = ({
   const [rows, setRows] = useState<BillingInvoiceRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     setRows(null);
     setErr(null);
+    setExportError(null);
     fetchBillingInvoices({ invoiceNumber, limit: 200 })
       .then((res) => setRows(res.rows))
       .catch((e) => setErr(e.message || 'Failed to load invoice'));
@@ -31,11 +33,12 @@ export const InvoiceModal = ({
 
   const exportPdf = async () => {
     setExporting(true);
+    setExportError(null);
     try {
       const blob = await fetchInvoicePdf(invoiceNumber);
       downloadBlob(blob, `invoice-${invoiceNumber}.pdf`);
-    } catch {
-      /* noop — button stays enabled for retry */
+    } catch (error: any) {
+      setExportError(error?.message || 'The invoice PDF could not be exported.');
     } finally {
       setExporting(false);
     }
@@ -69,6 +72,15 @@ export const InvoiceModal = ({
         <Loading rows={5} />
       ) : (
         <>
+          {exportError && (
+            <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
+              <Icon name="warning" size={13} />
+              <span style={{ flex: 1 }}>{exportError}</span>
+              <button className="btn ghost sm" onClick={exportPdf} disabled={exporting}>
+                <Icon name="refresh" size={11} /> {exporting ? 'Retrying' : 'Retry export'}
+              </button>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
             {first && <StatusChip status={first.status} />}
             {first && <Chip tone={first.source === 'csv_import' ? 'purple' : 'default'} dot={false}>{first.source === 'csv_import' ? 'Uploaded evidence' : 'WMS invoice'}</Chip>}
