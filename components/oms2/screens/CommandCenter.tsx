@@ -364,7 +364,15 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           </div>
 
           <div className="row-2" style={{ marginBottom: 16 }}>
-            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={decisionRecommendations} onNavigate={onNavigate} />
+            <IntelligenceReadinessPanel
+              readiness={readiness}
+              latest={latestOpt}
+              recommendations={decisionRecommendations}
+              loading={intelligenceLoading}
+              error={intelligenceErrors.readiness}
+              onRetry={() => void refreshIntelligencePanels(true)}
+              onNavigate={onNavigate}
+            />
             <ChannelMixCard data={data} />
           </div>
 
@@ -868,11 +876,17 @@ const IntelligenceReadinessPanel = ({
   readiness,
   latest,
   recommendations,
+  loading,
+  error,
+  onRetry,
   onNavigate,
 }: {
   readiness: IntelligenceReadiness | null;
   latest: SellerOptimizationSummary | null;
   recommendations: OmsRecommendation[];
+  loading?: boolean;
+  error?: string;
+  onRetry?: () => void;
   onNavigate: (target: string) => void;
 }) => {
   const score = readiness?.score || 0;
@@ -884,8 +898,15 @@ const IntelligenceReadinessPanel = ({
           <div className="card-title"><Icon name="sparkle" size={15} /> AI readiness</div>
           <div className="card-subtitle">Marketplace first, CSV fallback, WMS truth for execution.</div>
         </div>
-        <Chip tone={tone as any} dot={false}>{score}%</Chip>
+        <Chip tone={readiness ? tone as any : 'default'} dot={false}>{readiness ? `${score}%` : loading ? 'Loading' : 'Unavailable'}</Chip>
       </div>
+      {loading && !readiness ? (
+        <div className="card-body"><Loading rows={3} /></div>
+      ) : error && !readiness ? (
+        <div className="card-body"><ErrorState message={error} onRetry={onRetry} /></div>
+      ) : (
+        <>
+        {error && <IntelligencePanelNotice message={error} onRetry={onRetry} />}
       <div className="card-body" style={{ display: 'grid', gap: 12 }}>
         <div className="command-mini-metrics" style={{ gap: 10 }}>
           <MiniMetric label="Primary feed" value={(readiness?.sourceMode || 'manual').replace(/_/g, ' ')} sub={readiness?.primarySource?.replace(/_/g, ' ') || 'setup needed'} />
@@ -903,6 +924,8 @@ const IntelligenceReadinessPanel = ({
           <Icon name="plug" size={12} /> Improve data sources
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 };
