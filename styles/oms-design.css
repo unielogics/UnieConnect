@@ -943,8 +943,9 @@
 .uc-shell .cortex-task-summary > div { min-width: 0; padding-right: 18px; }
 .uc-shell .cortex-task-summary > div + div { border-left: 1px solid var(--border-subtle); padding-left: 18px; }
 .uc-shell .cortex-task-summary div { text-align: left; }
-.uc-shell .cortex-task-panel .table-wrap { padding: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.uc-shell .cortex-task-panel .table-wrap { max-height: min(620px, 72vh); overflow: auto; padding: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 .uc-shell .cortex-task-table { table-layout: fixed; min-width: 860px; }
+.uc-shell .cortex-task-table thead { position: sticky; top: 0; z-index: 1; background: var(--bg-elev); }
 .uc-shell .cortex-task-feedback { display: flex; align-items: center; gap: 7px; padding: 9px 20px; border-bottom: 1px solid var(--border-subtle); font-size: 12px; font-weight: 650; }
 .uc-shell .cortex-task-feedback.error { background: var(--red-soft); color: var(--red-text); }
 .uc-shell .cortex-task-feedback.info { background: var(--amber-soft); color: var(--amber-text); }
@@ -963,7 +964,7 @@
 .uc-shell .cortex-task-table .task-open-btn { min-width: 0; max-width: 100%; justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .uc-shell .cortex-task-table .task-decision-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .uc-shell .cortex-task-table .icon-btn { flex: 0 0 auto; width: 28px; height: 28px; }
-.uc-shell .ai-plan-card { background: linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 62%); }
+.uc-shell .ai-plan-card { align-self: start; background: linear-gradient(180deg, var(--purple-soft) 0%, var(--bg-elev) 62%); }
 .uc-shell .ai-plan-body { display: grid; gap: 14px; align-content: start; }
 .uc-shell .ai-plan-title { font-size: 16px; font-weight: 800; letter-spacing: 0; color: var(--text); }
 .uc-shell .ai-plan-summary { margin-top: 5px; color: var(--text-secondary); font-size: 12.5px; line-height: 1.45; }
@@ -994,17 +995,19 @@
   .uc-shell .row-2,
   .uc-shell .row-2-eq,
   .uc-shell .row-3,
-  .uc-shell .command-decision-row,
-  .uc-shell .command-task-plan-row { grid-template-columns: 1fr; }
+  .uc-shell .command-decision-row { grid-template-columns: 1fr; }
   .uc-shell .cortex-task-summary { grid-template-columns: 1fr; }
   .uc-shell .cortex-task-summary > div { padding: 0; }
   .uc-shell .cortex-task-summary > div + div { border-left: 0; border-top: 1px solid var(--border-subtle); padding-top: 10px; margin-top: 10px; }
 }
-@media (min-width: 701px) and (max-width: 1100px) {
+@media (max-width: 1320px) {
+  .uc-shell .command-task-plan-row { grid-template-columns: 1fr; }
+}
+@media (min-width: 701px) and (max-width: 1320px) {
   .uc-shell .ai-plan-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
-  .uc-shell .cortex-task-panel .table-wrap { overflow: visible; }
+  .uc-shell .cortex-task-panel .table-wrap { max-height: min(620px, 70vh); overflow-x: hidden; overflow-y: auto; }
   .uc-shell .cortex-task-table,
   .uc-shell .cortex-task-table tbody { display: block; min-width: 0; width: 100%; }
   .uc-shell .cortex-task-table thead { display: none; }
