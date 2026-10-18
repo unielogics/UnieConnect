@@ -1380,6 +1380,12 @@ export const fetchCortexChatThreads = (screen?: string, entityType?: string | nu
 export const fetchCortexChatThread = (id: string) =>
   omsFetch<{ thread: CortexChatThread; messages: CortexChatMessage[] }>(`/intelligence/cortex/chat/threads/${encodeURIComponent(id)}`);
 
+export const CORTEX_TASKS_CHANGED_EVENT = 'unie:cortex-tasks-changed';
+
+export const notifyCortexTasksChanged = () => {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(CORTEX_TASKS_CHANGED_EVENT));
+};
+
 export const fetchCortexTasks = (params?: { status?: string; screen?: string; refresh?: boolean; limit?: number }) => {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
@@ -1389,23 +1395,32 @@ export const fetchCortexTasks = (params?: { status?: string; screen?: string; re
   return omsFetch<{ tasks: CortexTask[] }>(`/intelligence/tasks?${qs.toString()}`);
 };
 
-export const refreshCortexTasks = () =>
-  omsFetch<{ tasks: CortexTask[]; readiness?: IntelligenceReadiness }>('/intelligence/tasks/refresh', {
+export const refreshCortexTasks = async () => {
+  const result = await omsFetch<{ tasks: CortexTask[]; readiness?: IntelligenceReadiness }>('/intelligence/tasks/refresh', {
     method: 'POST',
     body: JSON.stringify({}),
   });
+  notifyCortexTasksChanged();
+  return result;
+};
 
-export const completeCortexTask = (id: string) =>
-  omsFetch<{ task: CortexTask; verified: boolean; message?: string }>(`/intelligence/tasks/${encodeURIComponent(id)}/complete`, {
+export const completeCortexTask = async (id: string) => {
+  const result = await omsFetch<{ task: CortexTask; verified: boolean; message?: string }>(`/intelligence/tasks/${encodeURIComponent(id)}/complete`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
+  notifyCortexTasksChanged();
+  return result;
+};
 
-export const dismissCortexTask = (id: string) =>
-  omsFetch<{ task: CortexTask }>(`/intelligence/tasks/${encodeURIComponent(id)}/dismiss`, {
+export const dismissCortexTask = async (id: string) => {
+  const result = await omsFetch<{ task: CortexTask }>(`/intelligence/tasks/${encodeURIComponent(id)}/dismiss`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
+  notifyCortexTasksChanged();
+  return result;
+};
 
 export const fetchIntelligenceReadiness = () =>
   omsFetch<IntelligenceReadiness>('/intelligence/readiness');

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
 import {
+  CORTEX_TASKS_CHANGED_EVENT,
   completeCortexTask,
   dismissCortexTask,
   fetchCortexChatHealth,
@@ -95,12 +96,15 @@ export const TopBar = ({
         });
     };
     const onFocus = () => refreshTasks(false);
+    const onTasksChanged = () => refreshTasks(false);
     refreshTasks(true);
     window.addEventListener('focus', onFocus);
+    window.addEventListener(CORTEX_TASKS_CHANGED_EVENT, onTasksChanged);
     const timer = window.setInterval(() => refreshTasks(false), 90000);
     return () => {
       cancelled = true;
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener(CORTEX_TASKS_CHANGED_EVENT, onTasksChanged);
       window.clearInterval(timer);
     };
   }, [section]);
@@ -200,7 +204,6 @@ export const TopBar = ({
         await dismissCortexTask(task.id);
         setTaskNotice({ tone: 'success', text: 'Task dismissed from the active inbox.' });
       }
-      loadTasks(false);
     } catch (error: any) {
       setTaskError(error?.message || 'The task could not be updated.');
     } finally {

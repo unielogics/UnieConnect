@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '../icons';
 import { Chip, Sparkline, ProgressBar, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import {
+  CORTEX_TASKS_CHANGED_EVENT,
   approveRecommendation,
   fetchCommandCenter,
   fetchCortexTasks,
@@ -9,6 +10,7 @@ import {
   fetchLatestOptimization,
   completeCortexTask,
   dismissCortexTask,
+  notifyCortexTasksChanged,
   runSellerOptimization,
   waitForSellerOptimization,
   rejectRecommendation,
@@ -73,6 +75,21 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   useEffect(() => {
     void refreshIntelligencePanels(true);
   }, [refreshIntelligencePanels]);
+  useEffect(() => {
+    let cancelled = false;
+    const onTasksChanged = () => {
+      fetchCortexTasks({ status: 'open', limit: 10 })
+        .then((result) => {
+          if (!cancelled) setTasks(result.tasks || []);
+        })
+        .catch(() => undefined);
+    };
+    window.addEventListener(CORTEX_TASKS_CHANGED_EVENT, onTasksChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(CORTEX_TASKS_CHANGED_EVENT, onTasksChanged);
+    };
+  }, []);
   useEffect(() => () => optimizationAbortRef.current?.abort(), []);
 
   const triggerOptimization = async () => {
@@ -95,6 +112,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
         ? 'Plan updated with the latest Cortex model.'
         : 'Cortex is still processing. The plan will refresh from the latest completed run.');
       await refreshIntelligencePanels(true);
+      notifyCortexTasksChanged();
       load(range);
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
