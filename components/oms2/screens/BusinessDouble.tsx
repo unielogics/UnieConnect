@@ -152,8 +152,9 @@ export const BusinessDouble = (_: ScreenProps) => {
   const cur = plan.currentMetrics || {};
   const opt = plan.optimizedMetrics || {};
   const hasModeledPlan = plan.modelStatus === 'modeled' && Object.keys(opt).length > 0;
-  const noChangeRecommended = hasModeledPlan && plan.noChangeRecommended === true;
-  const decisionReady = hasModeledPlan && !noChangeRecommended && plan.decisionReady === true;
+  const noChangeVerdict = hasModeledPlan && plan.noChangeRecommended === true;
+  const noChangeRecommended = noChangeVerdict && plan.decisionReady === true;
+  const decisionReady = hasModeledPlan && !noChangeVerdict && plan.decisionReady === true;
   const sum = (o: Record<string, number>) =>
     ['freight', 'storage', 'handling', 'accessorials', 'materials', 'lostRevenue'].reduce((s, k) => s + num(o[k]), 0);
   const totalCur = num(cur.monthlyCost) || sum(cur);
@@ -221,7 +222,7 @@ export const BusinessDouble = (_: ScreenProps) => {
         <div className="inline-banner" role="status" style={{ marginBottom: 12, borderColor: 'var(--amber-border)', background: 'var(--amber-soft)', color: 'var(--amber-text)' }}>
           <Icon name="warning" size={13} />
           <span style={{ flex: 1 }}>
-            This is a reference scenario, not an approval decision. {(plan.grounding?.issues || []).join(' ')}
+            This is a reference scenario, not an approval decision. {noChangeVerdict ? 'The model currently favors retaining the network, but that verdict is not grounded in current account evidence yet. ' : ''}{(plan.grounding?.issues || []).join(' ')}
           </span>
         </div>
       )}
