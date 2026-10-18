@@ -226,7 +226,10 @@ export const TopBar = ({
           shareHealth(res.ok ? 'online' : 'offline');
         })
         .catch(() => {
-          shareHealth('offline');
+          // A failed poll is not proof that Cortex is down. Preserve the last
+          // confirmed healthy state; on first load, remain in the neutral
+          // checking state until the service returns an authoritative result.
+          if (!cancelled) setCortexHealth((current) => current === 'online' ? current : 'checking');
         });
     };
     const onSharedHealth = (event: Event) => {

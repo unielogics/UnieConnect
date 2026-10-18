@@ -500,7 +500,9 @@ export const AICopilot = ({
           shareHealth(res.ok ? 'online' : 'offline');
         })
         .catch(() => {
-          shareHealth('offline');
+          // Transport uncertainty should not advertise a service outage.
+          // Keep a confirmed green state, or remain neutral while checking.
+          if (!cancelled) setCortexHealth((current) => current === 'online' ? current : 'checking');
         });
     };
     const onSharedHealth = (event: Event) => {
@@ -631,8 +633,7 @@ export const AICopilot = ({
             notifyCortexHealthChanged(nextHealth);
           })
           .catch(() => {
-            setCortexHealth('offline');
-            notifyCortexHealthChanged('offline');
+            setCortexHealth((current) => current === 'online' ? current : 'checking');
           });
       }
       setHistory((h) => [
