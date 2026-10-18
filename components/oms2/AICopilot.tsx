@@ -6,6 +6,9 @@ import {
   fetchCortexChatThread,
   fetchCortexChatThreads,
   fetchCortexChatHealth,
+  CORTEX_HEALTH_CHANGED_EVENT,
+  CortexHealthState,
+  notifyCortexHealthChanged,
   sendCortexChat,
   CopilotContext,
   CortexChatMessage,
@@ -379,7 +382,7 @@ export const AICopilot = ({
   const [threadOpenError, setThreadOpenError] = useState<string | null>(null);
   const [failedThreadId, setFailedThreadId] = useState<string | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
-  const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
+  const [cortexHealth, setCortexHealth] = useState<CortexHealthState>('checking');
   const [pending, setPending] = useState(false);
   const [pendingStage, setPendingStage] = useState<'reading' | 'comparing' | 'writing'>('reading');
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
@@ -471,19 +474,29 @@ export const AICopilot = ({
       savedThreadId = '';
     }
     const restoreEpoch = conversationEpochRef.current;
+    const shareHealth = (status: CortexHealthState) => {
+      if (cancelled) return;
+      setCortexHealth(status);
+      notifyCortexHealthChanged(status);
+    };
     const checkHealth = (showChecking = false) => {
-      if (showChecking) setCortexHealth('checking');
+      if (showChecking) shareHealth('checking');
       fetchCortexChatHealth(section)
         .then((res) => {
-          if (!cancelled) setCortexHealth(res.ok ? 'online' : 'offline');
+          shareHealth(res.ok ? 'online' : 'offline');
         })
         .catch(() => {
-          if (!cancelled) setCortexHealth('offline');
+          shareHealth('offline');
         });
+    };
+    const onSharedHealth = (event: Event) => {
+      const status = (event as CustomEvent<{ status?: CortexHealthState }>).detail?.status;
+      if (!cancelled && status) setCortexHealth(status);
     };
     const onFocus = () => checkHealth(false);
     checkHealth(true);
     window.addEventListener('focus', onFocus);
+    window.addEventListener(CORTEX_HEALTH_CHANGED_EVENT, onSharedHealth);
     const healthTimer = window.setInterval(() => checkHealth(false), 60000);
     fetchCopilotContext(section)
       .then((c) => {
@@ -520,6 +533,7 @@ export const AICopilot = ({
       chatAbortRef.current?.abort();
       chatAbortRef.current = null;
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener(CORTEX_HEALTH_CHANGED_EVENT, onSharedHealth);
       window.clearInterval(healthTimer);
     };
   }, [section, entityType, entityId]);
@@ -574,7 +588,9 @@ export const AICopilot = ({
       // not let those local, grounded answers overwrite the separately polled
       // live Cortex health indicator.
       if (responseHealth?.reason !== 'account_grounded_answer' && typeof responseHealth?.available === 'boolean') {
-        setCortexHealth(cortexUnavailable ? 'offline' : 'online');
+        const nextHealth = cortexUnavailable ? 'offline' : 'online';
+        setCortexHealth(nextHealth);
+        notifyCortexHealthChanged(nextHealth);
       }
       setHistory((h) => [
         ...h,
@@ -603,8 +619,15 @@ export const AICopilot = ({
       const stillProcessing = /still preparing the original answer/i.test(String(error?.message || ''));
       if (!stoppedByUser) {
         fetchCortexChatHealth(section)
-          .then((health) => setCortexHealth(health.ok ? 'online' : 'offline'))
-          .catch(() => setCortexHealth('offline'));
+          .then((health) => {
+            const nextHealth = health.ok ? 'online' : 'offline';
+            setCortexHealth(nextHealth);
+            notifyCortexHealthChanged(nextHealth);
+          })
+          .catch(() => {
+            setCortexHealth('offline');
+            notifyCortexHealthChanged('offline');
+          });
       }
       setHistory((h) => [
         ...h,

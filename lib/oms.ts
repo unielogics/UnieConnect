@@ -1424,6 +1424,16 @@ export const fetchCortexChatThreads = (screen?: string, entityType?: string | nu
 export const fetchCortexChatThread = (id: string) =>
   omsFetch<{ thread: CortexChatThread; messages: CortexChatMessage[] }>(`/intelligence/cortex/chat/threads/${encodeURIComponent(id)}`);
 
+export type CortexHealthState = 'online' | 'offline' | 'checking';
+
+export const CORTEX_HEALTH_CHANGED_EVENT = 'unie:cortex-health-changed';
+
+export const notifyCortexHealthChanged = (status: CortexHealthState) => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CORTEX_HEALTH_CHANGED_EVENT, { detail: { status } }));
+  }
+};
+
 export const CORTEX_TASKS_CHANGED_EVENT = 'unie:cortex-tasks-changed';
 
 export const notifyCortexTasksChanged = () => {

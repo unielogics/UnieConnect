@@ -2,11 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
 import {
   CORTEX_TASKS_CHANGED_EVENT,
+  CORTEX_HEALTH_CHANGED_EVENT,
+  CortexHealthState,
   completeCortexTask,
   dismissCortexTask,
   fetchCortexChatHealth,
   fetchCortexTasks,
   notifyCortexTasksChanged,
+  notifyCortexHealthChanged,
   searchOms,
   CortexTask,
   CortexTaskSummary,
@@ -65,7 +68,7 @@ export const TopBar = ({
   const [taskTotal, setTaskTotal] = useState(0);
   const [taskSummary, setTaskSummary] = useState<CortexTaskSummary>({ highPriority: 0, workAreas: [], sources: [] });
   const [tasksLoading, setTasksLoading] = useState(true);
-  const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
+  const [cortexHealth, setCortexHealth] = useState<CortexHealthState>('checking');
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskNotice, setTaskNotice] = useState<{ tone: 'info' | 'success'; text: string } | null>(null);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
@@ -205,23 +208,34 @@ export const TopBar = ({
 
   useEffect(() => {
     let cancelled = false;
+    const shareHealth = (status: CortexHealthState) => {
+      if (cancelled) return;
+      setCortexHealth(status);
+      notifyCortexHealthChanged(status);
+    };
     const checkHealth = (showChecking = false) => {
-      if (showChecking) setCortexHealth('checking');
+      if (showChecking) shareHealth('checking');
       fetchCortexChatHealth(section)
         .then((res) => {
-          if (!cancelled) setCortexHealth(res.ok ? 'online' : 'offline');
+          shareHealth(res.ok ? 'online' : 'offline');
         })
         .catch(() => {
-          if (!cancelled) setCortexHealth('offline');
+          shareHealth('offline');
         });
+    };
+    const onSharedHealth = (event: Event) => {
+      const status = (event as CustomEvent<{ status?: CortexHealthState }>).detail?.status;
+      if (!cancelled && status) setCortexHealth(status);
     };
     const onFocus = () => checkHealth(false);
     checkHealth(true);
     window.addEventListener('focus', onFocus);
+    window.addEventListener(CORTEX_HEALTH_CHANGED_EVENT, onSharedHealth);
     const timer = window.setInterval(() => checkHealth(false), 60000);
     return () => {
       cancelled = true;
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener(CORTEX_HEALTH_CHANGED_EVENT, onSharedHealth);
       window.clearInterval(timer);
     };
   }, [section]);
