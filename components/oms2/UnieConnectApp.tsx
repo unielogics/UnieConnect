@@ -34,6 +34,7 @@ import { Inbox } from './screens/Inbox';
 import { Connections } from './screens/Connections';
 import { Ledger } from './screens/Ledger';
 import { ProfileSettings } from './screens/ProfileSettings';
+import { TeamAccess } from './screens/TeamAccess';
 import { NewProductModal } from './modals/NewProductModal';
 import { NewSupplierModal } from './modals/NewSupplierModal';
 import { NewCustomerModal } from './modals/NewCustomerModal';
@@ -43,7 +44,7 @@ import { CsvImportModal, CsvImportEntity } from './modals/CsvImportModal';
 import { StateDetailModal } from './modals/StateDetailModal';
 import type { OmsAsnDetail, OmsGlobalSearchResult, OmsOrder, OmsSku, OmsSupplier } from '../../lib/oms';
 import { archiveOmsSkus, fetchOmsAsn, fetchOmsOrder } from '../../lib/oms';
-import { fetchCurrentUser, type CurrentUser } from '../../lib/user';
+import { canManageUsers, fetchCurrentUser, type CurrentUser } from '../../lib/user';
 import { fetchUserFeatures, type Feature } from '../../lib/features';
 
 export type Tweaks = { theme: 'light' | 'dark'; accent: string; density: 'comfortable' | 'compact' };
@@ -61,7 +62,7 @@ export type NavFn = (target: string, payload?: string) => void;
 const OMS_SCREEN_IDS = new Set([
   'command', 'double', 'plan', 'product-research', 'skus', 'warehouses', 'sku-detail',
   'orders', 'returns', 'customers', 'suppliers', 'shipments', 'heatmap', 'labels',
-  'billing', 'audits', 'marketplace', 'support', 'inbox', 'connections', 'ledger', 'profile',
+  'billing', 'audits', 'marketplace', 'support', 'inbox', 'connections', 'ledger', 'profile', 'team',
 ]);
 
 export interface ScreenProps {
@@ -285,6 +286,9 @@ export default function UnieConnectApp() {
       if (safeTarget === 'support' && payload) {
         q.ticket = payload;
       }
+      if (safeTarget === 'team' && payload) {
+        q.user = payload;
+      }
       setSection(safeTarget);
       router.push({ pathname: '/oms', query: q }, undefined, { shallow: true });
     },
@@ -419,7 +423,13 @@ export default function UnieConnectApp() {
     return ids;
   }, [userFeatures]);
 
-  const nav = useMemo(() => buildSidebarNav(enabledFeatureIds, false), [enabledFeatureIds]);
+  const nav = useMemo(() => {
+    const next = buildSidebarNav(enabledFeatureIds, false);
+    if (!canManageUsers(currentUser?.role)) return next;
+    return next.map((category) => category.id === 'system'
+      ? { ...category, items: [...category.items, { id: 'team', label: 'Team & Access', icon: 'support', desc: 'Members, roles, invitations' }] }
+      : category);
+  }, [currentUser?.role, enabledFeatureIds]);
 
   const isScreenAvailable = useCallback(
     (screenId: string) => {
@@ -541,6 +551,7 @@ export default function UnieConnectApp() {
     connections: <Connections {...sp} />,
     ledger: <Ledger {...sp} />,
     profile: <ProfileSettings {...sp} />,
+    team: <TeamAccess {...sp} />,
   };
   const cortexEntity = orderModal?.id
     ? { type: 'order', id: orderModal.id }
