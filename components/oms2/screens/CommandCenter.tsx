@@ -226,12 +226,6 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
             ...(data.warnings || []).map((warning) => ({ Section: 'Warning', Name: warning.title, Value: warning.detail, Severity: warning.severity })),
             ...(data.autonomousActivity || []).map((activity) => ({ Section: 'Activity', Name: activity.action, Value: activity.impact || '', Status: activity.status, System: activity.system, Confidence: activity.confidence, At: activity.at })),
           ])}><Icon name="download" size={13} /> Export</button>
-          <button className="btn" onClick={triggerOptimization} disabled={optimizing}>
-            <Icon name="sparkle" size={13} /> {optimizing ? 'Running...' : 'Run Seller Optimization'}
-          </button>
-          <button className="btn primary" onClick={() => onNavigate('double')}>
-            <Icon name="double" size={13} /> Review optimized plan
-          </button>
         </div>
       </div>
 
