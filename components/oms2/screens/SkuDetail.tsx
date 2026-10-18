@@ -19,6 +19,7 @@ import {
   type SkuFulfillmentEconomics,
   fetchSkuReplenishmentProfile,
   updateSkuReplenishmentProfile,
+  refreshCortexTasks,
   type SkuReplenishmentProfile,
 } from '../../../lib/oms';
 import { num, docTone, riskLabel, channelColor } from '../../../lib/oms-adapters';
@@ -1297,6 +1298,7 @@ const EditableDetailField = ({
       const next = await updateOmsSkuEnrichment(skuId, field.payload(value));
       onSaved(next);
       setEditing(false);
+      void refreshCortexTasks().catch(() => null);
     } catch (e: any) {
       setError(e.message || 'Save failed');
     } finally {

@@ -13,6 +13,7 @@ import {
   CreateOrderBody,
   OmsCustomer,
   OmsSku,
+  refreshCortexTasks,
 } from '../../../lib/oms';
 import { createSupplier } from '../../../lib/amazon-fba';
 import { parseCsvText } from '../../../lib/csv';
@@ -217,6 +218,7 @@ export const CsvImportModal = ({
       }
       setResult(next);
       setImporting(false);
+      if (next.ok > 0) void refreshCortexTasks().catch(() => null);
       if (next.ok > 0 && next.failed.length === 0) onSuccess();
       return;
     }
@@ -230,6 +232,7 @@ export const CsvImportModal = ({
     }
     setResult(next);
     setImporting(false);
+    if (next.ok > 0) void refreshCortexTasks().catch(() => null);
     if (next.ok > 0 && next.failed.length === 0) onSuccess();
   };
 

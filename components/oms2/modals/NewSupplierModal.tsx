@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Modal } from '../ui';
 import { createSupplier, updateSupplier } from '../../../lib/amazon-fba';
 import { AddressInput } from '../../AddressInput';
-import type { OmsSupplier } from '../../../lib/oms';
+import { refreshCortexTasks, type OmsSupplier } from '../../../lib/oms';
 
 const field: React.CSSProperties = {
   width: '100%',
@@ -187,6 +187,7 @@ export const NewSupplierModal = ({
       };
       const s = editing && supplier?.id ? await updateSupplier(supplier.id, body) : await createSupplier(body);
       onSuccess(s as unknown as OmsSupplier);
+      void refreshCortexTasks().catch(() => null);
     } catch (e: any) {
       setErr(e.message || `Failed to ${editing ? 'update' : 'create'} supplier`);
       setSaving(false);
