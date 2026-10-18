@@ -112,6 +112,7 @@ export const AppStudioModal = ({ onClose }: { onClose: () => void }) => {
   const [templates, setTemplates] = useState<Feature[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -176,40 +177,43 @@ export const AppStudioModal = ({ onClose }: { onClose: () => void }) => {
 
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId);
 
+  const runStudioAction = async (key: string, action: () => Promise<void>, fallback: string) => {
+    setBusy(key);
+    setActionError(null);
+    try {
+      await action();
+    } catch (error: any) {
+      setActionError(error?.message || fallback);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const toggleScope = (scope: string) => {
     setSelectedScopes((prev) => (prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]));
   };
 
   const submitApiKey = async () => {
-    setBusy('api-key');
-    try {
+    await runStudioAction('api-key', async () => {
       const result = await createOmsApiKey({ name: apiKeyName.trim() || 'OMS integration key', scopes: selectedScopes });
       setCreatedKey(result.apiKey);
       await load();
-    } finally {
-      setBusy(null);
-    }
+    }, 'The integration key could not be created.');
   };
 
   const rotateKey = async (key: OmsApiKey) => {
-    setBusy(`rotate:${key.id}`);
-    try {
+    await runStudioAction(`rotate:${key.id}`, async () => {
       const result = await rotateOmsApiKey(key.id);
       setCreatedKey(result.apiKey);
       await load();
-    } finally {
-      setBusy(null);
-    }
+    }, 'The integration key could not be rotated.');
   };
 
   const revokeKey = async (key: OmsApiKey) => {
-    setBusy(`revoke:${key.id}`);
-    try {
+    await runStudioAction(`revoke:${key.id}`, async () => {
       await revokeOmsApiKey(key.id);
       await load();
-    } finally {
-      setBusy(null);
-    }
+    }, 'The integration key could not be revoked.');
   };
 
   const submitApp = async () => {
@@ -277,9 +281,8 @@ export const AppStudioModal = ({ onClose }: { onClose: () => void }) => {
   };
 
   const deployGuidedApp = async () => {
-    setBusy('deploy');
     setDeployResult(null);
-    try {
+    await runStudioAction('deploy', async () => {
       let app: OmsCustomApp | null = null;
       if (selectedTemplateId) {
         const installed = await installOmsAppTemplate(selectedTemplateId, {
@@ -298,44 +301,41 @@ export const AppStudioModal = ({ onClose }: { onClose: () => void }) => {
       setDeployResult(`Deployed ${app?.name || 'custom app'} with ${employee?.name || 'no AI employee'} and ${workflow?.name || 'no workflow'}.`);
       await load();
       setStep(6);
-    } finally {
-      setBusy(null);
-    }
+    }, 'The guided app could not be deployed.');
   };
 
   const installTemplate = async (feature: Feature) => {
-    setBusy(`template:${feature.id}`);
-    try {
+    await runStudioAction(`template:${feature.id}`, async () => {
       await installOmsAppTemplate(feature.id);
       setMode('manage');
       setTab('apps');
       await load();
-    } finally {
-      setBusy(null);
-    }
+    }, `${templateName(feature)} could not be installed.`);
   };
 
   const run = async (workflow: OmsWorkflow) => {
-    setBusy(`run:${workflow.id}`);
-    try {
+    await runStudioAction(`run:${workflow.id}`, async () => {
       await runWorkflow(workflow.id, { source: 'app_studio_manual_run' });
       setMode('manage');
       setTab('runs');
       await load();
-    } finally {
-      setBusy(null);
-    }
+    }, `${workflow.name} could not be started.`);
   };
 
   const approve = async (runItem: OmsWorkflowRun) => {
-    if (!runItem.workflowId) return;
-    setBusy(`approve:${runItem.id}`);
-    try {
-      await approveWorkflowRun(runItem.workflowId, runItem.id);
+    const workflowId = runItem.workflowId;
+    if (!workflowId) return;
+    await runStudioAction(`approve:${runItem.id}`, async () => {
+      await approveWorkflowRun(workflowId, runItem.id);
       await load();
-    } finally {
-      setBusy(null);
-    }
+    }, 'The workflow run could not be approved.');
+  };
+
+  const archiveApp = async (app: OmsCustomApp) => {
+    await runStudioAction(`archive:${app.id}`, async () => {
+      await archiveOmsApp(app.id);
+      await load();
+    }, `${app.name} could not be archived.`);
   };
 
   const parseSamplePayload = () => {
@@ -647,7 +647,7 @@ Idempotency-Key: your-event-id
             <Field label="Description">
               <textarea style={textareaStyle} value={appDescription} onChange={(e) => setAppDescription(e.target.value)} />
             </Field>
-            <button className="btn primary" onClick={async () => { setBusy('app'); try { await submitApp(); await load(); } finally { setBusy(null); } }} disabled={busy === 'app' || !appName.trim()}>
+            <button className="btn primary" onClick={() => void runStudioAction('app', async () => { await submitApp(); await load(); }, 'The private app could not be created.')} disabled={busy === 'app' || !appName.trim()}>
               <Icon name="plus" size={13} /> Create app
             </button>
           </Panel>
@@ -665,7 +665,7 @@ Idempotency-Key: your-event-id
                         <td><StatusChip status={app.status} /></td>
                         <td><Chip dot={false}>{app.visibility}</Chip></td>
                         <td>{app.updatedAt ? new Date(app.updatedAt).toLocaleDateString() : '-'}</td>
-                        <td>{app.status !== 'archived' && <button className="btn ghost sm" onClick={() => archiveOmsApp(app.id).then(load)}>Archive</button>}</td>
+                        <td>{app.status !== 'archived' && <button className="btn ghost sm" onClick={() => void archiveApp(app)} disabled={busy === `archive:${app.id}`}>{busy === `archive:${app.id}` ? 'Archiving...' : 'Archive'}</button>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -682,7 +682,7 @@ Idempotency-Key: your-event-id
             <Field label="Name"><input style={inputStyle} value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} /></Field>
             <Field label="Role"><input style={inputStyle} value={employeeRole} onChange={(e) => setEmployeeRole(e.target.value)} /></Field>
             <Field label="Instructions"><textarea style={textareaStyle} value={employeeInstructions} onChange={(e) => setEmployeeInstructions(e.target.value)} /></Field>
-            <button className="btn primary" onClick={async () => { setBusy('employee'); try { await submitEmployee(); await load(); } finally { setBusy(null); } }} disabled={busy === 'employee' || !employeeName.trim()}>
+            <button className="btn primary" onClick={() => void runStudioAction('employee', async () => { await submitEmployee(); await load(); }, 'The AI employee could not be created.')} disabled={busy === 'employee' || !employeeName.trim()}>
               <Icon name="sparkle" size={13} /> Create employee
             </button>
           </Panel>
@@ -713,7 +713,7 @@ Idempotency-Key: your-event-id
             <Field label="Workflow name"><input style={inputStyle} value={workflowName} onChange={(e) => setWorkflowName(e.target.value)} /></Field>
             <Field label="Trigger"><select style={inputStyle} value={workflowTrigger} onChange={(e) => setWorkflowTrigger(e.target.value)}>{TRIGGERS.map((trigger) => <option key={trigger.id} value={trigger.id}>{trigger.label}</option>)}</select></Field>
             <Field label="Action"><select style={inputStyle} value={workflowAction} onChange={(e) => setWorkflowAction(e.target.value)}>{ACTION_TYPES.map((action) => <option key={action.id} value={action.id}>{action.label}</option>)}</select></Field>
-            <button className="btn primary" onClick={async () => { setBusy('workflow'); try { await submitWorkflow(); await load(); } finally { setBusy(null); } }} disabled={busy === 'workflow' || !workflowName.trim()}>
+            <button className="btn primary" onClick={() => void runStudioAction('workflow', async () => { await submitWorkflow(); await load(); }, 'The workflow could not be created.')} disabled={busy === 'workflow' || !workflowName.trim()}>
               <Icon name="bolt" size={13} /> Create workflow
             </button>
           </Panel>
@@ -794,6 +794,15 @@ Idempotency-Key: your-event-id
         <Loading rows={8} />
       ) : (
         <div className="studio-root">
+          {actionError && (
+            <div className="inline-banner danger" role="alert">
+              <Icon name="warning" size={13} />
+              <span style={{ flex: 1 }}>{actionError}</span>
+              <button className="icon-btn" onClick={() => setActionError(null)} aria-label="Dismiss App Studio error" data-hint="Dismiss">
+                <Icon name="x" size={12} />
+              </button>
+            </div>
+          )}
           <div className="studio-topline">
             <div className="studio-stat-grid">
               {stats.map((stat) => (
