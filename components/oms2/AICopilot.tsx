@@ -67,6 +67,9 @@ const chatTimeLabel = (value?: string) => {
   return parsed.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 };
 
+const activeThreadKey = (screen: string, entityType?: string | null, entityId?: string | null) =>
+  `unie:cortex-active-thread:${encodeURIComponent([screen || 'command', entityType || '', entityId || ''].join(':'))}`;
+
 const cortexDisplayText = (text?: string | null) =>
   String(text || '')
     .split(/\n{1,2}(?:Sources|Suggested actions|Readiness notes|Confidence):?/i, 1)[0]
@@ -265,6 +268,16 @@ export const AICopilot = ({
   const requestInFlightRef = useRef(false);
   const conversationEpochRef = useRef(0);
   const chatAbortRef = useRef<AbortController | null>(null);
+  const threadStorageKey = activeThreadKey(section, entityType, entityId);
+
+  const rememberActiveThread = (id?: string | null) => {
+    try {
+      if (id) window.sessionStorage.setItem(threadStorageKey, id);
+      else window.sessionStorage.removeItem(threadStorageKey);
+    } catch {
+      /* Session storage is optional; server-side thread history remains authoritative. */
+    }
+  };
 
   const welcomeMessage = () => {
     const screenLabel = String(section || 'this screen').replace(/-/g, ' ');
@@ -288,6 +301,7 @@ export const AICopilot = ({
     setThreadOpenError(null);
     setFailedThreadId(null);
     setThreadId(null);
+    rememberActiveThread(null);
     setHistory([{ role: 'ai', body: welcomeMessage() }]);
   };
 
@@ -301,7 +315,9 @@ export const AICopilot = ({
       const r = await fetchCortexChatThread(id);
       if (conversationEpochRef.current !== epoch) return;
       setThreadId(r.thread.id);
-      setHistory((r.messages || []).filter((m) => m.role !== 'system').map(messageToHistory));
+      rememberActiveThread(r.thread.id);
+      const restored = (r.messages || []).filter((m) => m.role !== 'system').map(messageToHistory);
+      setHistory(restored.length ? restored : [{ role: 'ai', body: welcomeMessage() }]);
     } catch (error: any) {
       if (conversationEpochRef.current !== epoch) return;
       setThreadOpenError(error?.message || 'That thread could not be opened.');
@@ -320,7 +336,15 @@ export const AICopilot = ({
     setLoadingThread(false);
     setThreadId(null);
     setThreads([]);
+    setHistory([]);
     let cancelled = false;
+    let savedThreadId = '';
+    try {
+      savedThreadId = window.sessionStorage.getItem(threadStorageKey) || '';
+    } catch {
+      savedThreadId = '';
+    }
+    const restoreEpoch = conversationEpochRef.current;
     const checkHealth = (showChecking = false) => {
       if (showChecking) setCortexHealth('checking');
       fetchCortexChatHealth(section)
@@ -339,13 +363,31 @@ export const AICopilot = ({
       .then((c) => {
         if (cancelled) return;
         setCtx(c);
-        setHistory([{ role: 'ai', body: welcomeMessage() }]);
+        if (!savedThreadId) setHistory([{ role: 'ai', body: welcomeMessage() }]);
       })
       .catch(() => {
         if (cancelled) return;
         setCtx(null);
-        setHistory([{ role: 'ai', body: welcomeMessage() }]);
+        if (!savedThreadId) setHistory([{ role: 'ai', body: welcomeMessage() }]);
       });
+    if (savedThreadId) {
+      setLoadingThread(true);
+      fetchCortexChatThread(savedThreadId)
+        .then((r) => {
+          if (cancelled || conversationEpochRef.current !== restoreEpoch) return;
+          setThreadId(r.thread.id);
+          const restored = (r.messages || []).filter((m) => m.role !== 'system').map(messageToHistory);
+          setHistory(restored.length ? restored : [{ role: 'ai', body: welcomeMessage() }]);
+        })
+        .catch(() => {
+          if (cancelled || conversationEpochRef.current !== restoreEpoch) return;
+          rememberActiveThread(null);
+          setHistory([{ role: 'ai', body: welcomeMessage() }]);
+        })
+        .finally(() => {
+          if (!cancelled && conversationEpochRef.current === restoreEpoch) setLoadingThread(false);
+        });
+    }
     loadThreads();
     return () => {
       cancelled = true;
@@ -395,7 +437,10 @@ export const AICopilot = ({
         controller.signal,
       );
       if (conversationEpochRef.current !== epoch) return;
-      if (res.thread?.id) setThreadId(res.thread.id);
+      if (res.thread?.id) {
+        setThreadId(res.thread.id);
+        rememberActiveThread(res.thread.id);
+      }
       const responseHealth = res.cortex?.health;
       const cortexUnavailable = responseHealth?.available === false;
       // Account-fact fast paths intentionally skip the live model route. Do
