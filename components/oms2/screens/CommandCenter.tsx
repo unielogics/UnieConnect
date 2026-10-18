@@ -552,7 +552,7 @@ const AiPlanCard = ({
                     {costVariancePct > 0 ? ` · ${costVariancePct.toFixed(2)}% apart` : ''}
                   </span>
                 </div>
-                <button className="btn ghost sm" onClick={() => onNavigate('billing')}>
+                <button className="btn ghost sm" onClick={() => onNavigate('billing', 'action:review-cost-baseline')}>
                   Review billing <Icon name="arrowRight" size={12} />
                 </button>
               </div>

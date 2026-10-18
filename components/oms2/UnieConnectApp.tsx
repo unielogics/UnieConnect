@@ -290,6 +290,7 @@ export default function UnieConnectApp() {
       }
       if (safeTarget === 'billing' && payload) {
         if (payload === 'action:upload-csv') q.action = 'upload-csv';
+        else if (payload === 'action:review-cost-baseline') q.action = 'review-cost-baseline';
         else q.invoice = payload;
       }
       if (safeTarget === 'support' && payload) {

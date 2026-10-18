@@ -70,8 +70,10 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCs
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
   const [payingInvoice, setPayingInvoice] = useState<string | null>(null);
   const [payError, setPayError] = useState<{ invoiceNumber: string; message: string } | null>(null);
+  const [costBaselineFocused, setCostBaselineFocused] = useState(false);
 
   const ledgerRef = useRef<HTMLDivElement>(null);
+  const costBaselineRef = useRef<HTMLDivElement>(null);
   // Pass `load` so approving/rejecting a billing plan immediately refetches the profit + hero.
   const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('billing', 100, () => void load());
 
@@ -122,6 +124,18 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCs
     const requested = String(router.query.invoice || '').trim();
     if (requested && requested !== selectedInvoice) setSelectedInvoice(requested);
   }, [router.isReady, router.query.invoice, selectedInvoice]);
+
+  useEffect(() => {
+    if (!router.isReady || router.query.action !== 'review-cost-baseline') return;
+    setCostBaselineFocused(true);
+    const timer = window.setTimeout(() => {
+      costBaselineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+    const query: Record<string, string | string[] | undefined> = { ...router.query, view: 'billing' };
+    delete query.action;
+    void router.replace({ pathname: '/oms', query }, undefined, { shallow: true });
+    return () => window.clearTimeout(timer);
+  }, [router, router.isReady, router.query.action]);
 
   const openInvoice = (invoiceNumber: string) => {
     setSelectedInvoice(invoiceNumber);
@@ -333,7 +347,30 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCs
         </div>
       )}
 
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div
+        ref={costBaselineRef}
+        className={`card billing-cost-baseline ${costBaselineFocused ? 'focused' : ''}`}
+        style={{ marginBottom: 16 }}
+      >
+        {costBaselineFocused && (
+          <div className="billing-cost-baseline-guidance" role="status">
+            <div>
+              <strong>AI plan cost baseline</strong>
+              <span>Confirm that this 30-day billed total includes the evidence Cortex should model. Import missing invoice lines, then rerun the plan from Business Double.</span>
+            </div>
+            <div className="billing-cost-baseline-actions">
+              <button className="btn ghost sm" onClick={() => onImportCsv?.('billing')}>
+                <Icon name="download" size={12} style={{ transform: 'rotate(180deg)' }} /> Import billing CSV
+              </button>
+              <button className="btn primary sm" onClick={() => onNavigate('double')}>
+                Open Business Double <Icon name="arrowRight" size={12} />
+              </button>
+              <button className="icon-btn" data-hint="Dismiss guidance" aria-label="Dismiss AI plan cost guidance" onClick={() => setCostBaselineFocused(false)}>
+                <Icon name="x" size={12} />
+              </button>
+            </div>
+          </div>
+        )}
         <div className="card-body command-mini-metrics" style={{ gap: 18, alignItems: 'center' }}>
           <div>
             <div className="kv-label">{isCsvEvidence || isMixedEvidence ? 'Invoice evidence total' : 'Billed total'}</div>

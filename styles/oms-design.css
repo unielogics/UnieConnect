@@ -1016,6 +1016,13 @@
 .uc-shell .ai-plan-run-status.running svg,
 .uc-shell .business-plan-run-status.running svg { animation: cortex-progress-spin 1.2s linear infinite; }
 @keyframes cortex-progress-spin { to { transform: rotate(360deg); } }
+.uc-shell .billing-cost-baseline { scroll-margin-top: 84px; transition: border-color 0.18s ease, box-shadow 0.18s ease; }
+.uc-shell .billing-cost-baseline.focused { border-color: var(--purple); box-shadow: 0 0 0 2px var(--purple-soft); }
+.uc-shell .billing-cost-baseline-guidance { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); background: var(--purple-soft); }
+.uc-shell .billing-cost-baseline-guidance > div:first-child { display: grid; min-width: 0; gap: 3px; }
+.uc-shell .billing-cost-baseline-guidance strong { color: var(--purple-text); font-size: 12.5px; }
+.uc-shell .billing-cost-baseline-guidance span { color: var(--text-secondary); font-size: 11.5px; line-height: 1.4; }
+.uc-shell .billing-cost-baseline-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
 .uc-shell .command-channel-table { min-width: 560px; }
 .uc-shell .command-channel-table th,
 .uc-shell .command-channel-table td { padding: 11px 14px; }
@@ -1061,6 +1068,8 @@
   .uc-shell .command-task-plan-row { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
+  .uc-shell .billing-cost-baseline-guidance { grid-template-columns: 1fr; }
+  .uc-shell .billing-cost-baseline-actions { justify-content: flex-start; flex-wrap: wrap; }
   .uc-shell .ai-plan-metrics { grid-template-columns: 1fr; gap: 10px; }
   .uc-shell .ai-plan-metrics > div { padding: 0; }
   .uc-shell .ai-plan-metrics > div + div { border-left: 0; border-top: 1px solid var(--border-subtle); padding-top: 10px; }
