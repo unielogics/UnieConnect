@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
 import {
   CORTEX_TASKS_CHANGED_EVENT,
@@ -43,6 +43,19 @@ export const TITLE_MAP: Record<string, [string, string]> = {
   admin: ['OMS Administration', 'Accounts, warehouse links, and API credentials'],
 };
 
+const taskAreaLabel = (value: string) => {
+  const normalized = String(value || 'command').replace(/[-_]+/g, ' ');
+  if (normalized.toLowerCase() === 'skus') return 'SKUs';
+  return normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
+const taskSourceLabel = (value: string) => {
+  if (value === 'readiness') return 'Account readiness';
+  if (value === 'connection_health') return 'Connection health';
+  if (value === 'recommendation') return 'Cortex recommendation';
+  return String(value || 'Cortex').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
 export const TopBar = ({
   section,
   copilotOpen,
@@ -82,55 +95,48 @@ export const TopBar = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const taskWrapRef = useRef<HTMLDivElement>(null);
   const taskButtonRef = useRef<HTMLButtonElement>(null);
+  const taskRequestRef = useRef(0);
+  const suppressNextTaskEventRef = useRef(false);
 
-  const loadTasks = async (refresh = false) => {
+  const loadTasks = useCallback(async (refresh = false) => {
+    const requestId = ++taskRequestRef.current;
     setTasksLoading(true);
     setTaskError(null);
     try {
       const r = await fetchCortexTasks({ status: 'open', refresh, limit: 12 });
+      if (taskRequestRef.current !== requestId) return;
       setTasks(r.tasks || []);
       setTaskTotal(r.total ?? r.tasks?.length ?? 0);
       setTaskSummary(r.summary || { highPriority: 0, workAreas: [], sources: [] });
     } catch (error: any) {
-      setTaskError(error?.message || 'Cortex tasks could not be loaded.');
+      if (taskRequestRef.current === requestId) {
+        setTaskError(error?.message || 'Cortex tasks could not be loaded.');
+      }
     } finally {
-      setTasksLoading(false);
+      if (taskRequestRef.current === requestId) setTasksLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const refreshTasks = (refresh = false) => {
-      setTasksLoading(true);
-      setTaskError(null);
-      fetchCortexTasks({ status: 'open', refresh, limit: 12 })
-        .then((r) => {
-          if (!cancelled) {
-            setTasks(r.tasks || []);
-            setTaskTotal(r.total ?? r.tasks?.length ?? 0);
-            setTaskSummary(r.summary || { highPriority: 0, workAreas: [], sources: [] });
-          }
-        })
-        .catch((error: any) => {
-          if (!cancelled) setTaskError(error?.message || 'Cortex tasks could not be loaded.');
-        })
-        .finally(() => {
-          if (!cancelled) setTasksLoading(false);
-        });
+    const onFocus = () => { void loadTasks(false); };
+    const onTasksChanged = () => {
+      if (suppressNextTaskEventRef.current) {
+        suppressNextTaskEventRef.current = false;
+        return;
+      }
+      void loadTasks(false);
     };
-    const onFocus = () => refreshTasks(false);
-    const onTasksChanged = () => refreshTasks(false);
-    refreshTasks(true);
+    void loadTasks(true);
     window.addEventListener('focus', onFocus);
     window.addEventListener(CORTEX_TASKS_CHANGED_EVENT, onTasksChanged);
-    const timer = window.setInterval(() => refreshTasks(false), 90000);
+    const timer = window.setInterval(() => { void loadTasks(false); }, 90000);
     return () => {
-      cancelled = true;
+      taskRequestRef.current += 1;
       window.removeEventListener('focus', onFocus);
       window.removeEventListener(CORTEX_TASKS_CHANGED_EVENT, onTasksChanged);
       window.clearInterval(timer);
     };
-  }, []);
+  }, [loadTasks]);
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
@@ -258,6 +264,7 @@ export const TopBar = ({
         setTaskNotice({ tone: 'success', text: 'Task dismissed from the active inbox.' });
       }
       await loadTasks(true);
+      suppressNextTaskEventRef.current = true;
       notifyCortexTasksChanged();
     } catch (error: any) {
       setTaskError(error?.message || 'The task could not be updated.');
@@ -394,10 +401,15 @@ export const TopBar = ({
               <div className="task-popover-summary">
                 <span><strong>{highTaskCount}</strong> high priority</span>
                 <span><strong>{taskSummary.workAreas.length}</strong> work areas</span>
-                <span>{workAreas.map((area) => String(area).replace(/-/g, ' ')).join(' · ')}</span>
+                <span>{workAreas.map(taskAreaLabel).join(' · ')}</span>
               </div>
             )}
-            {taskError && <div className="task-popover-error" role="alert"><Icon name="warning" size={12} /> {taskError}</div>}
+            {taskError && (
+              <div className="task-popover-error" role="alert">
+                <Icon name="warning" size={12} />
+                <span>{taskError}{tasks.length ? ' Showing the last available tasks.' : ''}</span>
+              </div>
+            )}
             {taskNotice && (
               <div className={`task-popover-notice ${taskNotice.tone}`} role="status">
                 <Icon name={taskNotice.tone === 'success' ? 'check' : 'info'} size={12} /> {taskNotice.text}
@@ -426,8 +438,8 @@ export const TopBar = ({
                     <span className={`task-priority ${task.priority}`}>{task.priority}</span>
                     <strong>{task.title}</strong>
                     <span className="task-popover-meta">
-                      <span>{String(task.actionTarget || task.screen || 'command').replace(/-/g, ' ')}</span>
-                      {task.source && <span>{task.source.replace(/_/g, ' ')}</span>}
+                      <span>{taskAreaLabel(task.actionTarget || task.screen || 'command')}</span>
+                      {task.source && <span>{taskSourceLabel(task.source)}</span>}
                     </span>
                     {task.detail && <small>{task.detail}</small>}
                     <small className="task-action-copy">{task.actionLabel || 'Open task'}</small>
