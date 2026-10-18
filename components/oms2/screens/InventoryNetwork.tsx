@@ -65,6 +65,7 @@ const KeepaMarker = ({ sku }: { sku: Pick<OmsSku, 'keepaUnavailable' | 'enrichme
 
 export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewProduct, onImportCsv }: ScreenProps) => {
   const router = useRouter();
+  const shipmentIntent = router.query.shipment === 'create';
   const [view, setView] = useState<'table' | 'heatmap' | 'treemap'>('table');
   const [search, setSearch] = useState('');
   const [skus, setSkus] = useState<OmsSku[]>([]);
@@ -191,6 +192,20 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
           <span style={{ flex: 1 }}>{recommendationError} Catalog data remains available.</span>
           <button className="btn ghost sm" onClick={loadRecommendations}>
             <Icon name="refresh" size={12} /> Retry Cortex
+          </button>
+        </div>
+      )}
+
+      {shipmentIntent && (
+        <div className="inline-banner info" role="status" style={{ marginBottom: 12 }}>
+          <Icon name="shipments" size={13} />
+          <span style={{ flex: 1 }}><strong>Create shipment plan:</strong> select one or more SKUs from the same supplier. The shipment action appears in the selection bar.</span>
+          <button
+            className="icon-btn dismiss-x"
+            aria-label="Dismiss shipment instructions"
+            onClick={() => router.replace({ pathname: '/oms', query: { view: 'skus' } }, undefined, { shallow: true })}
+          >
+            <Icon name="x" size={12} />
           </button>
         </div>
       )}
