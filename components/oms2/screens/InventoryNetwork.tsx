@@ -525,7 +525,8 @@ export const RecommendationDrawer = ({
 }) => {
   const [busy, setBusy] = useState('');
   const [edit, setEdit] = useState(false);
-  const [current, setCurrent] = useState(JSON.stringify(rec.currentValue || {}, null, 2));
+  const [actionError, setActionError] = useState<string | null>(null);
+  const current = JSON.stringify(rec.currentValue || {}, null, 2);
   const [optimized, setOptimized] = useState(JSON.stringify(rec.optimizedValue || {}, null, 2));
   const missingFields = recommendationMissingFields(rec);
   const isMissingDataBlocker =
@@ -534,11 +535,27 @@ export const RecommendationDrawer = ({
     missingFields.length > 0;
   const act = async (action: 'approve' | 'reject') => {
     setBusy(action);
+    setActionError(null);
     try {
-      if (action === 'approve') await approveRecommendation(rec.id, { source: 'sku_table' });
+      if (action === 'approve') {
+        let editedOptimizedValue: Record<string, unknown> | undefined;
+        if (edit) {
+          const parsed = JSON.parse(optimized);
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('The edited suggestion must be a JSON object.');
+          }
+          editedOptimizedValue = parsed as Record<string, unknown>;
+        }
+        await approveRecommendation(rec.id, {
+          source: 'sku_table',
+          ...(editedOptimizedValue ? { optimizedValue: editedOptimizedValue, edited: true } : {}),
+        });
+      }
       else await rejectRecommendation(rec.id, 'Denied from SKU optimization drawer');
       onChanged();
       onClose();
+    } catch (error: any) {
+      setActionError(error?.message || `The Cortex recommendation could not be ${action === 'approve' ? 'approved' : 'denied'}.`);
     } finally {
       setBusy('');
     }
@@ -548,10 +565,16 @@ export const RecommendationDrawer = ({
       title="Cortex optimization"
       subtitle="Review current state, suggested action, impact, and decision status."
       onClose={onClose}
-      footer={<button className="btn" onClick={() => setEdit((v) => !v)}><Icon name="save" size={12} /> {edit ? 'Preview' : 'Edit JSON'}</button>}
+      footer={<button className="btn" onClick={() => { setActionError(null); setEdit((v) => !v); }}><Icon name="edit" size={12} /> {edit ? 'Preview suggestion' : 'Edit suggestion data'}</button>}
     >
       <div style={{ display: 'grid', gap: 14 }}>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{rec.summary}</div>
+        {actionError && (
+          <div className="inline-banner danger" role="alert">
+            <Icon name="warning" size={13} />
+            <span style={{ flex: 1 }}>{actionError}</span>
+          </div>
+        )}
         {isMissingDataBlocker && (
           <div
             style={{
@@ -587,8 +610,11 @@ export const RecommendationDrawer = ({
         <DecisionComparison rec={rec} busy={!!busy} onApprove={() => act('approve')} onDeny={() => act('reject')} />
         {edit && (
           <>
-            <CompareBlock label="Current JSON" value={current} edit={edit} onChange={setCurrent} />
-            <CompareBlock label="Suggested JSON" value={optimized} edit={edit} onChange={setOptimized} tone="purple" />
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+              Edit the suggested values below, then select Approve. The edited suggestion becomes the approved Cortex decision and is recorded in the ledger.
+            </div>
+            <CompareBlock label="Current evidence (read only)" value={current} edit={false} />
+            <CompareBlock label="Suggested values to approve" value={optimized} edit onChange={setOptimized} tone="purple" />
             <CompareBlock label="Impact details" value={JSON.stringify(rec.estimatedImpact || {}, null, 2)} edit={false} tone="green" />
           </>
         )}
