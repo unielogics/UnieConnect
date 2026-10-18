@@ -92,7 +92,9 @@ export const timeAgo = (iso?: string): string => {
   if (!iso) return '';
   const d = new Date(iso).getTime();
   if (Number.isNaN(d)) return iso;
-  const mins = Math.max(0, Math.round((Date.now() - d) / 60000));
+  const elapsedMs = Math.max(0, Date.now() - d);
+  if (elapsedMs < 60000) return 'just now';
+  const mins = Math.floor(elapsedMs / 60000);
   if (mins < 60) return `${mins}m ago`;
   const h = Math.round(mins / 60);
   if (h < 24) return `${h}h ago`;

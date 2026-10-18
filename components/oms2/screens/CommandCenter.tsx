@@ -519,7 +519,7 @@ const CortexTasksPanel = ({
           <div className="cortex-task-summary">
             <MiniMetric label="High priority" value={String(highPriority)} sub="needs action" tone={highPriority ? 'red' : 'green'} />
             <MiniMetric label="Work areas" value={String(screens.length)} sub={screens.map((s) => s.replace(/-/g, ' ')).join(', ') || 'none'} />
-            <MiniMetric label="Sources" value={String(sources.length)} sub={sources.join(', ')} />
+            <MiniMetric label="Sources" value={String(sources.length)} sub={sources.map((source) => source.replace(/_/g, ' ')).join(', ')} />
           </div>
           <div className="table-wrap">
             <table className="data-table cortex-task-table">
@@ -539,10 +539,10 @@ const CortexTasksPanel = ({
                       <strong>{task.title}</strong>
                       {task.detail && <div className="muted">{task.detail}</div>}
                     </td>
-                    <td><span className={`task-priority ${task.priority}`}>{task.priority}</span></td>
-                    <td>{(task.screen || task.actionTarget || 'command').replace(/-/g, ' ')}</td>
-                    <td><Chip dot={false}>{task.source}</Chip></td>
-                    <td>
+                    <td data-label="Priority"><span className={`task-priority ${task.priority}`}>{task.priority}</span></td>
+                    <td data-label="Where">{(task.screen || task.actionTarget || 'command').replace(/-/g, ' ')}</td>
+                    <td data-label="Source"><Chip dot={false}>{task.source.replace(/_/g, ' ')}</Chip></td>
+                    <td data-label="Actions">
                       <div className="row-actions">
                         <button
                           className="btn ghost sm task-open-btn"
