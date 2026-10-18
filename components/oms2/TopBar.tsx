@@ -6,6 +6,7 @@ import {
   dismissCortexTask,
   fetchCortexChatHealth,
   fetchCortexTasks,
+  notifyCortexTasksChanged,
   searchOms,
   CortexTask,
   CortexTaskSummary,
@@ -77,17 +78,19 @@ export const TopBar = ({
   const taskWrapRef = useRef<HTMLDivElement>(null);
   const taskButtonRef = useRef<HTMLButtonElement>(null);
 
-  const loadTasks = (refresh = false) => {
+  const loadTasks = async (refresh = false) => {
     setTasksLoading(true);
     setTaskError(null);
-    fetchCortexTasks({ status: 'open', refresh, limit: 12 })
-      .then((r) => {
-        setTasks(r.tasks || []);
-        setTaskTotal(r.total ?? r.tasks?.length ?? 0);
-        setTaskSummary(r.summary || { highPriority: 0, workAreas: [], sources: [] });
-      })
-      .catch((error: any) => setTaskError(error?.message || 'Cortex tasks could not be loaded.'))
-      .finally(() => setTasksLoading(false));
+    try {
+      const r = await fetchCortexTasks({ status: 'open', refresh, limit: 12 });
+      setTasks(r.tasks || []);
+      setTaskTotal(r.total ?? r.tasks?.length ?? 0);
+      setTaskSummary(r.summary || { highPriority: 0, workAreas: [], sources: [] });
+    } catch (error: any) {
+      setTaskError(error?.message || 'Cortex tasks could not be loaded.');
+    } finally {
+      setTasksLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -238,6 +241,8 @@ export const TopBar = ({
         await dismissCortexTask(task.id);
         setTaskNotice({ tone: 'success', text: 'Task dismissed from the active inbox.' });
       }
+      await loadTasks(true);
+      notifyCortexTasksChanged();
     } catch (error: any) {
       setTaskError(error?.message || 'The task could not be updated.');
     } finally {

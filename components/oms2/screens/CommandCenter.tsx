@@ -177,6 +177,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
         setTaskFeedback({ tone: 'success', text: 'Task dismissed from the active inbox.' });
       }
       await refreshIntelligencePanels(true);
+      notifyCortexTasksChanged();
     } catch (error: any) {
       setTaskFeedback({ tone: 'error', text: error?.message || 'The task could not be updated. Try again.' });
     } finally {
