@@ -56,7 +56,7 @@ const channelEntities: Record<string, string[]> = {
 const statusTone = (status: string) =>
   status === 'healthy' || status === 'live' || status === 'connected'
     ? 'green'
-    : status === 'warn' || status === 'degraded' || status === 'needs_configuration' || status === 'needs_authorization'
+    : status === 'warn' || status === 'degraded' || status === 'partial' || status === 'needs_configuration' || status === 'needs_authorization'
       ? 'amber'
       : status === 'idle'
         ? 'default'
@@ -65,6 +65,7 @@ const statusTone = (status: string) =>
 const statusLabel = (status: string) => {
   const normalized = String(status || '').toLowerCase();
   if (normalized === 'healthy' || normalized === 'live' || normalized === 'connected') return 'Connected';
+  if (normalized === 'partial') return 'Partially connected';
   if (normalized === 'degraded' || normalized === 'warn') return 'Needs attention';
   if (normalized === 'needs_authorization') return 'Authorization required';
   if (normalized === 'needs_configuration') return 'Setup required';
@@ -457,10 +458,17 @@ export const Connections = (_: ScreenProps) => {
         if (!accounts) out.push(...current.filter((connection) => connection.owner === 'marketplace'));
         (accounts || []).forEach((a) => {
           const syncEntries = Object.entries(a.sync || {});
+          const missingLocationScope = a.channel === 'shopify'
+            && !(a.scopes || []).some((scope) => scope === 'read_locations' || scope === 'write_locations');
           const entitySyncIssue = syncEntries
-            .map(([entity, state]) => state?.error || state?.metadata?.warning
-              ? `${entity.replace(/_/g, ' ')}: ${state.error || state.metadata?.warning}`
-              : null)
+            .map(([entity, state]) => {
+              const issue = state?.error || state?.metadata?.warning;
+              if (!issue) return null;
+              const isExpectedLocationWarning = missingLocationScope
+                && entity === 'inventory'
+                && /location-level inventory|read_locations/i.test(String(issue));
+              return isExpectedLocationWarning ? null : `${entity.replace(/_/g, ' ')}: ${issue}`;
+            })
             .filter(Boolean)
             .join('; ');
           const webhookError = a.channel === 'shopify'
@@ -473,9 +481,10 @@ export const Connections = (_: ScreenProps) => {
             entitySyncIssue,
             webhookError ? `real-time updates: ${webhookError}. Use Refresh to retry webhook setup.` : '',
           ].filter(Boolean).join('; ');
-          const missingLocationScope = a.channel === 'shopify'
-            && !(a.scopes || []).some((scope) => scope === 'read_locations' || scope === 'write_locations');
           const degraded = Boolean(missingLocationScope || syncIssue || syncEntries.some(([, state]) => state?.metadata?.degraded));
+          const locationAccessIssue = missingLocationScope
+            ? 'Products and orders are syncing. Inventory totals use product-variant quantities until Shopify location access is approved. Select Repair Shopify access to restore warehouse-level inventory.'
+            : '';
           const syncedEntities: ConnectionCapability[] = syncEntries.length
             ? syncEntries.map(([entity, state]) => {
                 const hasIssue = Boolean(state?.error || state?.metadata?.warning || state?.metadata?.degraded);
@@ -504,11 +513,11 @@ export const Connections = (_: ScreenProps) => {
             id: `marketplace-${a.id}`,
             name: a.label || a.displayName || a.shopDomain || a.channel.toUpperCase(),
             region: a.shopDomain || a.marketplaceId || a.channel,
-            status: degraded ? 'degraded' : a.status || 'connected',
+            status: missingLocationScope && !syncIssue ? 'partial' : degraded ? 'degraded' : a.status || 'connected',
             lastSync: a.lastSyncAt ? timeAgo(a.lastSyncAt) : 'pending',
             entities,
             owner: 'marketplace',
-            issue: syncIssue || (missingLocationScope ? 'Shopify location inventory is unavailable. Reconnect and approve location access to restore warehouse-level quantities.' : undefined),
+            issue: [locationAccessIssue, syncIssue].filter(Boolean).join(' ') || undefined,
             needsRepair: a.status === 'needs_authorization' || a.status === 'needs_configuration' || missingLocationScope,
             raw: a,
           });
