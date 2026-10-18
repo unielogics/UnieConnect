@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
-import { Chip, Sparkline, Loading, ErrorState, EmptyState, Thumb, useCloseOnOmsNavigation, useModalOverlayKeyboard, downloadCsv } from '../ui';
+import { Chip, Loading, ErrorState, EmptyState, Thumb, useCloseOnOmsNavigation, useModalOverlayKeyboard, downloadCsv } from '../ui';
 import { DecisionComparison } from '../DecisionComparison';
 import { CortexPlanApprovals } from '../CortexPlanApprovals';
 import { useCtxMenu } from '../ContextMenu';
@@ -37,12 +37,15 @@ const DocCell = ({ days }: { days: number }) => {
 
 const FillScore = ({ value }: { value: number }) => {
   const tone = value > 80 ? 'green' : value > 60 ? 'amber' : 'red';
+  const bounded = Math.max(0, Math.min(100, value));
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div title={`Current fill score: ${Math.round(bounded)} out of 100`} style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 76 }}>
       <div style={{ width: 28, height: 24, borderRadius: 4, background: `var(--${tone}-soft)`, color: `var(--${tone}-text)`, display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700 }}>
-        {Math.round(value)}
+        {Math.round(bounded)}
       </div>
-      <Sparkline data={[60, 65, value - 5, value - 2, value]} color={`var(--${tone})`} width={32} height={14} />
+      <div className="bar" style={{ width: 38, height: 5 }} aria-hidden="true">
+        <div className={`bar-fill ${tone}`} style={{ width: `${bounded}%` }} />
+      </div>
     </div>
   );
 };
