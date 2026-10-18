@@ -12,6 +12,7 @@ import {
   sendCortexChat,
   CopilotContext,
   CortexChatMessage,
+  CortexChatResponse,
   CortexChatThread,
 } from '../../lib/oms';
 
@@ -559,65 +560,53 @@ export const AICopilot = ({
   const send = async (q: string, appendUser = true, requestId = createChatRequestId()) => {
     if (!q || requestInFlightRef.current || loadingThread) return;
     requestInFlightRef.current = true;
-    const controller = new AbortController();
+    let controller = new AbortController();
     chatAbortRef.current = controller;
-    const timeout = window.setTimeout(() => controller.abort('timeout'), 45000);
+    let timeout = window.setTimeout(() => controller.abort('timeout'), 45000);
     const epoch = conversationEpochRef.current;
+    const request = {
+      screen: section,
+      message: q,
+      threadId,
+      entityType: entityType || undefined,
+      entityId: entityId || undefined,
+      requestId,
+    };
     if (appendUser) setHistory((h) => [...h, { role: 'user', body: q, createdAt: new Date().toISOString() }]);
     setPending(true);
     try {
-      const res = await sendCortexChat(
-        {
-          screen: section,
-          message: q,
-          threadId,
-          entityType: entityType || undefined,
-          entityId: entityId || undefined,
-          requestId,
-        },
-        controller.signal,
-      );
-      if (conversationEpochRef.current !== epoch) return;
-      if (res.thread?.id) {
-        setThreadId(res.thread.id);
-        rememberActiveThread(res.thread.id);
-      }
-      const responseHealth = res.cortex?.health;
-      const cortexUnavailable = responseHealth?.available === false;
-      // Account-fact fast paths intentionally skip the live model route. Do
-      // not let those local, grounded answers overwrite the separately polled
-      // live Cortex health indicator.
-      if (responseHealth?.reason !== 'account_grounded_answer' && typeof responseHealth?.available === 'boolean') {
-        const nextHealth = cortexUnavailable ? 'offline' : 'online';
-        setCortexHealth(nextHealth);
-        notifyCortexHealthChanged(nextHealth);
-      }
-      setHistory((h) => [
-        ...h,
-        {
-          role: 'ai',
-          plainText: cortexDisplayText(res.message?.content || 'Cortex returned no answer.'),
-          muted: cortexUnavailable,
-          sources: res.message?.sources,
-          actions: (res.message?.tasks || []) as ChatAction[],
-          readinessNote: visibleReadinessNote(res.message?.content, res.message?.readinessNotes),
-          createdAt: res.message?.createdAt || new Date().toISOString(),
-          body: (
-            <>
-              <CortexAnswer text={res.message?.content || 'Cortex returned no answer.'} />
-              {res.message?.confidence != null && <AnswerConfidence value={res.message.confidence} />}
-            </>
-          ),
-        },
-      ]);
-      loadThreads();
+      const res = await sendCortexChat(request, controller.signal);
+      applyChatResponse(res, epoch);
     } catch (error: any) {
       if (conversationEpochRef.current !== epoch) return;
       const aborted = controller.signal.aborted || error?.name === 'AbortError';
       const timedOut = aborted && controller.signal.reason === 'timeout';
       const stoppedByUser = aborted && !timedOut;
-      const stillProcessing = /still preparing the original answer/i.test(String(error?.message || ''));
-      if (!stoppedByUser) {
+      let finalError = error;
+      let finalTimedOut = timedOut;
+      let finalStoppedByUser = stoppedByUser;
+      if (timedOut) {
+        // The backend continues the account-scoped request after the browser's
+        // first wait expires. Reusing the request ID replays that stored answer
+        // without duplicating the user's message or starting a second model run.
+        window.clearTimeout(timeout);
+        controller = new AbortController();
+        chatAbortRef.current = controller;
+        timeout = window.setTimeout(() => controller.abort('recovery-timeout'), 12000);
+        setPendingStage('writing');
+        try {
+          const recovered = await sendCortexChat(request, controller.signal);
+          applyChatResponse(recovered, epoch);
+          return;
+        } catch (recoveryError: any) {
+          finalError = recoveryError;
+          const recoveryAborted = controller.signal.aborted || recoveryError?.name === 'AbortError';
+          finalTimedOut = recoveryAborted && controller.signal.reason === 'recovery-timeout';
+          finalStoppedByUser = recoveryAborted && !finalTimedOut;
+        }
+      }
+      const stillProcessing = /still preparing the original answer/i.test(String(finalError?.message || ''));
+      if (!finalStoppedByUser) {
         fetchCortexChatHealth(section)
           .then((health) => {
             const nextHealth = health.ok ? 'online' : 'offline';
@@ -639,9 +628,9 @@ export const AICopilot = ({
             <>
               <CortexAnswer text={stillProcessing
                 ? 'Cortex is still preparing the original answer. Retry shortly; the question will not be duplicated.'
-                : timedOut
+                : finalTimedOut
                 ? 'That answer took longer than expected. Your question is still here and can be retried.'
-                : stoppedByUser
+                : finalStoppedByUser
                   ? 'That response was stopped. Your question remains in this account thread and can be retried.'
                   : 'Cortex could not complete that answer. Account data remains isolated and no unrelated data was used.'} />
               <div className="ai-answer-actions">
@@ -682,6 +671,43 @@ export const AICopilot = ({
     } catch {
       setCopiedMessageIndex(null);
     }
+  };
+
+  const applyChatResponse = (res: CortexChatResponse, epoch: number) => {
+    if (conversationEpochRef.current !== epoch) return false;
+    if (res.thread?.id) {
+      setThreadId(res.thread.id);
+      rememberActiveThread(res.thread.id);
+    }
+    const responseHealth = res.cortex?.health;
+    const cortexUnavailable = responseHealth?.available === false;
+    // Account-fact fast paths intentionally skip the live model route. Do not
+    // let those local, grounded answers overwrite separately polled health.
+    if (responseHealth?.reason !== 'account_grounded_answer' && typeof responseHealth?.available === 'boolean') {
+      const nextHealth = cortexUnavailable ? 'offline' : 'online';
+      setCortexHealth(nextHealth);
+      notifyCortexHealthChanged(nextHealth);
+    }
+    setHistory((h) => [
+      ...h,
+      {
+        role: 'ai',
+        plainText: cortexDisplayText(res.message?.content || 'Cortex returned no answer.'),
+        muted: cortexUnavailable,
+        sources: res.message?.sources,
+        actions: (res.message?.tasks || []) as ChatAction[],
+        readinessNote: visibleReadinessNote(res.message?.content, res.message?.readinessNotes),
+        createdAt: res.message?.createdAt || new Date().toISOString(),
+        body: (
+          <>
+            <CortexAnswer text={res.message?.content || 'Cortex returned no answer.'} />
+            {res.message?.confidence != null && <AnswerConfidence value={res.message.confidence} />}
+          </>
+        ),
+      },
+    ]);
+    loadThreads();
+    return true;
   };
 
   return (
