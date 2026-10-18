@@ -396,8 +396,14 @@ export const AICopilot = ({
       );
       if (conversationEpochRef.current !== epoch) return;
       if (res.thread?.id) setThreadId(res.thread.id);
-      const cortexUnavailable = res.cortex?.health?.available === false;
-      setCortexHealth(cortexUnavailable ? 'offline' : 'online');
+      const responseHealth = res.cortex?.health;
+      const cortexUnavailable = responseHealth?.available === false;
+      // Account-fact fast paths intentionally skip the live model route. Do
+      // not let those local, grounded answers overwrite the separately polled
+      // live Cortex health indicator.
+      if (responseHealth?.reason !== 'account_grounded_answer' && typeof responseHealth?.available === 'boolean') {
+        setCortexHealth(cortexUnavailable ? 'offline' : 'online');
+      }
       setHistory((h) => [
         ...h,
         {
