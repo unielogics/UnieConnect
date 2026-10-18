@@ -25,6 +25,14 @@ const label: React.CSSProperties = {
   display: 'block',
 };
 
+const readinessField = (missing: boolean): React.CSSProperties => missing
+  ? { ...field, borderColor: 'var(--amber)', background: 'var(--amber-soft)' }
+  : field;
+
+const readinessLabel = (missing: boolean): React.CSSProperties => missing
+  ? { ...label, color: 'var(--amber-text)' }
+  : label;
+
 const Row = ({ children }: { children: React.ReactNode }) => (
   <div className="modal-form-grid" style={{ gap: 12, marginBottom: 12 }}>{children}</div>
 );
@@ -249,8 +257,15 @@ export const NewSupplierModal = ({
                 <input style={field} value={f.website} onChange={set('website')} />
               </div>
               <div>
-                <label style={label}>Hours of operation</label>
-                <input style={field} value={f.hoursOfOperation} onChange={set('hoursOfOperation')} placeholder="Mon-Fri 08:00-16:00, closed 12:00-13:00" />
+                <label style={readinessLabel(!f.hoursOfOperation.trim())}>
+                  Hours of operation{!f.hoursOfOperation.trim() ? ' · Required for Cortex' : ''}
+                </label>
+                <input
+                  style={readinessField(!f.hoursOfOperation.trim())}
+                  value={f.hoursOfOperation}
+                  onChange={set('hoursOfOperation')}
+                  placeholder="Mon-Fri 08:00-16:00, closed 12:00-13:00"
+                />
               </div>
             </Row>
             <div>
@@ -339,8 +354,16 @@ export const NewSupplierModal = ({
           <div className="card-body">
             <Row>
               <div>
-                <label style={label}>Loading dock</label>
-                <div className="seg" style={{ width: '100%' }}>
+                <label style={readinessLabel(loadingDock == null)}>
+                  Loading dock{loadingDock == null ? ' · Yes or no required' : ''}
+                </label>
+                <div
+                  className="seg"
+                  style={{
+                    width: '100%',
+                    ...(loadingDock == null ? { outline: '1px solid var(--amber)', background: 'var(--amber-soft)' } : {}),
+                  }}
+                >
                   {[
                     ['yes', 'Yes'],
                     ['no', 'No'],
@@ -355,10 +378,17 @@ export const NewSupplierModal = ({
                     </button>
                   ))}
                 </div>
+                {loadingDock == null && (
+                  <div style={{ marginTop: 5, color: 'var(--amber-text)', fontSize: 10.5, lineHeight: 1.35 }}>
+                    Unknown keeps the Cortex readiness task open.
+                  </div>
+                )}
               </div>
               <div>
-                <label style={label}>Maximum vehicle accepted</label>
-                <select style={field} value={f.maxVehicleSize} onChange={set('maxVehicleSize')}>
+                <label style={readinessLabel(!f.maxVehicleSize)}>
+                  Maximum vehicle accepted{!f.maxVehicleSize ? ' · Required for Cortex' : ''}
+                </label>
+                <select style={readinessField(!f.maxVehicleSize)} value={f.maxVehicleSize} onChange={set('maxVehicleSize')}>
                   <option value="">Select vehicle limit</option>
                   {vehicleOptions.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
                 </select>
