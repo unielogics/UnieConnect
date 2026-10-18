@@ -21,17 +21,21 @@ export const OptimizationImpact = ({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
     setLoadError(null);
-    fetchRecommendations({ screen, status: 'open', limit })
-      .then((response) => setItems((response.recommendations || []).filter(isActionableDecisionRecommendation)))
-      .catch((error: any) => setLoadError(error?.message || 'Cortex decisions could not be loaded.'))
-      .finally(() => setLoading(false));
+    try {
+      const response = await fetchRecommendations({ screen, status: 'open', limit });
+      setItems((response.recommendations || []).filter(isActionableDecisionRecommendation));
+    } catch (error: any) {
+      setLoadError(error?.message || 'Cortex decisions could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    load();
+    void load();
   }, [limit, screen]);
 
   const act = async (rec: OmsRecommendation, action: 'approve' | 'reject') => {
@@ -74,7 +78,7 @@ export const OptimizationImpact = ({
         <div className="inline-banner danger" role="alert" style={{ margin: '0 14px 12px' }}>
           <Icon name="warning" size={13} />
           <span style={{ flex: 1 }}>{loadError} Previously loaded decisions are preserved.</span>
-          <button className="btn ghost sm" onClick={load}><Icon name="refresh" size={12} /> Retry decisions</button>
+          <button className="btn ghost sm" onClick={() => void load()}><Icon name="refresh" size={12} /> Retry decisions</button>
         </div>
       )}
       {loading && items.length === 0 ? (
