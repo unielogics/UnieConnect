@@ -210,7 +210,8 @@ export default function UnieConnectApp() {
     setSection(v);
     if (v === 'sku-detail') setSkuDetailId((router.query.sku as string) || null);
     if (router.query.openCortex === '1') setCopilotOpen(true);
-  }, [router.isReady, router.query.view, router.query.sku, router.query.openCortex]);
+    if (v === 'billing' && router.query.action === 'upload-csv') setCsvImport('billing');
+  }, [router.isReady, router.query.view, router.query.sku, router.query.openCortex, router.query.action]);
 
   useEffect(() => {
     setFocusedCortexEntity(null);
@@ -278,7 +279,8 @@ export default function UnieConnectApp() {
         q.entity = payload;
       }
       if (safeTarget === 'billing' && payload) {
-        q.invoice = payload;
+        if (payload === 'action:upload-csv') q.action = 'upload-csv';
+        else q.invoice = payload;
       }
       if (safeTarget === 'support' && payload) {
         q.ticket = payload;
@@ -288,6 +290,15 @@ export default function UnieConnectApp() {
     },
     [closeTransientUi, router, skuDetailId]
   );
+
+  const closeCsvImporter = useCallback(() => {
+    setCsvImport(null);
+    if (router.query.view === 'billing' && router.query.action === 'upload-csv') {
+      const query = { ...router.query };
+      delete query.action;
+      void router.replace({ pathname: '/oms', query }, undefined, { shallow: true });
+    }
+  }, [router]);
 
   const toggleSelect = useCallback((sku: SelSku & { supplierId?: string | null }) => {
     setSelectedSkus((prev) =>
@@ -691,9 +702,9 @@ export default function UnieConnectApp() {
           {csvImport && (
             <CsvImportModal
               entity={csvImport}
-              onClose={() => setCsvImport(null)}
+              onClose={closeCsvImporter}
               onSuccess={() => {
-                setCsvImport(null);
+                closeCsvImporter();
                 bumpScreen();
               }}
             />

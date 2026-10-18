@@ -5,6 +5,7 @@ import {
   createCatalogItem,
   createCustomer,
   createManualOrder,
+  importBillingInvoiceRows,
   fetchOmsCustomers,
   fetchOmsSkus,
   CreateCatalogItemBody,
@@ -16,7 +17,7 @@ import {
 import { createSupplier } from '../../../lib/amazon-fba';
 import { parseCsvText } from '../../../lib/csv';
 
-export type CsvImportEntity = 'customers' | 'skus' | 'suppliers' | 'orders';
+export type CsvImportEntity = 'customers' | 'skus' | 'suppliers' | 'orders' | 'billing';
 
 type ImportResult = { ok: number; failed: Array<{ row: number; error: string }> };
 
@@ -44,6 +45,12 @@ const templates: Record<CsvImportEntity, { title: string; headers: string; help:
     headers: 'orderNumber,customerEmail,sku,quantity,unitPrice,status,channel,addressLine1,city,state,postalCode,country',
     help: 'Creates orders only when customerEmail matches an existing customer and sku matches an existing SKU.',
     example: 'ORD-1001,jane@example.com,SKU-1001,2,19.95,new,manual,120 Main St,Newark,NJ,07102,US',
+  },
+  billing: {
+    title: 'Billing evidence',
+    headers: 'invoiceLineId,invoiceNumber,description,amount,currency,status,category,warehouseCode,periodStart,periodEnd,quantity,unitPrice,code,shipmentPlanId',
+    help: 'Imports invoice line evidence for billing, margin, and Cortex cost analysis. Existing rows with the same invoiceLineId are updated.',
+    example: 'LINE-1001,INV-1001,Outbound freight,142.50,USD,open,freight,WH-NJ,2026-10-01,2026-10-01,1,142.50,FREIGHT,',
   },
 };
 
@@ -77,6 +84,7 @@ export const CsvImportModal = ({
 }) => {
   const template = templates[entity];
   const [csv, setCsv] = useState(`${template.headers}\n${template.example}`);
+  const [filename, setFilename] = useState(`${entity}-import.csv`);
   const [customers, setCustomers] = useState<OmsCustomer[]>([]);
   const [skus, setSkus] = useState<OmsSku[]>([]);
   const [referenceLoading, setReferenceLoading] = useState(entity === 'orders');
@@ -197,6 +205,21 @@ export const CsvImportModal = ({
   const submit = async () => {
     setImporting(true);
     const next: ImportResult = { ok: 0, failed: [] };
+    if (entity === 'billing') {
+      try {
+        const imported = await importBillingInvoiceRows({ filename, rows });
+        next.ok = imported.imported + imported.updated;
+        next.failed = imported.failed || [];
+      } catch (error: any) {
+        next.failed = Array.isArray(error?.failures)
+          ? error.failures
+          : [{ row: 0, error: error?.message || 'Import failed' }];
+      }
+      setResult(next);
+      setImporting(false);
+      if (next.ok > 0 && next.failed.length === 0) onSuccess();
+      return;
+    }
     for (let index = 0; index < rows.length; index += 1) {
       try {
         await importRow(rows[index]);
@@ -238,11 +261,34 @@ export const CsvImportModal = ({
               <div className="card-title">CSV template</div>
               <div className="card-subtitle mono">{template.headers}</div>
             </div>
-            <button className="btn sm" onClick={() => setCsv(`${template.headers}\n`)}>
-              Clear sample
-            </button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <label className="btn sm" style={{ cursor: 'pointer' }}>
+                <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Choose CSV
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  hidden
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    setFilename(file.name);
+                    void file.text().then((text) => {
+                      setCsv(text);
+                      setResult(null);
+                    });
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+              <button className="btn sm" onClick={() => setCsv(`${template.headers}\n`)}>
+                Clear sample
+              </button>
+            </div>
           </div>
           <div className="card-body">
+            <div className="muted" style={{ marginBottom: 8, fontSize: 11.5 }}>
+              Source file: <span className="mono">{filename}</span>
+            </div>
             <textarea
               value={csv}
               onChange={(e) => {

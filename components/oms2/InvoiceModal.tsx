@@ -71,6 +71,7 @@ export const InvoiceModal = ({
         <>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
             {first && <StatusChip status={first.status} />}
+            {first && <Chip tone={first.source === 'csv_import' ? 'purple' : 'default'} dot={false}>{first.source === 'csv_import' ? 'Uploaded evidence' : 'WMS invoice'}</Chip>}
             <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>·</span>
             <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>
               Total <strong style={{ color: 'var(--text)' }}>{fmt.money(total)}</strong>

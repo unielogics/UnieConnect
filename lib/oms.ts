@@ -32,7 +32,9 @@ export async function omsFetch<T>(path: string, options: RequestInit = {}): Prom
     const message = err?.error || `OMS request failed (${res.status})`;
     const detailText = Array.isArray(err?.details?.errors) && err.details.errors.length ? err.details.errors.slice(0, 5).join(' ') : '';
     const details = detailText && !String(message).includes(detailText) ? ` ${detailText}` : '';
-    throw new Error(`${message}${details}`);
+    const error = new Error(`${message}${details}`) as Error & { failures?: Array<{ row: number; error: string }> };
+    if (Array.isArray(err?.failures)) error.failures = err.failures;
+    throw error;
   }
   return res.json();
 }
@@ -689,13 +691,15 @@ export type BillingProfitResponse = {
       daily?: Array<{ date: string; charge: number }>;
     };
   };
-  source?: 'wms_invoices' | 'empty' | 'estimate';
+  source?: 'wms_invoices' | 'csv_invoice_evidence' | 'mixed_invoice_evidence' | 'empty' | 'estimate';
 };
 
 export type BillingInvoiceLink = { omsId: string; number: string; publicId: string };
 
 export type BillingInvoiceRow = {
   id: string;
+  source: 'wms' | 'csv_import';
+  sourceFilename?: string | null;
   date?: string;
   invoiceNumber: string;
   warehouse?: string | null;
@@ -716,6 +720,16 @@ export type BillingInvoicesResponse = {
   total: number;
   limit: number;
   offset: number;
+};
+
+export type BillingInvoiceCsvRow = Record<string, string>;
+
+export type BillingInvoiceImportResult = {
+  imported: number;
+  updated: number;
+  rowCount: number;
+  failed: Array<{ row: number; error: string }>;
+  source: 'csv_invoice_evidence';
 };
 
 export type BillingInvoicesParams = {
@@ -1295,6 +1309,12 @@ export const fetchBillingProfit = (params: { range?: BillingRange; from?: string
 
 export const fetchBillingInvoices = (params: BillingInvoicesParams = {}) =>
   omsFetch<BillingInvoicesResponse>(`/billing/invoices${billingQuery(params)}`);
+
+export const importBillingInvoiceRows = (input: { filename?: string; rows: BillingInvoiceCsvRow[] }) =>
+  omsFetch<BillingInvoiceImportResult>('/billing/invoices/import', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 
 export const fetchBillingStatementPdf = async (params: BillingInvoicesParams = {}): Promise<Blob> => {
   const res = await authFetch(apiUrl(`/api/v1/oms/billing/statement.pdf${billingQuery(params)}`), {

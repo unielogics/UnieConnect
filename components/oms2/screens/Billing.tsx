@@ -44,7 +44,7 @@ function nextDayIso(dayIso: string): string {
   return d.toISOString();
 }
 
-export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenProps) => {
+export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById, onImportCsv }: ScreenProps) => {
   const router = useRouter();
   const [range, setRange] = useState<BillingRange>('30d');
   const [custom, setCustom] = useState<CustomRange>(null);
@@ -227,6 +227,17 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
   const hasApprovedPlan = (data.totals as any)?.savingsSource === 'approved_overrides' && savings > 0;
   const isEstimate = data.source === 'estimate';
   const isEmptyWindow = data.source === 'empty';
+  const isCsvEvidence = data.source === 'csv_invoice_evidence';
+  const isMixedEvidence = data.source === 'mixed_invoice_evidence';
+  const sourceLabel = isEstimate
+    ? 'Modeled estimate'
+    : isEmptyWindow
+      ? 'No activity'
+      : isMixedEvidence
+        ? 'WMS + uploaded invoices'
+        : isCsvEvidence
+          ? 'Uploaded invoice evidence'
+          : 'WMS invoices';
   const sparkData = (data.series || []).map((s) => s.total);
   const rangeLabel = custom
     ? `${(custom.from || '').slice(0, 10)} → ${new Date(nextDayIsoBack(custom.to)).toISOString().slice(0, 10)}`
@@ -240,7 +251,11 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
           <p className="page-subtitle">
             {isEstimate
               ? 'Projected from account activity — no WMS invoices have synced yet.'
-              : 'Daily invoice tracking cockpit. Every line reconciled against WMS truth, linked to its Order / ASN.'}
+              : isCsvEvidence
+                ? 'Invoice evidence uploaded by your team for margin and Cortex cost analysis.'
+                : isMixedEvidence
+                  ? 'WMS charges and uploaded invoice evidence, with provenance shown on every line.'
+                  : 'Daily invoice tracking with each WMS charge linked to its Order or ASN.'}
           </p>
         </div>
         <div className="page-actions" style={{ position: 'relative' }}>
@@ -270,6 +285,9 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
               </div>
             </div>
           )}
+          <button className="btn" onClick={() => onImportCsv?.('billing')}>
+            <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
+          </button>
           <button className="btn" onClick={exportStatement} disabled={exporting}>
             <Icon name="download" size={13} /> {exporting ? 'Exporting…' : 'Export'}
           </button>
@@ -288,18 +306,23 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
           No charges were billed in this window yet. Storage and daily fees post nightly — try 7 days or 30 days to see recent activity.
         </div>
       )}
+      {(isCsvEvidence || isMixedEvidence) && (
+        <div className="card" style={{ marginBottom: 12, borderLeft: '3px solid var(--purple)', padding: '12px 16px', fontSize: 12.5, color: 'var(--text-secondary)' }}>
+          <strong style={{ color: 'var(--text)' }}>Uploaded evidence included.</strong> These rows inform cost and margin intelligence but are not payable WMS invoices.
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-body command-mini-metrics" style={{ gap: 18, alignItems: 'center' }}>
           <div>
-            <div className="kv-label">Billed total</div>
+            <div className="kv-label">{isCsvEvidence || isMixedEvidence ? 'Invoice evidence total' : 'Billed total'}</div>
             <div className="kv-value">{fmt.money(currentTotal)}</div>
             <div className="muted">{rangeLabel}</div>
           </div>
           <div>
             <div className="kv-label">Source</div>
-            <div className="kv-value" style={{ fontSize: 14 }}>{isEstimate ? 'Modeled estimate' : isEmptyWindow ? 'No activity' : 'WMS invoices'}</div>
-            <div className="muted">{isEstimate ? 'not billed charges' : 'observed account data'}</div>
+            <div className="kv-value" style={{ fontSize: 14 }}>{sourceLabel}</div>
+            <div className="muted">{isEstimate ? 'not billed charges' : 'source shown per ledger line'}</div>
           </div>
           <div>
             <div className="kv-label">Approved projection</div>
@@ -573,6 +596,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                     <th>Warehouse</th>
                     <th>Category</th>
                     <th>Description</th>
+                    <th>Source</th>
                     <th className="num">Qty</th>
                     <th className="num">Amount</th>
                     <th>Status</th>
@@ -587,13 +611,18 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                       <td className="mono">{r.warehouse || '—'}</td>
                       <td><Chip dot={false}>{r.category}</Chip></td>
                       <td>{r.description || r.code || '—'}</td>
+                      <td>
+                        <Chip tone={r.source === 'csv_import' ? 'purple' : 'default'} dot={false}>
+                          {r.source === 'csv_import' ? 'Uploaded' : 'WMS'}
+                        </Chip>
+                      </td>
                       <td className="num mono">{r.qty || '—'}</td>
                       <td className="num mono strong">{fmt.money(r.amount)}</td>
                       <td><Chip tone={r.status === 'paid' ? 'green' : r.status === 'void' ? 'red' : 'default'} dot={false}>{r.status}</Chip></td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            {r.status !== 'paid' && r.status !== 'void' ? (
+                            {r.source === 'wms' && r.status !== 'paid' && r.status !== 'void' ? (
                               <button
                                 className="btn sm primary"
                                 disabled={payingInvoice === r.invoiceNumber}
@@ -608,7 +637,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                             {r.linkedAsn ? (
                               <button className="btn ghost sm" onClick={() => onOpenAsnById?.(r.linkedAsn!.omsId)}>ASN →</button>
                             ) : null}
-                            {r.status === 'paid' && !r.linkedOrder && !r.linkedAsn && <span className="muted">—</span>}
+                            {(r.source === 'csv_import' || r.status === 'paid') && !r.linkedOrder && !r.linkedAsn && <span className="muted">—</span>}
                           </div>
                           {payError?.invoiceNumber === r.invoiceNumber && (
                             <span style={{ fontSize: 10.5, color: 'var(--red-text)', maxWidth: 200, textAlign: 'right' }}>{payError.message}</span>
