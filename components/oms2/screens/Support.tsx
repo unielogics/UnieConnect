@@ -19,6 +19,7 @@ import {
 import type { ScreenProps } from '../UnieConnectApp';
 
 type TicketRow = SupportTicket & { opened?: string };
+type OperationalException = LedgerResponse['events'][number] & { priority: 'high' | 'med' };
 
 const field: React.CSSProperties = {
   width: '100%',
@@ -221,10 +222,11 @@ const TicketModal = ({
   );
 };
 
-export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
+export const Support = ({ onNewTicket, onCortexEntityChange, onNavigate }: ScreenProps) => {
   const router = useRouter();
   const openedTicketRef = useRef<string | null>(null);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
+  const [operationalExceptions, setOperationalExceptions] = useState<OperationalException[]>([]);
   const [selected, setSelected] = useState<TicketRow | null>(null);
   const [messages, setMessages] = useState<SupportTicketMessage[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -239,6 +241,7 @@ export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
     setLoading(true);
     setLoadError(null);
     setSourceNotice(null);
+    setOperationalExceptions([]);
     fetchTickets()
       .then((d) => {
         setTickets(
@@ -247,29 +250,21 @@ export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
             opened: t.createdAt || '-',
           })),
         );
+        setOperationalExceptions([]);
         setSourceNotice(null);
       })
       .catch((ticketError) =>
         fetchLedger()
           .then((lg: LedgerResponse) => {
-            const t = (lg.events || [])
+            const exceptions = (lg.events || [])
               .filter((e) => /exception|dispute|short|mis-?pick|claim|return/i.test(`${e.subject} ${e.summary} ${e.event_type}`))
               .slice(0, 12)
-              .map((e, i) => ({
-                id: `fallback-${i}`,
-                publicId: publicEntityId('TI', e.id || i),
-                subject: e.subject || e.summary || 'Operational exception',
-                entityType: e.entity_type || 'ledger',
-                entityId: e.entity_id,
-                entityDisplayId: e.entity_id ? publicEntityId(entityPrefix(e.entity_type), e.entity_id) : undefined,
-                channel: e.source_system || 'system',
-                priority: /short|exception|fraud/i.test(`${e.subject}`) ? 'high' : 'med',
-                status: e.status === 'approved' ? 'on-track' : 'open',
-                owner: e.actor || 'Cortex',
-                createdAt: e.created_at || e.ts,
-                opened: e.created_at || e.ts || '-',
+              .map((event) => ({
+                ...event,
+                priority: /short|exception|fraud/i.test(`${event.subject} ${event.summary} ${event.event_type}`) ? 'high' as const : 'med' as const,
               }));
-            setTickets(t as TicketRow[]);
+            setTickets([]);
+            setOperationalExceptions(exceptions);
             setSourceNotice('Support tickets are temporarily unavailable. Showing read-only operational exceptions from the account ledger.');
           })
           .catch(() => setLoadError(ticketError?.message || 'Support tickets and operational exceptions could not be loaded.')),
@@ -280,7 +275,7 @@ export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
   useEffect(load, []);
 
   const reloadSelected = async () => {
-    if (!selected || selected.id.startsWith('fallback-')) return;
+    if (!selected) return;
     setDetailLoading(true);
     setDetailError(null);
     try {
@@ -297,14 +292,13 @@ export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
   const openTicket = async (ticket: TicketRow) => {
     openedTicketRef.current = ticket.id;
     setSelected(ticket);
-    onCortexEntityChange?.(ticket.id.startsWith('fallback-') ? null : { type: 'support_ticket', id: ticket.id });
+    onCortexEntityChange?.({ type: 'support_ticket', id: ticket.id });
     void router.replace(
       { pathname: '/oms', query: { ...router.query, view: 'support', ticket: ticket.id } },
       undefined,
       { shallow: true },
     );
     setMessages([]);
-    if (ticket.id.startsWith('fallback-')) return;
     setDetailLoading(true);
     setDetailError(null);
     try {
@@ -342,7 +336,6 @@ export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
   }, [router.isReady, router.query.ticket, tickets]);
 
   const changeStatus = async (ticket: TicketRow, status: string) => {
-    if (ticket.id.startsWith('fallback-')) return;
     setUpdating(ticket.id);
     try {
       await updateTicketStatus(ticket.id, status);
@@ -444,12 +437,12 @@ export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
                       <td onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                           {t.status !== 'in-progress' && (
-                            <button className="btn ghost sm" disabled={updating === t.id || t.id.startsWith('fallback-')} onClick={() => changeStatus(t, 'in-progress')}>
+                            <button className="btn ghost sm" disabled={updating === t.id} onClick={() => changeStatus(t, 'in-progress')}>
                               Start
                             </button>
                           )}
                           {t.status !== 'resolved' && (
-                            <button className="btn ghost sm" disabled={updating === t.id || t.id.startsWith('fallback-')} onClick={() => changeStatus(t, 'resolved')}>
+                            <button className="btn ghost sm" disabled={updating === t.id} onClick={() => changeStatus(t, 'resolved')}>
                               Resolve
                             </button>
                           )}
@@ -491,13 +484,57 @@ export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button className="btn" onClick={() => featured && openTicket(featured)}>Open response thread</button>
-                    <button className="btn ghost" disabled={featured.id.startsWith('fallback-')} onClick={() => changeStatus(featured, 'open')}>Reopen</button>
-                    <button className="btn ghost" disabled={featured.id.startsWith('fallback-')} onClick={() => changeStatus(featured, 'escalated')}>Escalate</button>
-                    <button className="btn primary" disabled={featured.id.startsWith('fallback-')} onClick={() => changeStatus(featured, 'resolved')}>Mark resolved</button>
+                    <button className="btn ghost" onClick={() => changeStatus(featured, 'open')}>Reopen</button>
+                    <button className="btn ghost" onClick={() => changeStatus(featured, 'escalated')}>Escalate</button>
+                    <button className="btn primary" onClick={() => changeStatus(featured, 'resolved')}>Mark resolved</button>
                   </div>
                 </>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {!loading && operationalExceptions.length > 0 && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-title"><Icon name="warning" size={14} /> Operational exceptions</div>
+              <div className="card-subtitle">Read-only account events shown while ticketing is unavailable. These are not support tickets.</div>
+            </div>
+            <Chip tone="amber" dot={false}>{operationalExceptions.length} events</Chip>
+          </div>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Entity</th>
+                  <th>Source</th>
+                  <th>Priority</th>
+                  <th>When</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {operationalExceptions.map((event) => (
+                  <tr key={event.id}>
+                    <td style={{ maxWidth: 520, whiteSpace: 'normal' }}>
+                      <div className="strong">{event.subject || event.summary || String(event.event_type || 'Operational exception').replace(/_/g, ' ')}</div>
+                      {event.subject && event.summary && event.subject !== event.summary ? <div className="muted">{event.summary}</div> : null}
+                    </td>
+                    <td className="mono">{event.entity_id ? publicEntityId(entityPrefix(event.entity_type), event.entity_id) : 'Not linked'}</td>
+                    <td>{event.source_system || 'system'}</td>
+                    <td>{event.priority === 'high' ? <Chip tone="red">High</Chip> : <Chip tone="amber">Med</Chip>}</td>
+                    <td className="muted">{fmtDate(event.created_at || event.ts)}</td>
+                    <td>
+                      <button className="btn ghost sm" onClick={() => onNavigate('ledger', event.entity_id || event.id)}>
+                        <Icon name="ledger" size={11} /> Open ledger
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
