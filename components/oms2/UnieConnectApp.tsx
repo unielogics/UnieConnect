@@ -103,6 +103,7 @@ export default function UnieConnectApp() {
   const [forcedSupplierId, setForcedSupplierId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [userLoadComplete, setUserLoadComplete] = useState(false);
+  const [userLoadError, setUserLoadError] = useState<string | null>(null);
   const [newProductOpen, setNewProductOpen] = useState(false);
   const [newSupplierOpen, setNewSupplierOpen] = useState(false);
   const [newSupplierCreatedHandler, setNewSupplierCreatedHandler] = useState<((supplier?: OmsSupplier) => void) | null>(null);
@@ -149,14 +150,22 @@ export default function UnieConnectApp() {
     }
   }, []);
 
-  useEffect(() => {
+  const loadCurrentUser = useCallback(() => {
+    setUserLoadComplete(false);
+    setUserLoadError(null);
     fetchCurrentUser()
       .then((u) => {
-        if (u) setCurrentUser(u);
+        setCurrentUser(u);
       })
-      .catch(() => {})
+      .catch((error: any) => {
+        setUserLoadError(error?.message || 'Your account could not be verified.');
+      })
       .finally(() => setUserLoadComplete(true));
   }, []);
+
+  useEffect(() => {
+    loadCurrentUser();
+  }, [loadCurrentUser]);
 
   const reloadUserFeatures = useCallback(() => {
     let cancelled = false;
@@ -495,9 +504,9 @@ export default function UnieConnectApp() {
   }, [tweaks]);
 
   useEffect(() => {
-    if (!userLoadComplete || currentUser) return;
+    if (!userLoadComplete || currentUser || userLoadError) return;
     window.location.href = '/login';
-  }, [currentUser, userLoadComplete]);
+  }, [currentUser, userLoadComplete, userLoadError]);
 
   if (!userLoadComplete) {
     return (
@@ -505,6 +514,27 @@ export default function UnieConnectApp() {
         <div className="app">
           <div className="workspace">
             <div className="loading-state">Loading account...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (userLoadError && !currentUser) {
+    return (
+      <div className="uc-shell" ref={shellRef} data-theme={tweaks.theme} data-density={tweaks.density}>
+        <div className="app">
+          <div className="workspace account-verification-state">
+            <div className="card account-verification-card" role="alert">
+              <Icon name="warning" size={18} />
+              <div>
+                <strong>Account verification is temporarily unavailable</strong>
+                <span>{userLoadError} Your session has not been treated as signed out.</span>
+              </div>
+              <button className="btn primary" onClick={loadCurrentUser}>
+                <Icon name="refresh" size={12} /> Retry
+              </button>
+            </div>
           </div>
         </div>
       </div>

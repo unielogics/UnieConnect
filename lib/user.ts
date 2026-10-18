@@ -70,11 +70,13 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
     if (data.fulfillmentStatusNote) current.fulfillmentStatusNote = data.fulfillmentStatusNote;
     if (data.fulfillmentStatusAt) current.fulfillmentStatusAt = data.fulfillmentStatusAt;
     return current;
-  } catch {
+  } catch (error) {
     const role = getRoleFromToken();
-    if (!role || !token) return null;
-    const payload = decodeTokenPayload(token);
-    return { userId: String(payload.userId || ''), email: String(payload.email || ''), role };
+    if (role && token) {
+      const payload = decodeTokenPayload(token);
+      return { userId: String(payload.userId || ''), email: String(payload.email || ''), role };
+    }
+    throw error instanceof Error ? error : new Error('Account verification is temporarily unavailable.');
   }
 }
 

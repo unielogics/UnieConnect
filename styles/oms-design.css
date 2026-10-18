@@ -605,6 +605,15 @@
 .uc-shell .card-body { padding: 16px; }
 .uc-shell .card-body.flush { padding: 0; }
 .uc-shell .card-footer { border-top: 1px solid var(--border-subtle); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.uc-shell .account-verification-state { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bg); }
+.uc-shell .account-verification-card { width: min(100%, 560px); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 18px; color: var(--amber-text); }
+.uc-shell .account-verification-card > div { display: grid; gap: 4px; }
+.uc-shell .account-verification-card strong { color: var(--text); font-size: 14px; }
+.uc-shell .account-verification-card span { color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+@media (max-width: 560px) {
+  .uc-shell .account-verification-card { grid-template-columns: auto minmax(0, 1fr); }
+  .uc-shell .account-verification-card .btn { grid-column: 1 / -1; width: 100%; justify-content: center; }
+}
 
 /* ============================= Chips ============================= */
 .uc-shell .chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; font-size: 11px; font-weight: 600; border-radius: 4px; background: var(--bg-active); color: var(--text-secondary); white-space: nowrap; }
