@@ -122,7 +122,7 @@ export const TopBar = ({
       window.removeEventListener(CORTEX_TASKS_CHANGED_EVENT, onTasksChanged);
       window.clearInterval(timer);
     };
-  }, [section]);
+  }, []);
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
@@ -254,22 +254,12 @@ export const TopBar = ({
   };
   const highTaskCount = taskSummary.highPriority;
   const workAreas = taskSummary.workAreas.slice(0, 3);
-  const systemStatusCopy = cortexHealth === 'online'
-    ? 'Cortex ready'
-    : cortexHealth === 'offline'
-      ? 'Cortex unavailable'
-      : 'Checking Cortex';
-
   return (
     <header className="topbar">
       <div className="crumbs">
         <span className="crumb">Unielogics ops</span>
         <span className="crumb-sep">/</span>
         <span className="crumb current">{title}</span>
-        <span className={`crumb-status ${cortexHealth}`}>
-          <span className="dot" />
-          {systemStatusCopy}
-        </span>
       </div>
 
       <div className="topbar-search" ref={searchRef}>
@@ -440,6 +430,7 @@ export const TopBar = ({
       <button
         className={`copilot-btn ${copilotOpen ? 'active' : ''}`}
         onClick={() => { setTasksOpen(false); onToggleCopilot(); }}
+        aria-label={`Cortex, ${cortexHealth === 'online' ? 'ready' : cortexHealth === 'offline' ? 'unavailable' : 'checking status'}`}
         data-hint={cortexHealth === 'online' ? 'Cortex ready' : cortexHealth === 'offline' ? 'Cortex unavailable' : 'Checking Cortex'}
       >
         <span className={`ai-dot ${cortexHealth}`} />
