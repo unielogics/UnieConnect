@@ -1481,13 +1481,35 @@ export const notifyCortexTasksChanged = () => {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(CORTEX_TASKS_CHANGED_EVENT));
 };
 
+type CortexTasksResponse = { tasks: CortexTask[]; total: number; summary: CortexTaskSummary };
+const cortexTaskRefreshRequests = new Map<string, Promise<CortexTasksResponse>>();
+
 export const fetchCortexTasks = (params?: { status?: string; screen?: string; refresh?: boolean; limit?: number }) => {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
   if (params?.screen) qs.set('screen', params.screen);
-  if (params?.refresh) qs.set('refresh', 'true');
-  if (params?.limit) qs.set('limit', String(params.limit));
-  return omsFetch<{ tasks: CortexTask[]; total: number; summary: CortexTaskSummary }>(`/intelligence/tasks?${qs.toString()}`);
+  if (!params?.refresh) {
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return omsFetch<CortexTasksResponse>(`/intelligence/tasks?${qs.toString()}`);
+  }
+
+  const requestedLimit = Math.min(200, Math.max(1, params.limit || 100));
+  const refreshKey = `${params.status || 'open'}:${params.screen || 'all'}`;
+  let request = cortexTaskRefreshRequests.get(refreshKey);
+  if (!request) {
+    qs.set('refresh', 'true');
+    qs.set('limit', '200');
+    request = omsFetch<CortexTasksResponse>(`/intelligence/tasks?${qs.toString()}`);
+    cortexTaskRefreshRequests.set(refreshKey, request);
+    const clearRefreshRequest = () => {
+      if (cortexTaskRefreshRequests.get(refreshKey) === request) cortexTaskRefreshRequests.delete(refreshKey);
+    };
+    void request.then(clearRefreshRequest, clearRefreshRequest);
+  }
+  return request.then((response) => ({
+    ...response,
+    tasks: (response.tasks || []).slice(0, requestedLimit),
+  }));
 };
 
 export const refreshCortexTasks = async () => {
