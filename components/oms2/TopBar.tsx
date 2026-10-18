@@ -349,7 +349,10 @@ export const TopBar = ({
           aria-controls="cortex-task-popover"
           onClick={() => {
             setSearchOpen(false);
-            setTasksOpen((v) => !v);
+            setTasksOpen((v) => {
+              if (!v) setTaskNotice(null);
+              return !v;
+            });
           }}
         >
           <Icon name="bell" />
@@ -422,7 +425,7 @@ export const TopBar = ({
             </div>
             <div className="task-popover-footer">
               <span>{taskTotal > tasks.length ? `Showing ${tasks.length} of ${taskTotal} open tasks` : 'Account-wide readiness and connection work'}</span>
-              <button className="btn ghost sm" onClick={() => { onNavigate?.('command'); setTasksOpen(false); }}>
+              <button className="btn ghost sm" onClick={() => { onNavigate?.('command', 'focus:cortex-tasks'); setTasksOpen(false); }}>
                 Open full inbox <Icon name="arrowRight" size={11} />
               </button>
             </div>

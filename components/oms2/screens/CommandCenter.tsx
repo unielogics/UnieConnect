@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Sparkline, ProgressBar, confidencePercent, fmt, Loading, ErrorState, EmptyState, downloadCsv } from '../ui';
 import {
@@ -29,6 +30,7 @@ import { DecisionComparison, isActionableDecisionRecommendation } from '../Decis
 type Range = 'today' | '7d' | '30d';
 
 export const CommandCenter = ({ onNavigate }: ScreenProps) => {
+  const router = useRouter();
   const [range, setRange] = useState<Range>('7d');
   const [data, setData] = useState<CommandCenterFull | null>(null);
   const [bd, setBd] = useState<BusinessDoubleResponse | null>(null);
@@ -103,6 +105,17 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
     };
   }, []);
   useEffect(() => () => optimizationAbortRef.current?.abort(), []);
+  useEffect(() => {
+    if (!router.isReady || router.query.focus !== 'cortex-tasks') return;
+    const timer = window.setTimeout(() => {
+      const inbox = document.getElementById('cortex-task-inbox');
+      if (!inbox) return;
+      inbox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      inbox.focus({ preventScroll: true });
+      void router.replace({ pathname: '/oms', query: { view: 'command' } }, undefined, { shallow: true });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [router, router.isReady, router.query.focus]);
 
   const triggerOptimization = async () => {
     optimizationAbortRef.current?.abort();
@@ -631,7 +644,7 @@ const CortexTasksPanel = ({
     return task.entityId || undefined;
   };
   return (
-    <div className="card cortex-task-panel">
+    <div id="cortex-task-inbox" className="card cortex-task-panel" tabIndex={-1}>
       <div className="card-header">
         <div className="cortex-task-heading">
           <div className="card-title"><Icon name="sparkle" size={15} /> Cortex task inbox</div>

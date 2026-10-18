@@ -227,6 +227,9 @@ export default function UnieConnectApp() {
         setSkuDetailId(id);
         if (id) q.sku = id;
       }
+      if (safeTarget === 'command' && payload?.startsWith('focus:')) {
+        q.focus = payload.slice('focus:'.length);
+      }
       if (safeTarget === 'skus' && payload?.startsWith('filter:')) {
         q.filter = payload.slice('filter:'.length);
       }
