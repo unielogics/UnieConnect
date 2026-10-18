@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, StatusChip, Avatar, Loading, EmptyState, Modal, downloadCsv } from '../ui';
 import {
@@ -221,6 +222,8 @@ const TicketModal = ({
 };
 
 export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
+  const router = useRouter();
+  const openedTicketRef = useRef<string | null>(null);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [selected, setSelected] = useState<TicketRow | null>(null);
   const [messages, setMessages] = useState<SupportTicketMessage[]>([]);
@@ -292,8 +295,14 @@ export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
   };
 
   const openTicket = async (ticket: TicketRow) => {
+    openedTicketRef.current = ticket.id;
     setSelected(ticket);
     onCortexEntityChange?.(ticket.id.startsWith('fallback-') ? null : { type: 'support_ticket', id: ticket.id });
+    void router.replace(
+      { pathname: '/oms', query: { ...router.query, view: 'support', ticket: ticket.id } },
+      undefined,
+      { shallow: true },
+    );
     setMessages([]);
     if (ticket.id.startsWith('fallback-')) return;
     setDetailLoading(true);
@@ -314,7 +323,23 @@ export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
     setMessages([]);
     setDetailError(null);
     onCortexEntityChange?.(null);
+    const query: Record<string, string | string[] | undefined> = { ...router.query, view: 'support' };
+    delete query.ticket;
+    void router.replace({ pathname: '/oms', query }, undefined, { shallow: true });
   };
+
+  useEffect(() => {
+    if (!router.isReady || !tickets.length) return;
+    const requested = String(router.query.ticket || '').trim();
+    if (!requested) {
+      openedTicketRef.current = null;
+      return;
+    }
+    if (openedTicketRef.current === requested) return;
+    const ticket = tickets.find((candidate) => [candidate.id, candidate.displayId, candidate.publicId]
+      .some((value) => String(value || '') === requested));
+    if (ticket) void openTicket(ticket);
+  }, [router.isReady, router.query.ticket, tickets]);
 
   const changeStatus = async (ticket: TicketRow, status: string) => {
     if (ticket.id.startsWith('fallback-')) return;

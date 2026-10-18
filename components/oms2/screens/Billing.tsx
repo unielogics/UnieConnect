@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, ProgressBar, Sparkline, fmt, Loading, ErrorState, EmptyState } from '../ui';
 import {
@@ -44,6 +45,7 @@ function nextDayIso(dayIso: string): string {
 }
 
 export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenProps) => {
+  const router = useRouter();
   const [range, setRange] = useState<BillingRange>('30d');
   const [custom, setCustom] = useState<CustomRange>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -104,6 +106,28 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
       .finally(() => setLedgerLoading(false));
   };
   useEffect(loadLedger, [range, custom, category, warehouseCode, status, search, offset]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const requested = String(router.query.invoice || '').trim();
+    if (requested && requested !== selectedInvoice) setSelectedInvoice(requested);
+  }, [router.isReady, router.query.invoice, selectedInvoice]);
+
+  const openInvoice = (invoiceNumber: string) => {
+    setSelectedInvoice(invoiceNumber);
+    void router.replace(
+      { pathname: '/oms', query: { ...router.query, view: 'billing', invoice: invoiceNumber } },
+      undefined,
+      { shallow: true },
+    );
+  };
+
+  const closeInvoice = () => {
+    setSelectedInvoice(null);
+    const query: Record<string, string | string[] | undefined> = { ...router.query, view: 'billing' };
+    delete query.invoice;
+    void router.replace({ pathname: '/oms', query }, undefined, { shallow: true });
+  };
 
   // Debounce free-text search so we don't refetch on every keystroke.
   useEffect(() => {
@@ -550,7 +574,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                 </thead>
                 <tbody>
                   {ledgerRows.map((r) => (
-                    <tr key={r.id} className="clickable" onClick={() => setSelectedInvoice(r.invoiceNumber)}>
+                    <tr key={r.id} className="clickable" onClick={() => openInvoice(r.invoiceNumber)}>
                       <td className="mono muted">{(r.date || '').slice(0, 10)}</td>
                       <td className="mono strong">{r.invoiceNumber}</td>
                       <td className="mono">{r.warehouse || '—'}</td>
@@ -605,7 +629,7 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
       {selectedInvoice && (
         <InvoiceModal
           invoiceNumber={selectedInvoice}
-          onClose={() => setSelectedInvoice(null)}
+          onClose={closeInvoice}
           onNavigate={onNavigate}
           onOpenOrderById={onOpenOrderById}
           onOpenAsnById={onOpenAsnById}

@@ -244,6 +244,12 @@ export default function UnieConnectApp() {
       if (safeTarget === 'ledger' && payload) {
         q.entity = payload;
       }
+      if (safeTarget === 'billing' && payload) {
+        q.invoice = payload;
+      }
+      if (safeTarget === 'support' && payload) {
+        q.ticket = payload;
+      }
       setSection(safeTarget);
       router.push({ pathname: '/oms', query: q }, undefined, { shallow: true });
     },
