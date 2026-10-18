@@ -76,9 +76,8 @@ export const SIDEBAR_NAV: NavCat[] = [
     id: 'sales',
     label: 'Sales',
     icon: 'orders',
-    badge: '12',
     items: [
-      { id: 'orders', label: 'Orders', icon: 'orders', desc: 'Marketplace orders + WMS truth', badge: { type: 'warn', value: '12' } },
+      { id: 'orders', label: 'Orders', icon: 'orders', desc: 'Marketplace orders + WMS truth' },
       { id: 'returns', label: 'Returns', icon: 'box', desc: 'RMAs + condition-on-arrival evidence' },
       { id: 'customers', label: 'Customers', icon: 'support', desc: 'Buyers, LTV, segments' },
       { id: 'labels', label: 'Carrier Label Audit', icon: 'audit', desc: 'Late, refunds, optimization', featureId: 'label-audit' },
@@ -105,7 +104,7 @@ export const SIDEBAR_NAV: NavCat[] = [
     label: 'System',
     icon: 'settings',
     items: [
-      { id: 'support', label: 'Support', icon: 'support', desc: 'Tickets', badge: { type: 'danger', value: '3' } },
+      { id: 'support', label: 'Support', icon: 'support', desc: 'Tickets' },
       { id: 'inbox', label: 'Inbox', icon: 'bell', desc: 'Emails sent to your account' },
       { id: 'connections', label: 'Connections', icon: 'plug', desc: 'Marketplaces, WMS, carriers' },
       { id: 'profile', label: 'Profile Settings', icon: 'settings', desc: 'Account and billing profile' },
