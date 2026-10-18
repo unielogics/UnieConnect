@@ -77,6 +77,51 @@ const cortexDisplayText = (text?: string | null) =>
     .replace(/live Cortex response unavailable; used scoped OMS fallback\./gi, 'Answer generated from this account’s scoped OMS data.')
     .trim();
 
+const ANSWER_SECTION_LABELS = new Set([
+  'account snapshot',
+  'first priority',
+  'first action',
+  'why',
+  'action',
+  'next step',
+  'what is holding it back',
+  'readiness',
+  'connected data',
+  'synchronized data',
+  'attention required',
+  'expected impact',
+]);
+
+const CortexAnswer = ({ text }: { text?: string | null }) => {
+  const blocks = cortexDisplayText(text).split(/\n{2,}/).filter(Boolean);
+  return (
+    <div className="ai-answer-text">
+      {blocks.map((block, index) => {
+        const match = block.match(/^([^:\n]{1,40}):\s*([\s\S]*)$/);
+        const label = match?.[1]?.trim() || '';
+        const normalizedLabel = label.toLowerCase();
+        if (match && ANSWER_SECTION_LABELS.has(normalizedLabel)) {
+          const sectionClass = normalizedLabel.replace(/[^a-z0-9]+/g, '-');
+          return (
+            <section key={`${normalizedLabel}-${index}`} className={`ai-answer-section ${sectionClass}`}>
+              <span>{label}</span>
+              <div>{match[2].trim()}</div>
+            </section>
+          );
+        }
+        return <p key={index}>{block}</p>;
+      })}
+    </div>
+  );
+};
+
+const AnswerConfidence = ({ value }: { value: number }) => (
+  <div className="ai-answer-confidence" title="Confidence based on the account evidence available for this answer">
+    <span>Answer confidence</span>
+    <Confidence value={value} />
+  </div>
+);
+
 const shouldMuteMessage = (m: CortexChatMessage) => {
   const content = String(m.content || '').toLowerCase();
   return content.includes('cortex is not available') || content.includes('cortex chat is unavailable');
@@ -89,8 +134,8 @@ const messageToHistory = (m: CortexChatMessage): Msg => ({
   actions: (m.tasks || []) as ChatAction[],
   body: (
     <>
-      <div className="ai-answer-text">{cortexDisplayText(m.content)}</div>
-      {m.confidence != null && <div style={{ marginTop: 6 }}><Confidence value={m.confidence} /></div>}
+      <CortexAnswer text={m.content} />
+      {m.confidence != null && <AnswerConfidence value={m.confidence} />}
     </>
   ),
 });
@@ -283,8 +328,8 @@ export const AICopilot = ({
           actions: (res.message?.tasks || []) as ChatAction[],
           body: (
             <>
-              <div className="ai-answer-text">{cortexDisplayText(res.message?.content || 'Cortex returned no answer.')}</div>
-              {res.message?.confidence != null && <div style={{ marginTop: 6 }}><Confidence value={res.message.confidence} /></div>}
+              <CortexAnswer text={res.message?.content || 'Cortex returned no answer.'} />
+              {res.message?.confidence != null && <AnswerConfidence value={res.message.confidence} />}
             </>
           ),
         },
@@ -300,7 +345,7 @@ export const AICopilot = ({
           muted: true,
           body: (
             <>
-              <div className="ai-answer-text">Cortex chat is unavailable right now. No cross-account data was used or exposed.</div>
+              <CortexAnswer text="Cortex chat is unavailable right now. No cross-account data was used or exposed." />
               <div className="ai-answer-actions">
                 <button
                   className="ai-answer-action"
