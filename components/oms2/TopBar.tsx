@@ -360,7 +360,7 @@ export const TopBar = ({
                     <strong>{task.title}</strong>
                     <span className="task-popover-meta">
                       <span>{String(task.actionTarget || task.screen || 'command').replace(/-/g, ' ')}</span>
-                      {task.source && <span>{task.source}</span>}
+                      {task.source && <span>{task.source.replace(/_/g, ' ')}</span>}
                     </span>
                     {task.detail && <small>{task.detail}</small>}
                     <small className="task-action-copy">{task.actionLabel || 'Open task'}</small>

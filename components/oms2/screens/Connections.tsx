@@ -62,6 +62,21 @@ const statusTone = (status: string) =>
         ? 'default'
         : 'blue';
 
+const statusLabel = (status: string) => {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'healthy' || normalized === 'live' || normalized === 'connected') return 'Connected';
+  if (normalized === 'degraded' || normalized === 'warn') return 'Needs attention';
+  if (normalized === 'needs_authorization') return 'Authorization required';
+  if (normalized === 'needs_configuration') return 'Setup required';
+  if (normalized === 'idle') return 'Not configured';
+  return normalized.replace(/_/g, ' ');
+};
+
+const capabilityLabel = (label: string) =>
+  String(label || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
 const normalizeShop = (value: string) =>
   value
     .trim()
@@ -113,7 +128,7 @@ const ConnectionCard = ({
         {c.issue && <div style={{ marginTop: 4, maxWidth: 420, fontSize: 11.5, lineHeight: 1.35, color: 'var(--amber-text)' }}>{c.issue}</div>}
       </div>
     </td>
-    <td><Chip tone={statusTone(c.status) as any}>{c.status.replace(/_/g, ' ')}</Chip></td>
+    <td><Chip tone={statusTone(c.status) as any}>{statusLabel(c.status)}</Chip></td>
     <td>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
         {c.entities.map((e) => (
@@ -122,7 +137,7 @@ const ConnectionCard = ({
             tone={e.status === 'healthy' ? 'green' : e.status === 'degraded' ? 'amber' : 'default'}
             dot={e.status !== 'idle'}
           >
-            {e.label}{e.count == null ? '' : ` ${e.count}`}
+            {capabilityLabel(e.label)}{e.count == null ? '' : ` ${e.count}`}
           </Chip>
         ))}
       </div>
@@ -137,7 +152,7 @@ const ConnectionCard = ({
           <button className="btn ghost sm" onClick={() => onRepair(c)} disabled={busy} data-hint="Open provider authorization">
             <Icon name="plug" size={11} />
             {String(c.raw?.channel || '').toLowerCase() === 'shopify'
-              ? 'Reconnect'
+              ? 'Repair Shopify access'
               : ['needs_authorization', 'needs_configuration'].includes(String(c.raw?.status || '')) ? 'Authorize' : 'Repair'}
           </button>
         )}
