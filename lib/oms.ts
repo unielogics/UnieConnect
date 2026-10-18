@@ -670,7 +670,7 @@ export type BillingProfitResponse = {
   previous?: Record<string, number>;
   deltaPct?: Record<string, number>;
   series?: Array<{ date: string; total: number; lineCount: number; byCategory: Record<string, number> }>;
-  perWarehouse?: Array<{ code: string; region?: string; current: number; optimized: number }>;
+  perWarehouse?: Array<{ code: string; name?: string; region?: string | null; current: number; optimized: number }>;
   totals?: { current: number; optimized: number; savings: number; savingsPct: number; savingsSource?: 'approved_overrides' | 'none'; appliedCategories?: string[] };
   accountHasInvoices?: boolean;
   forecast?: {

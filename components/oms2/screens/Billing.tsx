@@ -468,7 +468,11 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
           <Chip dot={false}>{rangeLabel}</Chip>
         </div>
         {perWh.length === 0 ? (
-          <EmptyState>Per-warehouse cost split is not yet exposed by the billing feed.</EmptyState>
+          <EmptyState>
+            {isEstimate
+              ? 'No warehouse invoices have synced yet. Connect a warehouse to begin allocating billed costs.'
+              : `No warehouse-billed charges were recorded for ${rangeLabel.toLowerCase()}.`}
+          </EmptyState>
         ) : (
           <table className="data">
             <thead>
@@ -494,7 +498,10 @@ export const Billing = ({ onNavigate, onOpenOrderById, onOpenAsnById }: ScreenPr
                     onClick={() => filterByWarehouse(w.code)}
                     style={{ background: active ? 'var(--accent-soft, var(--purple-soft))' : rec ? 'var(--purple-soft)' : undefined, boxShadow: active ? 'inset 3px 0 0 var(--accent, var(--purple))' : rec ? 'inset 3px 0 0 var(--purple)' : undefined }}
                   >
-                    <td className="mono strong">{w.code}</td>
+                    <td>
+                      <strong>{w.name || w.code}</strong>
+                      {w.name && w.name !== w.code ? <div className="mono muted">{w.code}</div> : null}
+                    </td>
                     <td className="muted">{w.region || '—'}</td>
                     <td className="num mono">{fmt.money(num(w.current))}</td>
                     <td className="num mono strong" style={{ color: hasApprovedPlan ? 'var(--purple-text)' : 'var(--text-tertiary)' }}>{hasApprovedPlan ? fmt.money(num(w.optimized)) : '—'}</td>
