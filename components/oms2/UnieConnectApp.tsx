@@ -260,6 +260,9 @@ export default function UnieConnectApp() {
         if (payload === 'action:upload-csv') q.action = 'upload-csv';
         else q.run = payload;
       }
+      if (safeTarget === 'product-research' && payload === 'action:upload-csv') {
+        q.action = 'upload-csv';
+      }
       if (safeTarget === 'connections' && payload) {
         if (payload.startsWith('action:repair:')) {
           q.connection = payload.slice('action:repair:'.length);

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Confidence, confidencePercent, EmptyState, Loading, Sparkline, Thumb } from '../ui';
 import {
@@ -51,6 +52,7 @@ const selectedBaseline = (sku: OmsSku | undefined, manual: Record<string, string
 };
 
 export const ProductResearch = ({ onNavigate }: ScreenProps) => {
+  const router = useRouter();
   const [workflow, setWorkflow] = useState<'single' | 'bulk'>('single');
   const [readiness, setReadiness] = useState<IntelligenceReadiness | null>(null);
   const [runs, setRuns] = useState<IntelligenceRun[]>([]);
@@ -97,6 +99,20 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady || router.query.action !== 'upload-csv') return;
+    setWorkflow('bulk');
+    const timer = window.setTimeout(() => {
+      const upload = document.getElementById('product-research-csv-upload');
+      upload?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      upload?.focus({ preventScroll: true });
+      const query = { ...router.query };
+      delete query.action;
+      void router.replace({ pathname: '/oms', query }, undefined, { shallow: true });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [router, router.isReady, router.query.action]);
 
   const selected = useMemo(() => skus.find((s) => s.sku === selectedSku || s.id === selectedSku), [skus, selectedSku]);
   const filteredSkus = useMemo(() => {
@@ -512,7 +528,7 @@ export const ProductResearch = ({ onNavigate }: ScreenProps) => {
         </div>
       ) : (
         <div className="research-bulk-layout">
-          <div className="card">
+          <div id="product-research-csv-upload" className="card research-upload-card" tabIndex={-1}>
             <div className="card-header">
               <div>
                 <div className="card-title"><Icon name="download" size={15} style={{ transform: 'rotate(180deg)' }} /> Upload product CSV</div>
