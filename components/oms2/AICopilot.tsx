@@ -383,6 +383,7 @@ export const AICopilot = ({
   const [threadOpenError, setThreadOpenError] = useState<string | null>(null);
   const [failedThreadId, setFailedThreadId] = useState<string | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
+  const [contextLoading, setContextLoading] = useState(true);
   const [cortexHealth, setCortexHealth] = useState<CortexHealthState>('checking');
   const [pending, setPending] = useState(false);
   const [pendingStage, setPendingStage] = useState<'reading' | 'comparing' | 'writing'>('reading');
@@ -390,6 +391,7 @@ export const AICopilot = ({
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const requestInFlightRef = useRef(false);
   const conversationEpochRef = useRef(0);
+  const threadListRequestRef = useRef(0);
   const chatAbortRef = useRef<AbortController | null>(null);
   const threadStorageKey = activeThreadKey(section, entityType, entityId);
   const screenLabel = humanizeScreen(section);
@@ -417,12 +419,21 @@ export const AICopilot = ({
   };
 
   const loadThreads = () => {
+    const requestId = ++threadListRequestRef.current;
     setThreadsLoading(true);
     setThreadListError(null);
     fetchCortexChatThreads(section, entityType, entityId)
-      .then((r) => setThreads((r.threads || []).slice(0, 5)))
-      .catch((error: any) => setThreadListError(error?.message || 'Chat history could not be loaded.'))
-      .finally(() => setThreadsLoading(false));
+      .then((r) => {
+        if (threadListRequestRef.current !== requestId) return;
+        setThreads((r.threads || []).slice(0, 5));
+      })
+      .catch((error: any) => {
+        if (threadListRequestRef.current !== requestId) return;
+        setThreadListError(error?.message || 'Chat history could not be loaded.');
+      })
+      .finally(() => {
+        if (threadListRequestRef.current === requestId) setThreadsLoading(false);
+      });
   };
 
   const startNewThread = () => {
@@ -467,6 +478,8 @@ export const AICopilot = ({
     setThreadId(null);
     setThreads([]);
     setHistory([]);
+    setCtx(null);
+    setContextLoading(true);
     let cancelled = false;
     let savedThreadId = '';
     try {
@@ -509,6 +522,9 @@ export const AICopilot = ({
         if (cancelled) return;
         setCtx(null);
         if (!savedThreadId) setHistory([{ role: 'ai', body: welcomeMessage() }]);
+      })
+      .finally(() => {
+        if (!cancelled) setContextLoading(false);
       });
     if (savedThreadId) {
       setLoadingThread(true);
@@ -531,6 +547,7 @@ export const AICopilot = ({
     loadThreads();
     return () => {
       cancelled = true;
+      threadListRequestRef.current += 1;
       chatAbortRef.current?.abort();
       chatAbortRef.current = null;
       window.removeEventListener('focus', onFocus);
@@ -722,7 +739,9 @@ export const AICopilot = ({
                 {cortexHealth === 'online' ? 'Ready' : cortexHealth === 'offline' ? 'Unavailable' : 'Checking'}
               </Chip>
             </div>
-            {entityId
+            {contextLoading
+              ? <span className="copilot-entity-context">Loading account context...</span>
+              : entityId
               ? <span className="copilot-entity-context" title={`${screenLabel} · ${entityId}`}>Focused on this {entityType || 'record'} · {screenLabel}</span>
               : <span className="copilot-entity-context">Account intelligence · {screenLabel}</span>}
           </div>
