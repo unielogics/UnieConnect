@@ -1,24 +1,12 @@
-import { useEffect } from 'react';
-import { useRouter } from 'next/router';
-import DashboardLayout from '../../components/DashboardLayout';
+import type { GetServerSideProps } from 'next';
 
-/**
- * Redirect: Send to Amazon flow is now integrated into Create Shipment Plan.
- */
-export default function AmazonFbaRedirectPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    void router.replace('/shipment-plans');
-  }, [router]);
-
-  return (
-    <DashboardLayout title="Send to Amazon" subtitle="Redirecting...">
-      <div className="card" style={{ padding: 24 }}>
-        <p className="muted">
-          FBA/FBW flows are now in Create Shipment Plan. Redirecting to Shipment plans...
-        </p>
-      </div>
-    </DashboardLayout>
-  );
+export default function AmazonFbaRedirect() {
+  return null;
 }
+
+export const getServerSideProps: GetServerSideProps = async () => ({
+  redirect: {
+    destination: '/oms?view=skus&marketplace=amazon&shipment=create',
+    permanent: false,
+  },
+});

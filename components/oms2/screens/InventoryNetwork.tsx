@@ -113,6 +113,13 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
     setEnrichmentFilter(requested === 'missing-cost' || requested === 'missing-dimensions' ? requested : 'all');
     if (requested === 'missing-cost' || requested === 'missing-dimensions') setView('table');
   }, [router.query.filter]);
+  useEffect(() => {
+    const requested = String(router.query.marketplace || '').toLowerCase();
+    if (!['amazon', 'shopify', 'ebay'].includes(requested)) return;
+    setMarketplaceFilter((current) => current.channel === requested && !current.channelAccountId
+      ? current
+      : { channel: requested });
+  }, [router.query.marketplace]);
 
   const filtered = useMemo(
     () =>

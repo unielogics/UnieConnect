@@ -176,11 +176,13 @@ const ConnectionCard = ({
 const ConnectNewModal = ({
   onClose,
   onConnected,
+  initialKind = 'shopify',
 }: {
   onClose: () => void;
   onConnected: () => void;
+  initialKind?: 'shopify' | 'amazon' | 'ebay' | 'wms';
 }) => {
-  const [kind, setKind] = useState<'shopify' | 'amazon' | 'ebay' | 'wms'>('shopify');
+  const [kind, setKind] = useState<'shopify' | 'amazon' | 'ebay' | 'wms'>(initialKind);
   const [shop, setShop] = useState('');
   const [wmsCode, setWmsCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -555,6 +557,11 @@ export const Connections = (_: ScreenProps) => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!router.isReady || router.query.connect !== 'wms') return;
+    setConnectOpen(true);
+  }, [router.isReady, router.query.connect]);
+
   const focusedConnectionId = typeof router.query.connection === 'string' ? router.query.connection : '';
 
   useEffect(() => {
@@ -769,6 +776,7 @@ export const Connections = (_: ScreenProps) => {
 
       {connectOpen && (
         <ConnectNewModal
+          initialKind={router.query.connect === 'wms' ? 'wms' : 'shopify'}
           onClose={() => setConnectOpen(false)}
           onConnected={() => {
             load();
