@@ -901,10 +901,11 @@ const IntelligenceReadinessPanel = ({
   loading?: boolean;
   error?: string;
   onRetry?: () => void;
-  onNavigate: (target: string) => void;
+  onNavigate: (target: string, payload?: string) => void;
 }) => {
   const score = readiness?.score || 0;
   const tone = score >= 78 ? 'green' : score >= 50 ? 'amber' : 'red';
+  const blockerCount = readiness?.blockers?.length || 0;
   return (
     <div className="card">
       <div className="card-header">
@@ -927,15 +928,20 @@ const IntelligenceReadinessPanel = ({
           <MiniMetric label="Open recs" value={String(recommendations.length)} sub="current vs optimized" tone="green" />
           <MiniMetric label="Last run" value={latest ? 'Available' : 'Not run'} sub={latest?.publicId || 'run optimization'} tone={latest ? 'green' : 'red'} />
         </div>
-        {readiness?.blockers?.length ? (
-          <div style={{ display: 'grid', gap: 6 }}>
-            {readiness.blockers.slice(0, 3).map((blocker) => <Chip key={blocker} tone="amber" dot={false}>{blocker}</Chip>)}
+        {blockerCount ? (
+          <div className="ai-readiness-task-summary">
+            <Chip tone="amber" dot={false}>{blockerCount} readiness task{blockerCount === 1 ? '' : 's'} need attention</Chip>
+            <span>Work is organized in the Cortex task inbox below.</span>
           </div>
         ) : (
           <Chip tone="green" dot={false}>Ready for high-confidence optimization</Chip>
         )}
-        <button className="btn sm" onClick={() => onNavigate('connections')}>
-          <Icon name="plug" size={12} /> Improve data sources
+        <button
+          className="btn sm"
+          onClick={() => blockerCount ? onNavigate('command', 'focus:cortex-tasks') : onNavigate('connections')}
+        >
+          <Icon name={blockerCount ? 'arrowDown' : 'plug'} size={12} />
+          {blockerCount ? 'Review readiness tasks' : 'Review data sources'}
         </button>
       </div>
         </>
