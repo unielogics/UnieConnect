@@ -29,6 +29,7 @@ export const CORE_SCREEN_IDS = new Set([
   'inbox',
   'profile',
   'team',
+  'admin',
 ]);
 
 export const SCREEN_FEATURES: Record<string, string> = {

@@ -37,6 +37,7 @@ export const TITLE_MAP: Record<string, [string, string]> = {
   ledger: ['Intelligence Ledger', 'Source → finding → action → outcome'],
   profile: ['Profile Settings', 'Account, billing, and security'],
   team: ['Team & Access', 'Members, roles, invitations, and access history'],
+  admin: ['OMS Administration', 'Accounts, warehouse links, and API credentials'],
 };
 
 export const TopBar = ({

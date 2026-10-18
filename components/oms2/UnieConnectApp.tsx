@@ -35,6 +35,7 @@ import { Connections } from './screens/Connections';
 import { Ledger } from './screens/Ledger';
 import { ProfileSettings } from './screens/ProfileSettings';
 import { TeamAccess } from './screens/TeamAccess';
+import { OmsAdministration } from './screens/OmsAdministration';
 import { NewProductModal } from './modals/NewProductModal';
 import { NewSupplierModal } from './modals/NewSupplierModal';
 import { NewCustomerModal } from './modals/NewCustomerModal';
@@ -62,7 +63,7 @@ export type NavFn = (target: string, payload?: string) => void;
 const OMS_SCREEN_IDS = new Set([
   'command', 'double', 'plan', 'product-research', 'skus', 'warehouses', 'sku-detail',
   'orders', 'returns', 'customers', 'suppliers', 'shipments', 'heatmap', 'labels',
-  'billing', 'audits', 'marketplace', 'support', 'inbox', 'connections', 'ledger', 'profile', 'team',
+  'billing', 'audits', 'marketplace', 'support', 'inbox', 'connections', 'ledger', 'profile', 'team', 'admin',
 ]);
 
 export interface ScreenProps {
@@ -427,7 +428,11 @@ export default function UnieConnectApp() {
     const next = buildSidebarNav(enabledFeatureIds, false);
     if (!canManageUsers(currentUser?.role)) return next;
     return next.map((category) => category.id === 'system'
-      ? { ...category, items: [...category.items, { id: 'team', label: 'Team & Access', icon: 'support', desc: 'Members, roles, invitations' }] }
+      ? { ...category, items: [
+          ...category.items,
+          { id: 'team', label: 'Team & Access', icon: 'support', desc: 'Members, roles, invitations' },
+          { id: 'admin', label: 'OMS Administration', icon: 'settings', desc: 'Accounts, warehouses, API keys' },
+        ] }
       : category);
   }, [currentUser?.role, enabledFeatureIds]);
 
@@ -552,6 +557,7 @@ export default function UnieConnectApp() {
     ledger: <Ledger {...sp} />,
     profile: <ProfileSettings {...sp} />,
     team: <TeamAccess {...sp} />,
+    admin: <OmsAdministration {...sp} />,
   };
   const cortexEntity = orderModal?.id
     ? { type: 'order', id: orderModal.id }
