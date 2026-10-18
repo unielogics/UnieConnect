@@ -74,6 +74,8 @@ export const TopBar = ({
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const taskWrapRef = useRef<HTMLDivElement>(null);
+  const taskButtonRef = useRef<HTMLButtonElement>(null);
 
   const loadTasks = (refresh = false) => {
     setTasksLoading(true);
@@ -141,6 +143,25 @@ export const TopBar = ({
       document.removeEventListener('mousedown', onPointerDown);
     };
   }, []);
+
+  useEffect(() => {
+    if (!tasksOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setTasksOpen(false);
+      taskButtonRef.current?.focus();
+    };
+    const onPointerDown = (event: MouseEvent) => {
+      if (!taskWrapRef.current?.contains(event.target as Node)) setTasksOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+    };
+  }, [tasksOpen]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -260,7 +281,7 @@ export const TopBar = ({
           aria-label="Search account records"
           aria-expanded={searchOpen}
           aria-controls="oms-global-search-results"
-          onFocus={() => setSearchOpen(true)}
+          onFocus={() => { setSearchOpen(true); setTasksOpen(false); }}
           onChange={(event) => { setSearchQuery(event.target.value); setSearchOpen(true); }}
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown' && searchResults.length) {
@@ -321,8 +342,20 @@ export const TopBar = ({
       >
         <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
       </button>
-      <div className="topbar-task-wrap">
-        <button className="icon-btn" data-hint="Cortex task inbox" onClick={() => setTasksOpen((v) => !v)}>
+      <div className="topbar-task-wrap" ref={taskWrapRef}>
+        <button
+          ref={taskButtonRef}
+          className="icon-btn"
+          data-hint="Cortex task inbox"
+          aria-label="Cortex task inbox"
+          aria-haspopup="dialog"
+          aria-expanded={tasksOpen}
+          aria-controls="cortex-task-popover"
+          onClick={() => {
+            setSearchOpen(false);
+            setTasksOpen((v) => !v);
+          }}
+        >
           <Icon name="bell" />
           {taskTotal > 0 && (
             <span className={`task-count-badge ${highTaskCount ? 'urgent' : ''}`}>
@@ -331,13 +364,16 @@ export const TopBar = ({
           )}
         </button>
         {tasksOpen && (
-          <div className="task-popover">
+          <div className="task-popover" id="cortex-task-popover" role="dialog" aria-label="Cortex task inbox">
             <div className="task-popover-head">
               <div>
                 <strong>Cortex tasks</strong>
                 <span>{tasksLoading && tasks.length === 0 ? 'Loading...' : `${taskTotal} open`}</span>
               </div>
-              <button className="icon-btn" data-hint="Refresh" onClick={() => loadTasks(true)}><Icon name="refresh" size={13} /></button>
+              <div className="task-popover-head-actions">
+                <button className="icon-btn" aria-label="Refresh Cortex tasks" data-hint="Refresh" onClick={() => loadTasks(true)}><Icon name="refresh" size={13} /></button>
+                <button className="icon-btn" aria-label="Close Cortex task inbox" data-hint="Close" onClick={() => { setTasksOpen(false); taskButtonRef.current?.focus(); }}><Icon name="x" size={13} /></button>
+              </div>
             </div>
             {tasks.length > 0 && (
               <div className="task-popover-summary">
@@ -383,21 +419,27 @@ export const TopBar = ({
                   </button>
                   <div className="task-popover-actions">
                     <button className="icon-btn" data-hint={completionLabel(task)} aria-label={completionLabel(task)} disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'done')}><Icon name="check" size={13} /></button>
-                    <button className="icon-btn" data-hint="Dismiss" disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'dismiss')}><Icon name="x" size={13} /></button>
+                    <button className="icon-btn" data-hint="Dismiss" aria-label="Dismiss task" disabled={taskUpdatingId === task.id} onClick={() => updateTask(task, 'dismiss')}><Icon name="x" size={13} /></button>
                   </div>
                 </div>
               ))}
             </div>
+            <div className="task-popover-footer">
+              <span>{taskTotal > tasks.length ? `Showing ${tasks.length} of ${taskTotal} open tasks` : 'Account-wide readiness and connection work'}</span>
+              <button className="btn ghost sm" onClick={() => { onNavigate?.('command'); setTasksOpen(false); }}>
+                Open full inbox <Icon name="arrowRight" size={11} />
+              </button>
+            </div>
           </div>
         )}
       </div>
-      <button className="icon-btn" data-hint="Settings" onClick={onOpenProfile}>
+      <button className="icon-btn" data-hint="Settings" onClick={() => { setTasksOpen(false); onOpenProfile?.(); }}>
         <Icon name="settings" />
       </button>
 
       <button
         className={`copilot-btn ${copilotOpen ? 'active' : ''}`}
-        onClick={onToggleCopilot}
+        onClick={() => { setTasksOpen(false); onToggleCopilot(); }}
         data-hint={cortexHealth === 'online' ? 'Cortex ready' : cortexHealth === 'offline' ? 'Cortex unavailable' : 'Checking Cortex'}
       >
         <span className={`ai-dot ${cortexHealth}`} />
