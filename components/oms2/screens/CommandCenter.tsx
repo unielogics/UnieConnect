@@ -42,6 +42,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [err, setErr] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
   const [optimizationNotice, setOptimizationNotice] = useState<string | null>(null);
+  const [optimizationError, setOptimizationError] = useState<string | null>(null);
   const optimizationAbortRef = useRef<AbortController | null>(null);
   const [taskFeedback, setTaskFeedback] = useState<{ tone: 'info' | 'success' | 'error'; text: string } | null>(null);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
@@ -108,6 +109,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
     const controller = new AbortController();
     optimizationAbortRef.current = controller;
     setOptimizing(true);
+    setOptimizationError(null);
     setOptimizationNotice('Preparing account evidence...');
     try {
       const response = await runSellerOptimization({ source: 'command_center' });
@@ -127,7 +129,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
       load(range);
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
-      setErr(e.message || 'Seller Optimization failed');
+      setOptimizationError(e.message || 'Cortex optimization could not be completed.');
       setOptimizationNotice(null);
     } finally {
       if (optimizationAbortRef.current === controller) {
@@ -241,11 +243,57 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
         </div>
       </div>
 
-      {err ? (
-        <div className="card"><ErrorState message={err} onRetry={() => load(range)} /></div>
-      ) : loading || !data ? (
+      {err && (
+        <div className="card" style={{ marginBottom: 16 }}><ErrorState message={err} onRetry={() => load(range)} /></div>
+      )}
+      {optimizationError && (
+        <div className="inline-banner danger" role="alert" style={{ marginBottom: 16 }}>
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>{optimizationError}</span>
+          <button className="btn ghost sm" onClick={triggerOptimization} disabled={optimizing}>
+            <Icon name="refresh" size={12} /> Retry optimization
+          </button>
+        </div>
+      )}
+
+      <div className="command-decision-row" style={{ marginBottom: 16 }}>
+        <OptimizationImpactPanel
+          recommendations={decisionRecommendations}
+          onNavigate={onNavigate}
+          onDecision={decideRecommendation}
+          feedback={decisionFeedback}
+          updatingId={decisionUpdatingId}
+        />
+        <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={decisionRecommendations} onNavigate={onNavigate} />
+      </div>
+
+      <div className="command-task-plan-row" style={{ marginBottom: 16 }}>
+        <CortexTasksPanel
+          tasks={tasks}
+          total={taskTotal}
+          summary={taskSummary}
+          onNavigate={onNavigate}
+          onDecision={decideTask}
+          feedback={taskFeedback}
+          updatingId={taskUpdatingId}
+        />
+        <AiPlanCard
+          bd={bd}
+          upside={upside}
+          costRed={costRed}
+          costRedAmount={costRedAmount}
+          slaImp={slaImp}
+          taskSummary={taskSummary}
+          optimizing={optimizing}
+          optimizationNotice={optimizationNotice}
+          onRun={triggerOptimization}
+          onNavigate={onNavigate}
+        />
+      </div>
+
+      {loading ? (
         <div className="card"><Loading rows={4} /></div>
-      ) : (
+      ) : !data ? null : (
         <>
           <div className="stat-grid cols-5">
             {tiles.map((t) => (
@@ -268,41 +316,6 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
                 )}
               </div>
             ))}
-          </div>
-
-          <div className="command-decision-row" style={{ marginBottom: 16 }}>
-            <OptimizationImpactPanel
-              recommendations={decisionRecommendations}
-              onNavigate={onNavigate}
-              onDecision={decideRecommendation}
-              feedback={decisionFeedback}
-              updatingId={decisionUpdatingId}
-            />
-            <IntelligenceReadinessPanel readiness={readiness} latest={latestOpt} recommendations={decisionRecommendations} onNavigate={onNavigate} />
-          </div>
-
-          <div className="command-task-plan-row" style={{ marginBottom: 16 }}>
-            <CortexTasksPanel
-              tasks={tasks}
-              total={taskTotal}
-              summary={taskSummary}
-              onNavigate={onNavigate}
-              onDecision={decideTask}
-              feedback={taskFeedback}
-              updatingId={taskUpdatingId}
-            />
-            <AiPlanCard
-              bd={bd}
-              upside={upside}
-              costRed={costRed}
-              costRedAmount={costRedAmount}
-              slaImp={slaImp}
-              taskSummary={taskSummary}
-              optimizing={optimizing}
-              optimizationNotice={optimizationNotice}
-              onRun={triggerOptimization}
-              onNavigate={onNavigate}
-            />
           </div>
 
           <div className="row-2" style={{ marginBottom: 16 }}>
