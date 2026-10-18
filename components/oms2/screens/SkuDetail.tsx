@@ -712,8 +712,10 @@ const SkuCortexEconomicsCard = ({
   error?: string | null;
 }) => {
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const refresh = async () => {
     setRefreshing(true);
+    setRefreshError(null);
     try {
       const workflowType = String(economics?.workflowType || 'DTC').toUpperCase();
       const payload = {
@@ -725,8 +727,11 @@ const SkuCortexEconomicsCard = ({
       };
       const response = await refreshSkuFulfillmentEconomics(skuId, payload);
       onEconomics(response.economics || null);
-    } catch {
-      onEconomics(economics || null);
+    } catch (refreshFailure: any) {
+      setRefreshError(
+        refreshFailure?.message
+        || 'Cortex fulfillment economics could not be refreshed. The existing values remain unchanged.',
+      );
     } finally {
       setRefreshing(false);
     }
@@ -830,6 +835,17 @@ const SkuCortexEconomicsCard = ({
             </button>
           </div>
         </div>
+        {refreshError && (
+          <div className="inline-banner danger" role="alert" style={{ margin: '12px 12px 0' }}>
+            <Icon name="warning" size={13} />
+            <span style={{ flex: 1 }}>
+              {refreshError} Existing values have not been reverified.
+            </span>
+            <button className="btn ghost sm" onClick={refresh} disabled={refreshing}>
+              <Icon name="refresh" size={12} /> {refreshing ? 'Retrying' : 'Retry'}
+            </button>
+          </div>
+        )}
         <div className="card-body" style={{ paddingBottom: 0 }}>
           {(() => {
             // Single-vs-multi comparison table. The single column reads the full stored cost stack
