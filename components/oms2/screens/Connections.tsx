@@ -583,7 +583,12 @@ export const Connections = (_: ScreenProps) => {
     : '';
 
   useEffect(() => {
-    if (!router.isReady || !connectedChannel || handledConnectedChannel.current === connectedChannel) return;
+    if (!router.isReady) return;
+    if (!connectedChannel) {
+      handledConnectedChannel.current = null;
+      return;
+    }
+    if (handledConnectedChannel.current === connectedChannel) return;
     handledConnectedChannel.current = connectedChannel;
     const provider = connectedChannel.charAt(0).toUpperCase() + connectedChannel.slice(1);
     setNotice(`${provider} authorization completed. Verifying permissions and syncing account data...`);
@@ -689,14 +694,23 @@ export const Connections = (_: ScreenProps) => {
   }, [load]);
 
   useEffect(() => {
-    if (loading || router.query.action !== 'repair' || !focusedConnectionId) return;
+    if (router.query.action !== 'repair') {
+      handledRouteAction.current = null;
+      return;
+    }
+    if (loading || !focusedConnectionId) return;
     const actionKey = `repair:${focusedConnectionId}`;
     if (handledRouteAction.current === actionKey) return;
     const connection = conns.find((item) => String(item.raw?.id || '') === focusedConnectionId);
     if (!connection) return;
     handledRouteAction.current = actionKey;
+    void router.replace(
+      { pathname: '/oms', query: { view: 'connections', connection: focusedConnectionId } },
+      undefined,
+      { shallow: true },
+    );
     void repairConnection(connection);
-  }, [conns, focusedConnectionId, loading, repairConnection, router.query.action]);
+  }, [conns, focusedConnectionId, loading, repairConnection, router, router.query.action]);
 
   const removeConnection = async (c: Conn) => {
     if (!window.confirm(`Remove ${c.name}? This disconnects it from this OMS account.`)) return;
