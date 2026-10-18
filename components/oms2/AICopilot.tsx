@@ -36,13 +36,63 @@ type Msg = {
   createdAt?: string;
 };
 
+const SOURCE_DESTINATIONS: Record<string, string> = {
+  oms_asns: 'shipments',
+  oms_billing: 'billing',
+  oms_business_double: 'double',
+  oms_context_samples: 'command',
+  oms_cortex_tasks: 'command',
+  oms_customers: 'customers',
+  oms_data_readiness: 'command',
+  oms_demand_heatmap: 'heatmap',
+  oms_execution_ledger: 'ledger',
+  oms_inventory_plan: 'plan',
+  oms_label_audits: 'labels',
+  oms_marketplace_apps: 'marketplace',
+  oms_marketplace_connections: 'connections',
+  oms_orders: 'orders',
+  oms_recommendations: 'command',
+  oms_returns: 'returns',
+  oms_shipment_plans: 'shipments',
+  oms_skus: 'skus',
+  oms_suppliers: 'suppliers',
+  oms_support_tickets: 'support',
+  oms_warehouses: 'warehouses',
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  oms_asns: 'ASNs',
+  oms_billing: 'Billing evidence',
+  oms_business_double: 'Business Double',
+  oms_customers: 'Customers',
+  oms_demand_heatmap: 'Demand heatmap',
+  oms_execution_ledger: 'Execution ledger',
+  oms_inventory_plan: 'Inventory plan',
+  oms_label_audits: 'Label audits',
+  oms_marketplace_apps: 'Marketplace apps',
+  oms_orders: 'Orders',
+  oms_recommendations: 'Cortex decisions',
+  oms_returns: 'Returns',
+  oms_shipment_plans: 'Shipment plans',
+  oms_skus: 'SKUs',
+  oms_suppliers: 'Suppliers',
+  oms_support_tickets: 'Support activity',
+  oms_warehouses: 'Warehouses',
+};
+
 const sourceLabel = (source: Record<string, unknown>) => {
   if (source.label) return String(source.label);
-  const name = String(source.source || 'oms').replace(/^oms_/, '').replace(/_/g, ' ');
-  if (source.source === 'oms_data_readiness') return `readiness ${source.readinessScore ?? '—'}%`;
-  if (source.source === 'oms_cortex_tasks') return `tasks ${source.count ?? 0}`;
-  if (source.source === 'oms_recommendations') return `signals ${source.count ?? 0}`;
-  if (source.source === 'oms_context_samples') {
+  const sourceName = String(source.source || 'oms');
+  const name = sourceName.replace(/^oms_/, '').replace(/_/g, ' ');
+  if (sourceName === 'oms_data_readiness') return `Readiness ${source.readinessScore ?? '—'}%`;
+  if (sourceName === 'oms_cortex_tasks') return `Tasks ${source.count ?? 0}`;
+  if (sourceName === 'oms_marketplace_connections') {
+    const channel = String(source.channel || '').trim();
+    return channel && channel !== 'all'
+      ? `${channel.charAt(0).toUpperCase()}${channel.slice(1)} connection`
+      : 'Marketplace connections';
+  }
+  if (sourceName === 'oms_context_samples') {
     const parts = [
       source.skus != null ? `${source.skus} SKUs` : '',
       source.orders != null ? `${source.orders} orders` : '',
@@ -50,17 +100,19 @@ const sourceLabel = (source: Record<string, unknown>) => {
     ].filter(Boolean);
     return parts.length ? parts.join(' · ') : 'OMS context';
   }
-  return name;
+  return SOURCE_LABELS[sourceName] || name;
 };
 
 const sourceTarget = (source: Record<string, unknown>) => {
   const target = String(source.screen || '').trim();
-  return target || null;
+  if (target) return target;
+  return SOURCE_DESTINATIONS[String(source.source || '')] || null;
 };
 
 const sourcePayload = (source: Record<string, unknown>) => {
   const payload = String(source.navigationPayload || source.entityId || '').trim();
-  return payload || undefined;
+  if (payload) return payload;
+  return source.source === 'oms_cortex_tasks' ? 'focus:cortex-tasks' : undefined;
 };
 
 const humanizeScreen = (screen?: string | null) =>
