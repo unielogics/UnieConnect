@@ -6,7 +6,7 @@ type IconName =
   | 'sparkle' | 'chevron' | 'chevronDown' | 'chevronUp' | 'plus' | 'download' | 'filter'
   | 'columns' | 'play' | 'check' | 'x' | 'arrowUp' | 'arrowDown' | 'arrowRight' | 'bolt'
   | 'target' | 'warning' | 'info' | 'refresh' | 'map' | 'box' | 'tag' | 'moon' | 'sun'
-  | 'panelRight' | 'layers' | 'flame' | 'eye' | 'save' | 'list' | 'more' | 'logout' | 'amazon' | 'lock' | 'archive';
+  | 'panelRight' | 'layers' | 'flame' | 'eye' | 'save' | 'copy' | 'list' | 'more' | 'logout' | 'amazon' | 'lock' | 'archive';
 
 export const Icon = ({
   name,
@@ -78,6 +78,7 @@ export const Icon = ({
     flame: <path d="M12 3s4 5 4 9a4 4 0 0 1-8 0c0-1 .5-2 1-2.5-.5 2 1 3 1 3s-2-3 2-9.5z" />,
     eye: <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
     save: <><path d="M5 3h11l4 4v14H5z" /><path d="M8 3v6h8V3" /><path d="M8 14h8v7H8z" /></>,
+    copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>,
     list: <><path d="M3 6h3M3 12h3M3 18h3" /><path d="M9 6h12M9 12h12M9 18h12" /></>,
     more: <><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></>,
     logout: <><path d="M10 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v2" /><path d="M15 7l5 5-5 5" /><path d="M8 12h12" /></>,

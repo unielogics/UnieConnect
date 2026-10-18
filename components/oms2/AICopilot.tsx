@@ -28,6 +28,7 @@ type ChatAction = {
 type Msg = {
   role: 'ai' | 'user';
   body: React.ReactNode;
+  plainText?: string;
   muted?: boolean;
   sources?: Array<Record<string, unknown>>;
   actions?: ChatAction[];
@@ -237,6 +238,7 @@ const visibleReadinessNote = (content?: string | null, note?: string | null) => 
 
 const messageToHistory = (m: CortexChatMessage): Msg => ({
   role: m.role === 'user' ? 'user' : 'ai',
+  plainText: m.role === 'assistant' ? cortexDisplayText(m.content) : undefined,
   muted: shouldMuteMessage(m),
   sources: m.sources,
   actions: (m.tasks || []) as ChatAction[],
@@ -323,6 +325,7 @@ export const AICopilot = ({
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [pending, setPending] = useState(false);
   const [pendingStage, setPendingStage] = useState<'reading' | 'comparing' | 'writing'>('reading');
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const requestInFlightRef = useRef(false);
   const conversationEpochRef = useRef(0);
@@ -519,6 +522,7 @@ export const AICopilot = ({
         ...h,
         {
           role: 'ai',
+          plainText: cortexDisplayText(res.message?.content || 'Cortex returned no answer.'),
           muted: cortexUnavailable,
           sources: res.message?.sources,
           actions: (res.message?.tasks || []) as ChatAction[],
@@ -585,6 +589,16 @@ export const AICopilot = ({
     ? ctx.recommendedPrompts
     : ['Summarize what is happening in my account', 'Where am I losing money right now?', 'Which orders need attention?', 'Is the AI plan ready for approval?'];
   const showSuggestedPrompts = !pending && !loadingThread && history.every((message) => message.role !== 'user');
+
+  const copyAnswer = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageIndex(index);
+      window.setTimeout(() => setCopiedMessageIndex((current) => current === index ? null : current), 1800);
+    } catch {
+      setCopiedMessageIndex(null);
+    }
+  };
 
   return (
     <aside className="copilot" aria-label="Cortex account assistant">
@@ -698,10 +712,25 @@ export const AICopilot = ({
                   ))}
                 </div>
               ) : null}
-              {m.createdAt ? (
-                <time className="ai-msg-time" dateTime={m.createdAt} title={humanizeChatTimestamp(m.createdAt)}>
-                  {chatTimeLabel(m.createdAt)}
-                </time>
+              {(m.createdAt || (m.role === 'ai' && m.plainText)) ? (
+                <div className="ai-msg-meta">
+                  {m.createdAt ? (
+                    <time className="ai-msg-time" dateTime={m.createdAt} title={humanizeChatTimestamp(m.createdAt)}>
+                      {chatTimeLabel(m.createdAt)}
+                    </time>
+                  ) : null}
+                  {m.role === 'ai' && m.plainText ? (
+                    <button
+                      type="button"
+                      className="ai-copy-answer"
+                      aria-label={copiedMessageIndex === i ? 'Cortex answer copied' : 'Copy Cortex answer'}
+                      data-hint={copiedMessageIndex === i ? 'Copied' : 'Copy answer'}
+                      onClick={() => void copyAnswer(m.plainText || '', i)}
+                    >
+                      <Icon name={copiedMessageIndex === i ? 'check' : 'copy'} size={11} />
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </div>
