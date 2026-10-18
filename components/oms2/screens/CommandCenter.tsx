@@ -17,6 +17,7 @@ import {
   CommandCenterFull,
   BusinessDoubleResponse,
   CortexTask,
+  CortexTaskSummary,
   IntelligenceReadiness,
   OmsRecommendation,
   SellerOptimizationSummary,
@@ -36,6 +37,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
   const [tasks, setTasks] = useState<CortexTask[]>([]);
   const [taskTotal, setTaskTotal] = useState(0);
+  const [taskSummary, setTaskSummary] = useState<CortexTaskSummary>({ highPriority: 0, workAreas: [], sources: [] });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
@@ -61,6 +63,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
     if (tasksResult.status === 'fulfilled') {
       setTasks(tasksResult.value.tasks || []);
       setTaskTotal(tasksResult.value.total ?? tasksResult.value.tasks?.length ?? 0);
+      setTaskSummary(tasksResult.value.summary || { highPriority: 0, workAreas: [], sources: [] });
     }
   }, []);
 
@@ -87,6 +90,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           if (!cancelled) {
             setTasks(result.tasks || []);
             setTaskTotal(result.total ?? result.tasks?.length ?? 0);
+            setTaskSummary(result.summary || { highPriority: 0, workAreas: [], sources: [] });
           }
         })
         .catch(() => undefined);
@@ -280,6 +284,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
             <CortexTasksPanel
               tasks={tasks}
               total={taskTotal}
+              summary={taskSummary}
               onNavigate={onNavigate}
               onDecision={decideTask}
               feedback={taskFeedback}
@@ -497,6 +502,7 @@ const RevenueTrendCard = ({ data, bd, compact = false }: { data: CommandCenterFu
 const CortexTasksPanel = ({
   tasks,
   total,
+  summary,
   onNavigate,
   onDecision,
   feedback,
@@ -504,14 +510,14 @@ const CortexTasksPanel = ({
 }: {
   tasks: CortexTask[];
   total: number;
+  summary: CortexTaskSummary;
   onNavigate: (target: string, payload?: string) => void;
   onDecision: (task: CortexTask, action: 'done' | 'dismiss') => void;
   feedback?: { tone: 'info' | 'success' | 'error'; text: string } | null;
   updatingId?: string | null;
 }) => {
-  const highPriority = tasks.filter((task) => task.priority === 'high').length;
-  const screens = Array.from(new Set(tasks.map((task) => task.screen || task.actionTarget || 'command'))).slice(0, 4);
-  const sources = Array.from(new Set(tasks.map((task) => task.source || 'readiness'))).slice(0, 3);
+  const screens = summary.workAreas.slice(0, 4);
+  const sources = summary.sources.slice(0, 3);
   const completionLabel = (task: CortexTask) =>
     task.source === 'readiness' || task.source === 'connection_health' ? 'Verify completion' : 'Mark done';
   const taskNavigationPayload = (task: CortexTask) => {
@@ -539,9 +545,9 @@ const CortexTasksPanel = ({
             </div>
           )}
           <div className="cortex-task-summary">
-            <MiniMetric label="High priority" value={String(highPriority)} sub="needs action" tone={highPriority ? 'red' : 'green'} />
-            <MiniMetric label="Work areas" value={String(screens.length)} sub={screens.map((s) => s.replace(/-/g, ' ')).join(', ') || 'none'} />
-            <MiniMetric label="Sources" value={String(sources.length)} sub={sources.map((source) => source.replace(/_/g, ' ')).join(', ')} />
+            <MiniMetric label="High priority" value={String(summary.highPriority)} sub="needs action" tone={summary.highPriority ? 'red' : 'green'} />
+            <MiniMetric label="Work areas" value={String(summary.workAreas.length)} sub={screens.map((s) => s.replace(/-/g, ' ')).join(', ') || 'none'} />
+            <MiniMetric label="Sources" value={String(summary.sources.length)} sub={sources.map((source) => source.replace(/_/g, ' ')).join(', ')} />
           </div>
           <div className="table-wrap">
             <table className="data-table cortex-task-table">

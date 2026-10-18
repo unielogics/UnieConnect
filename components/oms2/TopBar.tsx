@@ -8,6 +8,7 @@ import {
   fetchCortexTasks,
   searchOms,
   CortexTask,
+  CortexTaskSummary,
   OmsGlobalSearchResult,
 } from '../../lib/oms';
 
@@ -59,6 +60,7 @@ export const TopBar = ({
   const [tasksOpen, setTasksOpen] = useState(false);
   const [tasks, setTasks] = useState<CortexTask[]>([]);
   const [taskTotal, setTaskTotal] = useState(0);
+  const [taskSummary, setTaskSummary] = useState<CortexTaskSummary>({ highPriority: 0, workAreas: [], sources: [] });
   const [tasksLoading, setTasksLoading] = useState(true);
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [taskError, setTaskError] = useState<string | null>(null);
@@ -80,6 +82,7 @@ export const TopBar = ({
       .then((r) => {
         setTasks(r.tasks || []);
         setTaskTotal(r.total ?? r.tasks?.length ?? 0);
+        setTaskSummary(r.summary || { highPriority: 0, workAreas: [], sources: [] });
       })
       .catch((error: any) => setTaskError(error?.message || 'Cortex tasks could not be loaded.'))
       .finally(() => setTasksLoading(false));
@@ -95,6 +98,7 @@ export const TopBar = ({
           if (!cancelled) {
             setTasks(r.tasks || []);
             setTaskTotal(r.total ?? r.tasks?.length ?? 0);
+            setTaskSummary(r.summary || { highPriority: 0, workAreas: [], sources: [] });
           }
         })
         .catch((error: any) => {
@@ -227,8 +231,8 @@ export const TopBar = ({
     if (task.dedupeKey === 'readiness:supplier-pickup-profiles') return 'filter:missing-pickup';
     return task.entityId || undefined;
   };
-  const highTaskCount = tasks.filter((task) => task.priority === 'high').length;
-  const workAreas = Array.from(new Set(tasks.map((task) => task.actionTarget || task.screen).filter(Boolean))).slice(0, 3);
+  const highTaskCount = taskSummary.highPriority;
+  const workAreas = taskSummary.workAreas.slice(0, 3);
   const systemStatusCopy = cortexHealth === 'online'
     ? 'Cortex ready'
     : cortexHealth === 'offline'
@@ -338,7 +342,7 @@ export const TopBar = ({
             {tasks.length > 0 && (
               <div className="task-popover-summary">
                 <span><strong>{highTaskCount}</strong> high priority</span>
-                <span><strong>{workAreas.length}</strong> work areas</span>
+                <span><strong>{taskSummary.workAreas.length}</strong> work areas</span>
                 <span>{workAreas.map((area) => String(area).replace(/-/g, ' ')).join(' · ')}</span>
               </div>
             )}
