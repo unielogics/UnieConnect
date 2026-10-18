@@ -763,7 +763,7 @@ const SkuCortexEconomicsCard = ({
           ['Optimized / unit', optimizedBlocked ? null : costs.optimizedPerUnit, optimizedBlocked ? networkBlockedCopy(optimizedBlockedReason) : 'Cortex modeled'],
           ['Receiving / unit', costs.receivingPerUnit, costs.receivingTotal != null ? `${money(costs.receivingTotal)} total` : 'warehouse pricing'],
           ['Prep / LAB / unit', costs.prepLabPerUnit, costs.prepLabTotal != null ? `${money(costs.prepLabTotal)} total` : 'warehouse pricing'],
-          ['Unit label', costs.unitLabelPerUnit, costs.unitLabelTotal != null ? `${money(costs.unitLabelTotal)} total` : 'marketplace prep'],
+          ['Marketplace prep label / unit', costs.unitLabelPerUnit, costs.unitLabelTotal != null ? `${money(costs.unitLabelTotal)} total` : 'marketplace prep'],
           ['Carton label', costs.cartonLabelPerCarton, costs.cartonLabelTotal != null ? `${money(costs.cartonLabelTotal)} total` : 'box labels'],
         ]
       : [
@@ -772,7 +772,7 @@ const SkuCortexEconomicsCard = ({
           ['Pick / unit', costs.pickPerUnit, costs.pickTotal != null ? `${money(costs.pickTotal)} total` : 'warehouse pricing'],
           ['Pack / unit', costs.packPerUnit, costs.packTotal != null ? `${money(costs.packTotal)} total` : 'warehouse pricing'],
           ['Materials / order', costs.materialsPerOrder, costs.materialBoxSize ? `${costs.materialBoxSize} box` : 'warehouse materials'],
-          ['Label / unit', costs.domesticLabelPerUnit, costs.labelTotal != null ? `${money(costs.labelTotal)} total` : '48-state estimate'],
+          ['Outbound parcel postage / unit', costs.domesticLabelPerUnit, costs.labelTotal != null ? `${money(costs.labelTotal)} total` : '48-state carrier estimate'],
         ];
     const comparisonRows: Array<{
       key: 'single' | 'optimized';
@@ -847,7 +847,7 @@ const SkuCortexEconomicsCard = ({
             const multiFulfillment = num(optimized.fulfillmentPerUnit);
             const optimizedInheritsAnchor = String(optimized.optimizedFulfillmentRatesSource || optimized.fulfillmentRatesSource || '') === 'anchor_inherited';
             const rows: Array<{ label: string; single: number | null; multi: number | null; hint?: string }> = [
-              { label: 'Shipping label / unit', single: num(singleRow.label), multi: optimizedBlocked ? null : num(multiRow.label), hint: '48-state parcel avg' },
+              { label: 'Outbound parcel postage / unit', single: num(singleRow.label), multi: optimizedBlocked ? null : num(multiRow.label), hint: '48-state carrier estimate' },
               { label: 'Pick · pack · handling / unit', single: singlePickPack, multi: optimizedBlocked ? null : (multiFulfillment ?? singlePickPack), hint: optimizedInheritsAnchor ? 'multi inherits anchor rates' : 'warehouse pricing' },
               { label: 'Materials / unit', single: singleMaterials, multi: optimizedBlocked ? null : singleMaterials, hint: 'boxes · dunnage' },
               { label: 'Receiving / unit', single: singleReceiving, multi: optimizedBlocked ? null : singleReceiving, hint: 'inbound handling' },
@@ -978,7 +978,7 @@ const SkuCortexEconomicsCard = ({
       <div className="card-header">
         <div>
           <div className="card-title"><Icon name="sparkle" size={15} /> Cortex fulfillment economics</div>
-          <div className="card-subtitle">Per-unit model for fulfillment cost, shipping label exposure, and optimized warehouse routing.</div>
+          <div className="card-subtitle">Per-unit model for fulfillment cost, outbound parcel postage, and optimized warehouse routing. ASN pallet labels are excluded.</div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <Chip tone={String(preview?.rateShopScope || '').includes('full') ? 'purple' : 'green'} dot={false}>

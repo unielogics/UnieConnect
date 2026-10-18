@@ -7,7 +7,7 @@ import type { ShipmentPricingPreview } from '../../lib/shipment-plan';
  * Shared Cortex pricing intelligence panel — the single, segregated shipment-cost breakdown.
  *
  * Renders per-unit cost segregated into inbound (receiving/prep/LAB), pick/pack/fulfillment,
- * shipping label, LTL transfer, and storage; PLUS a single-warehouse vs multi-warehouse
+ * outbound parcel postage, LTL transfer, and storage; PLUS a single-warehouse vs multi-warehouse
  * rate-shopping comparison (the "single vs multi" the operator asked for) drawn from each SKU's
  * `pricingPayload.networkComparison.{singleWarehouse, optimizedTwoNode}`. Every rate carries the
  * mandatory disclosure that it is an estimate from rate-shopping of similar items by weight & size.
@@ -302,7 +302,7 @@ export const CortexPricingPanel = ({
         <div>
           <div className="card-title"><Icon name="sparkle" size={14} /> Fulfillment cost per unit</div>
           <div className="card-subtitle">
-            Segregated inbound + pick/pack, shipping labels, and storage — plus single- vs multi-warehouse rate shopping.
+            Segregated inbound + pick/pack, outbound parcel postage, and storage — plus single- vs multi-warehouse rate shopping. ASN pallet-label PDFs are free operational documents.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -340,7 +340,7 @@ export const CortexPricingPanel = ({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
           <ReviewCard title="Inbound / unit" value={money(hasSkuAggregate ? skuAggregate.receivingPrepLab / Math.max(1, skuAggregate.units) : (receivingPrepLabTotal / Math.max(1, units)))} sub="receiving · prep · LAB" />
           <ReviewCard title="Pick / pack / unit" value={money(fulfillmentPerUnit)} sub="pick, pack, handling" />
-          <ReviewCard title="Shipping label / unit" value={moneyOrMissing(labelAvg)} sub="48-state parcel avg" />
+          <ReviewCard title="Outbound parcel postage / unit" value={moneyOrMissing(labelAvg)} sub="48-state carrier estimate" />
           <ReviewCard title="LTL transfer / unit" value={moneyOrMissing(transferPerUnit)} sub="warehouse-to-warehouse" />
           <ReviewCard title="Storage / month" value={money(storageTotal)} sub={`${(hasSkuAggregate ? skuAggregate.units : units).toLocaleString()} units`} />
           <ReviewCard title="Due today" tone={dueToday > 0 ? 'purple' : 'green'} value={money(dueToday)} sub={dueToday > 0 ? 'transport due now' : '$0 unless pickup'} />
@@ -353,7 +353,7 @@ export const CortexPricingPanel = ({
             {[
               ['Inbound: receiving / prep / LAB', receivingPrepLabTotal],
               ['Pick / pack / fulfillment', fulfillmentTotal],
-              ['Shipping labels', labelAvg == null ? null : labelTotal],
+              ['Outbound parcel postage', labelAvg == null ? null : labelTotal],
               ['LTL transfer', transferPerUnit == null ? null : transferTotal],
               ['Storage / month', storageTotal],
               ['Estimated total', total],
