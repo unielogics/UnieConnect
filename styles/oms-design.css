@@ -989,6 +989,12 @@
 .uc-shell .ai-plan-run-status.running svg,
 .uc-shell .business-plan-run-status.running svg { animation: cortex-progress-spin 1.2s linear infinite; }
 @keyframes cortex-progress-spin { to { transform: rotate(360deg); } }
+.uc-shell .command-channel-table { min-width: 560px; }
+.uc-shell .command-channel-table th,
+.uc-shell .command-channel-table td { padding: 11px 14px; }
+.uc-shell .channel-share-cell { display: grid; grid-template-columns: 42px minmax(72px, 1fr); align-items: center; gap: 9px; min-width: 130px; font-size: 11.5px; color: var(--text-secondary); }
+.uc-shell .channel-share-track { display: block; height: 5px; overflow: hidden; border-radius: 3px; background: var(--bg-subtle); }
+.uc-shell .channel-share-track > span { display: block; height: 100%; border-radius: inherit; background: var(--purple); }
 .uc-shell .cortex-task-table th:nth-child(1),
 .uc-shell .cortex-task-table td:nth-child(1) { width: 40%; }
 .uc-shell .cortex-task-table th:nth-child(2),

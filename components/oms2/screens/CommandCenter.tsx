@@ -619,25 +619,68 @@ const CortexTasksPanel = ({
 };
 
 const ChannelMixCard = ({ data }: { data: CommandCenterFull }) => {
-  // Backend exposes channel count only; render the design card with an
-  // honest empty/derived state rather than fabricating per-channel revenue.
-  const channels = data.counts?.channels ?? 0;
+  const channelMix = data.metrics.channelMix || [];
+  const totalRevenue = channelMix.reduce((sum, row) => sum + Number(row.revenue || 0), 0);
+  const totalOrders = channelMix.reduce((sum, row) => sum + Number(row.orders || 0), 0);
+  const displayChannel = (channel: string) => {
+    const normalized = String(channel || 'manual').toLowerCase();
+    if (normalized === 'shopify') return 'Shopify';
+    if (normalized === 'amazon') return 'Amazon';
+    if (normalized === 'ebay') return 'eBay';
+    if (normalized === 'csv') return 'CSV';
+    return normalized.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
   return (
     <div className="card">
       <div className="card-header">
-        <div className="card-title">Channel mix</div>
+        <div>
+          <div className="card-title">Channel mix</div>
+          <div className="card-subtitle">Orders and recognized revenue by source.</div>
+        </div>
         <Chip dot={false}>{data.range === 'today' ? 'Today' : data.range === '7d' ? 'Last 7d' : 'Last 30d'}</Chip>
       </div>
-      <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div className="command-mini-metrics" style={{ gap: 10 }}>
-          <MiniMetric label="Connected channels" value={String(channels)} sub="marketplace feeds" />
-          <MiniMetric label="Orders" value={fmt.num(data.metrics.orders)} sub={`${data.range}`} tone="green" />
-          <MiniMetric label="Refunds" value={fmt.money(data.metrics.refunds || 0, { compact: true })} sub="captured" tone={data.metrics.refunds ? 'red' : undefined} />
-        </div>
-        <div style={{ paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
-          <EmptyState>Per-channel revenue split is not yet exposed by the orders feed.</EmptyState>
-        </div>
-      </div>
+      {channelMix.length === 0 ? (
+        <div className="card-body"><EmptyState>No channel activity is recorded for this range.</EmptyState></div>
+      ) : (
+        <>
+          <div className="command-mini-metrics" style={{ gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <MiniMetric label="Active channels" value={String(channelMix.length)} sub={`${data.counts?.channels ?? 0} connected`} />
+            <MiniMetric label="Orders" value={fmt.num(totalOrders)} sub={`${data.range}`} tone="green" />
+            <MiniMetric label="Revenue" value={fmt.money(totalRevenue, { compact: true })} sub="recognized" tone="green" />
+          </div>
+          <div className="table-wrap">
+            <table className="data-table command-channel-table">
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th className="num">Orders</th>
+                  <th className="num">Units</th>
+                  <th className="num">Revenue</th>
+                  <th>Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {channelMix.map((row) => (
+                  <tr key={row.channel}>
+                    <td><strong>{displayChannel(row.channel)}</strong></td>
+                    <td className="num">{fmt.num(row.orders)}</td>
+                    <td className="num">{fmt.num(row.units)}</td>
+                    <td className="num">{fmt.money(row.revenue, { compact: true })}</td>
+                    <td>
+                      <div className="channel-share-cell">
+                        <span>{row.revenueSharePct.toFixed(1)}%</span>
+                        <span className="channel-share-track" aria-hidden="true">
+                          <span style={{ width: `${Math.max(0, Math.min(100, row.revenueSharePct))}%` }} />
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 };
