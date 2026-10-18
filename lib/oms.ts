@@ -892,6 +892,9 @@ export type CortexChatResponse = {
       liveRouteAvailable?: boolean;
       liveRouteStatus?: number;
       liveRouteReason?: string;
+      latencyMs?: number;
+      attempts?: number;
+      checkedAt?: string;
     };
   };
 };
@@ -1426,11 +1429,17 @@ export const fetchCortexChatThread = (id: string) =>
 
 export type CortexHealthState = 'online' | 'offline' | 'checking';
 
+export type CortexHealthEventDetail = {
+  status: CortexHealthState;
+  latencyMs?: number;
+  checkedAt?: string;
+};
+
 export const CORTEX_HEALTH_CHANGED_EVENT = 'unie:cortex-health-changed';
 
-export const notifyCortexHealthChanged = (status: CortexHealthState) => {
+export const notifyCortexHealthChanged = (status: CortexHealthState, details: Omit<CortexHealthEventDetail, 'status'> = {}) => {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(CORTEX_HEALTH_CHANGED_EVENT, { detail: { status } }));
+    window.dispatchEvent(new CustomEvent<CortexHealthEventDetail>(CORTEX_HEALTH_CHANGED_EVENT, { detail: { status, ...details } }));
   }
 };
 

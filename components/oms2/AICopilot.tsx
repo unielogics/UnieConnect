@@ -8,6 +8,7 @@ import {
   fetchCortexChatHealth,
   CORTEX_HEALTH_CHANGED_EVENT,
   CortexHealthState,
+  CortexHealthEventDetail,
   notifyCortexHealthChanged,
   sendCortexChat,
   CopilotContext,
@@ -385,6 +386,7 @@ export const AICopilot = ({
   const [loadingThread, setLoadingThread] = useState(false);
   const [contextLoading, setContextLoading] = useState(true);
   const [cortexHealth, setCortexHealth] = useState<CortexHealthState>('checking');
+  const [cortexLatencyMs, setCortexLatencyMs] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const [pendingStage, setPendingStage] = useState<'reading' | 'comparing' | 'writing'>('reading');
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
@@ -488,16 +490,18 @@ export const AICopilot = ({
       savedThreadId = '';
     }
     const restoreEpoch = conversationEpochRef.current;
-    const shareHealth = (status: CortexHealthState) => {
+    const shareHealth = (status: CortexHealthState, latencyMs?: number, checkedAt?: string) => {
       if (cancelled) return;
       setCortexHealth(status);
-      notifyCortexHealthChanged(status);
+      if (Number.isFinite(latencyMs)) setCortexLatencyMs(Number(latencyMs));
+      else if (status !== 'online') setCortexLatencyMs(null);
+      notifyCortexHealthChanged(status, { latencyMs, checkedAt });
     };
     const checkHealth = (showChecking = false) => {
       if (showChecking) shareHealth('checking');
       fetchCortexChatHealth(section)
         .then((res) => {
-          shareHealth(res.ok ? 'online' : 'offline');
+          shareHealth(res.ok ? 'online' : 'offline', res.health?.latencyMs, res.health?.checkedAt);
         })
         .catch(() => {
           // Transport uncertainty should not advertise a service outage.
@@ -506,8 +510,12 @@ export const AICopilot = ({
         });
     };
     const onSharedHealth = (event: Event) => {
-      const status = (event as CustomEvent<{ status?: CortexHealthState }>).detail?.status;
-      if (!cancelled && status) setCortexHealth(status);
+      const detail = (event as CustomEvent<CortexHealthEventDetail>).detail;
+      if (!cancelled && detail?.status) {
+        setCortexHealth(detail.status);
+        if (Number.isFinite(detail.latencyMs)) setCortexLatencyMs(Number(detail.latencyMs));
+        else if (detail.status !== 'online') setCortexLatencyMs(null);
+      }
     };
     const onFocus = () => checkHealth(false);
     checkHealth(true);
@@ -630,7 +638,8 @@ export const AICopilot = ({
           .then((health) => {
             const nextHealth = health.ok ? 'online' : 'offline';
             setCortexHealth(nextHealth);
-            notifyCortexHealthChanged(nextHealth);
+            if (Number.isFinite(health.health?.latencyMs)) setCortexLatencyMs(Number(health.health?.latencyMs));
+            notifyCortexHealthChanged(nextHealth, { latencyMs: health.health?.latencyMs, checkedAt: health.health?.checkedAt });
           })
           .catch(() => {
             setCortexHealth((current) => current === 'online' ? current : 'checking');
@@ -704,7 +713,8 @@ export const AICopilot = ({
     if (responseHealth?.reason !== 'account_grounded_answer' && typeof responseHealth?.available === 'boolean') {
       const nextHealth = cortexUnavailable ? 'offline' : 'online';
       setCortexHealth(nextHealth);
-      notifyCortexHealthChanged(nextHealth);
+      if (Number.isFinite(responseHealth?.latencyMs)) setCortexLatencyMs(Number(responseHealth?.latencyMs));
+      notifyCortexHealthChanged(nextHealth, { latencyMs: responseHealth?.latencyMs, checkedAt: responseHealth?.checkedAt });
     }
     setHistory((h) => [
       ...h,
@@ -737,7 +747,9 @@ export const AICopilot = ({
             <div className="copilot-title-line">
               <strong>Cortex</strong>
               <Chip tone={cortexHealth === 'online' ? 'green' : cortexHealth === 'offline' ? 'red' : 'amber'} dot={false}>
-                {cortexHealth === 'online' ? 'Ready' : cortexHealth === 'offline' ? 'Unavailable' : 'Checking'}
+                {cortexHealth === 'online'
+                  ? `Ready${cortexLatencyMs != null ? ` · ${cortexLatencyMs} ms` : ''}`
+                  : cortexHealth === 'offline' ? 'Unavailable' : 'Checking'}
               </Chip>
             </div>
             {contextLoading

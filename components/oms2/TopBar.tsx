@@ -3,6 +3,7 @@ import { Icon } from './icons';
 import {
   CORTEX_TASKS_CHANGED_EVENT,
   CORTEX_HEALTH_CHANGED_EVENT,
+  CortexHealthEventDetail,
   CortexHealthState,
   completeCortexTask,
   dismissCortexTask,
@@ -82,6 +83,7 @@ export const TopBar = ({
   const [taskSummary, setTaskSummary] = useState<CortexTaskSummary>({ highPriority: 0, workAreas: [], sources: [] });
   const [tasksLoading, setTasksLoading] = useState(true);
   const [cortexHealth, setCortexHealth] = useState<CortexHealthState>('checking');
+  const [cortexLatencyMs, setCortexLatencyMs] = useState<number | null>(null);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskNotice, setTaskNotice] = useState<{ tone: 'info' | 'success'; text: string } | null>(null);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
@@ -214,16 +216,18 @@ export const TopBar = ({
 
   useEffect(() => {
     let cancelled = false;
-    const shareHealth = (status: CortexHealthState) => {
+    const shareHealth = (status: CortexHealthState, latencyMs?: number, checkedAt?: string) => {
       if (cancelled) return;
       setCortexHealth(status);
-      notifyCortexHealthChanged(status);
+      if (Number.isFinite(latencyMs)) setCortexLatencyMs(Number(latencyMs));
+      else if (status !== 'online') setCortexLatencyMs(null);
+      notifyCortexHealthChanged(status, { latencyMs, checkedAt });
     };
     const checkHealth = (showChecking = false) => {
       if (showChecking) shareHealth('checking');
       fetchCortexChatHealth(section)
         .then((res) => {
-          shareHealth(res.ok ? 'online' : 'offline');
+          shareHealth(res.ok ? 'online' : 'offline', res.health?.latencyMs, res.health?.checkedAt);
         })
         .catch(() => {
           // A failed poll is not proof that Cortex is down. Preserve the last
@@ -233,8 +237,12 @@ export const TopBar = ({
         });
     };
     const onSharedHealth = (event: Event) => {
-      const status = (event as CustomEvent<{ status?: CortexHealthState }>).detail?.status;
-      if (!cancelled && status) setCortexHealth(status);
+      const detail = (event as CustomEvent<CortexHealthEventDetail>).detail;
+      if (!cancelled && detail?.status) {
+        setCortexHealth(detail.status);
+        if (Number.isFinite(detail.latencyMs)) setCortexLatencyMs(Number(detail.latencyMs));
+        else if (detail.status !== 'online') setCortexLatencyMs(null);
+      }
     };
     const onFocus = () => checkHealth(false);
     checkHealth(true);
@@ -471,7 +479,9 @@ export const TopBar = ({
         className={`copilot-btn ${copilotOpen ? 'active' : ''}`}
         onClick={() => { setTasksOpen(false); onToggleCopilot(); }}
         aria-label={`Cortex, ${cortexHealth === 'online' ? 'ready' : cortexHealth === 'offline' ? 'unavailable' : 'checking status'}`}
-        data-hint={cortexHealth === 'online' ? 'Cortex ready' : cortexHealth === 'offline' ? 'Cortex unavailable' : 'Checking Cortex'}
+        data-hint={cortexHealth === 'online'
+          ? `Cortex ready${cortexLatencyMs != null ? ` · ${cortexLatencyMs} ms` : ''}`
+          : cortexHealth === 'offline' ? 'Cortex unavailable' : 'Checking Cortex'}
       >
         <span className={`ai-dot ${cortexHealth}`} />
         Cortex
