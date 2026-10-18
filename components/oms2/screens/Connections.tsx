@@ -434,6 +434,7 @@ export const Connections = (_: ScreenProps) => {
   const [notice, setNotice] = useState<string | null>(null);
   const [loadErrors, setLoadErrors] = useState<Partial<Record<Owner, string>>>({});
   const handledRouteAction = useRef<string | null>(null);
+  const handledConnectedChannel = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -557,6 +558,26 @@ export const Connections = (_: ScreenProps) => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const connectedChannel = typeof router.query.connected === 'string'
+    ? router.query.connected.toLowerCase()
+    : '';
+
+  useEffect(() => {
+    if (!router.isReady || !connectedChannel || handledConnectedChannel.current === connectedChannel) return;
+    handledConnectedChannel.current = connectedChannel;
+    const provider = connectedChannel.charAt(0).toUpperCase() + connectedChannel.slice(1);
+    setNotice(`${provider} authorization completed. Verifying permissions and syncing account data...`);
+    const firstRefresh = window.setTimeout(() => { void load(); }, 2500);
+    const finalRefresh = window.setTimeout(() => {
+      void load();
+      void router.replace({ pathname: '/oms', query: { view: 'connections' } }, undefined, { shallow: true });
+    }, 8000);
+    return () => {
+      window.clearTimeout(firstRefresh);
+      window.clearTimeout(finalRefresh);
+    };
+  }, [connectedChannel, load, router]);
 
   const requestedConnectionKind = typeof router.query.connect === 'string'
     && ['shopify', 'amazon', 'ebay', 'wms'].includes(router.query.connect)
