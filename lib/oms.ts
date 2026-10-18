@@ -1392,7 +1392,7 @@ export const fetchCortexTasks = (params?: { status?: string; screen?: string; re
   if (params?.screen) qs.set('screen', params.screen);
   if (params?.refresh) qs.set('refresh', 'true');
   if (params?.limit) qs.set('limit', String(params.limit));
-  return omsFetch<{ tasks: CortexTask[] }>(`/intelligence/tasks?${qs.toString()}`);
+  return omsFetch<{ tasks: CortexTask[]; total: number }>(`/intelligence/tasks?${qs.toString()}`);
 };
 
 export const refreshCortexTasks = async () => {

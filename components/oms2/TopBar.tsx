@@ -58,6 +58,7 @@ export const TopBar = ({
   const [title] = TITLE_MAP[section] || ['', ''];
   const [tasksOpen, setTasksOpen] = useState(false);
   const [tasks, setTasks] = useState<CortexTask[]>([]);
+  const [taskTotal, setTaskTotal] = useState(0);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [cortexHealth, setCortexHealth] = useState<'online' | 'offline' | 'checking'>('checking');
   const [taskError, setTaskError] = useState<string | null>(null);
@@ -76,7 +77,10 @@ export const TopBar = ({
     setTasksLoading(true);
     setTaskError(null);
     fetchCortexTasks({ status: 'open', refresh, limit: 12 })
-      .then((r) => setTasks(r.tasks || []))
+      .then((r) => {
+        setTasks(r.tasks || []);
+        setTaskTotal(r.total ?? r.tasks?.length ?? 0);
+      })
       .catch((error: any) => setTaskError(error?.message || 'Cortex tasks could not be loaded.'))
       .finally(() => setTasksLoading(false));
   };
@@ -88,7 +92,10 @@ export const TopBar = ({
       setTaskError(null);
       fetchCortexTasks({ status: 'open', refresh, limit: 12 })
         .then((r) => {
-          if (!cancelled) setTasks(r.tasks || []);
+          if (!cancelled) {
+            setTasks(r.tasks || []);
+            setTaskTotal(r.total ?? r.tasks?.length ?? 0);
+          }
         })
         .catch((error: any) => {
           if (!cancelled) setTaskError(error?.message || 'Cortex tasks could not be loaded.');
@@ -313,9 +320,9 @@ export const TopBar = ({
       <div className="topbar-task-wrap">
         <button className="icon-btn" data-hint="Cortex task inbox" onClick={() => setTasksOpen((v) => !v)}>
           <Icon name="bell" />
-          {tasks.length > 0 && (
+          {taskTotal > 0 && (
             <span className={`task-count-badge ${highTaskCount ? 'urgent' : ''}`}>
-              {tasks.length > 9 ? '9+' : tasks.length}
+              {taskTotal > 99 ? '99+' : taskTotal}
             </span>
           )}
         </button>
@@ -324,7 +331,7 @@ export const TopBar = ({
             <div className="task-popover-head">
               <div>
                 <strong>Cortex tasks</strong>
-                <span>{tasksLoading && tasks.length === 0 ? 'Loading...' : `${tasks.length} open`}</span>
+                <span>{tasksLoading && tasks.length === 0 ? 'Loading...' : `${taskTotal} open`}</span>
               </div>
               <button className="icon-btn" data-hint="Refresh" onClick={() => loadTasks(true)}><Icon name="refresh" size={13} /></button>
             </div>

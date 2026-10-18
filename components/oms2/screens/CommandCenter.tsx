@@ -35,6 +35,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [latestOpt, setLatestOpt] = useState<SellerOptimizationSummary | null>(null);
   const [recommendations, setRecommendations] = useState<OmsRecommendation[]>([]);
   const [tasks, setTasks] = useState<CortexTask[]>([]);
+  const [taskTotal, setTaskTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
@@ -57,7 +58,10 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
       setLatestOpt(latestResult.value.latest || null);
       setRecommendations(latestResult.value.recommendations || []);
     }
-    if (tasksResult.status === 'fulfilled') setTasks(tasksResult.value.tasks || []);
+    if (tasksResult.status === 'fulfilled') {
+      setTasks(tasksResult.value.tasks || []);
+      setTaskTotal(tasksResult.value.total ?? tasksResult.value.tasks?.length ?? 0);
+    }
   }, []);
 
   const load = (r: Range) => {
@@ -80,7 +84,10 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
     const onTasksChanged = () => {
       fetchCortexTasks({ status: 'open', limit: 10 })
         .then((result) => {
-          if (!cancelled) setTasks(result.tasks || []);
+          if (!cancelled) {
+            setTasks(result.tasks || []);
+            setTaskTotal(result.total ?? result.tasks?.length ?? 0);
+          }
         })
         .catch(() => undefined);
     };
@@ -272,6 +279,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           <div className="command-task-plan-row" style={{ marginBottom: 16 }}>
             <CortexTasksPanel
               tasks={tasks}
+              total={taskTotal}
               onNavigate={onNavigate}
               onDecision={decideTask}
               feedback={taskFeedback}
@@ -488,12 +496,14 @@ const RevenueTrendCard = ({ data, bd, compact = false }: { data: CommandCenterFu
 
 const CortexTasksPanel = ({
   tasks,
+  total,
   onNavigate,
   onDecision,
   feedback,
   updatingId,
 }: {
   tasks: CortexTask[];
+  total: number;
   onNavigate: (target: string, payload?: string) => void;
   onDecision: (task: CortexTask, action: 'done' | 'dismiss') => void;
   feedback?: { tone: 'info' | 'success' | 'error'; text: string } | null;
@@ -517,7 +527,7 @@ const CortexTasksPanel = ({
           <div className="card-title"><Icon name="sparkle" size={15} /> Cortex task inbox</div>
           <div className="card-subtitle">Readiness work that improves account intelligence. Approval decisions stay in the decision panel.</div>
         </div>
-        <Chip tone={tasks.length ? 'purple' : 'green'} dot={false}>{tasks.length} open</Chip>
+        <Chip tone={total ? 'purple' : 'green'} dot={false}>{total} open</Chip>
       </div>
       {tasks.length === 0 ? (
         <div className="card-body"><EmptyState>No open Cortex tasks. Readiness and connection work will appear here when evidence needs attention.</EmptyState></div>
@@ -575,6 +585,11 @@ const CortexTasksPanel = ({
               </tbody>
             </table>
           </div>
+          {total > tasks.length && (
+            <div className="cortex-task-overflow-note" role="status">
+              Showing the {tasks.length} highest-priority tasks of {total} open. Resolve or dismiss these to reveal the next items.
+            </div>
+          )}
         </>
       )}
     </div>
