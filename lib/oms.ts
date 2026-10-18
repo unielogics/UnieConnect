@@ -1358,10 +1358,14 @@ export const fetchLedger = () => omsFetch<LedgerResponse>('/ledger');
 export const fetchCopilotContext = (screen: string) =>
   omsFetch<CopilotContext>(`/intelligence/copilot/context?screen=${encodeURIComponent(screen)}`);
 
-export const sendCortexChat = (body: { screen: string; message: string; threadId?: string | null; entityType?: string; entityId?: string }) =>
+export const sendCortexChat = (
+  body: { screen: string; message: string; threadId?: string | null; entityType?: string; entityId?: string },
+  signal?: AbortSignal,
+) =>
   omsFetch<CortexChatResponse>('/intelligence/cortex/chat', {
     method: 'POST',
     body: JSON.stringify(body),
+    signal,
   });
 
 export const fetchCortexChatHealth = (screen = 'command') =>

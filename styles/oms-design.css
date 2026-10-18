@@ -1230,6 +1230,8 @@
 .uc-shell .ai-thinking strong { color: var(--text); }
 .uc-shell .ai-thinking span { font-size: 11.5px; color: var(--text-tertiary); }
 .uc-shell .ai-thinking::after { content: ''; width: 48px; height: 2px; margin-top: 5px; border-radius: 1px; background: linear-gradient(90deg, var(--purple), var(--purple-soft), var(--purple)); background-size: 200% 100%; animation: uc-thinking-progress 1.4s linear infinite; }
+.uc-shell .ai-thinking-stop { width: fit-content; margin-top: 7px; padding: 0; border: 0; background: transparent; color: var(--text-secondary); font-size: 11px; font-weight: 700; cursor: pointer; }
+.uc-shell .ai-thinking-stop:hover { color: var(--text); text-decoration: underline; }
 .uc-shell .ai-answer-text { display: grid; gap: 8px; }
 .uc-shell .ai-answer-text p { margin: 0; white-space: pre-line; }
 .uc-shell .ai-answer-section { display: grid; gap: 2px; padding-left: 9px; border-left: 2px solid var(--border-strong); }

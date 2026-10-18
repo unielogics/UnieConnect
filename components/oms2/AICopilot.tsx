@@ -232,6 +232,7 @@ export const AICopilot = ({
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const requestInFlightRef = useRef(false);
   const conversationEpochRef = useRef(0);
+  const chatAbortRef = useRef<AbortController | null>(null);
 
   const welcomeMessage = () => {
     const screenLabel = String(section || 'this screen').replace(/-/g, ' ');
@@ -279,6 +280,8 @@ export const AICopilot = ({
   };
 
   useEffect(() => {
+    chatAbortRef.current?.abort();
+    chatAbortRef.current = null;
     conversationEpochRef.current += 1;
     requestInFlightRef.current = false;
     setPending(false);
@@ -313,6 +316,8 @@ export const AICopilot = ({
     loadThreads();
     return () => {
       cancelled = true;
+      chatAbortRef.current?.abort();
+      chatAbortRef.current = null;
       window.removeEventListener('focus', onFocus);
       window.clearInterval(healthTimer);
     };
@@ -339,17 +344,23 @@ export const AICopilot = ({
   const send = async (q: string, appendUser = true) => {
     if (!q || requestInFlightRef.current || loadingThread) return;
     requestInFlightRef.current = true;
+    const controller = new AbortController();
+    chatAbortRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort('timeout'), 45000);
     const epoch = conversationEpochRef.current;
     if (appendUser) setHistory((h) => [...h, { role: 'user', body: q }]);
     setPending(true);
     try {
-      const res = await sendCortexChat({
-        screen: section,
-        message: q,
-        threadId,
-        entityType: entityType || undefined,
-        entityId: entityId || undefined,
-      });
+      const res = await sendCortexChat(
+        {
+          screen: section,
+          message: q,
+          threadId,
+          entityType: entityType || undefined,
+          entityId: entityId || undefined,
+        },
+        controller.signal,
+      );
       if (conversationEpochRef.current !== epoch) return;
       if (res.thread?.id) setThreadId(res.thread.id);
       const cortexUnavailable = res.cortex?.health?.available === false;
@@ -370,9 +381,14 @@ export const AICopilot = ({
         },
       ]);
       loadThreads();
-    } catch {
+    } catch (error: any) {
       if (conversationEpochRef.current !== epoch) return;
-      setCortexHealth('offline');
+      const stopped = controller.signal.aborted || error?.name === 'AbortError';
+      if (!stopped) {
+        fetchCortexChatHealth(section)
+          .then((health) => setCortexHealth(health.ok ? 'online' : 'offline'))
+          .catch(() => setCortexHealth('offline'));
+      }
       setHistory((h) => [
         ...h,
         {
@@ -380,7 +396,9 @@ export const AICopilot = ({
           muted: true,
           body: (
             <>
-              <CortexAnswer text="Cortex chat is unavailable right now. No cross-account data was used or exposed." />
+              <CortexAnswer text={stopped
+                ? 'That response was stopped. Your question remains in this account thread and can be retried.'
+                : 'Cortex could not complete that answer. Account data remains isolated and no unrelated data was used.'} />
               <div className="ai-answer-actions">
                 <button
                   className="ai-answer-action"
@@ -397,8 +415,10 @@ export const AICopilot = ({
         },
       ]);
     } finally {
+      window.clearTimeout(timeout);
       if (conversationEpochRef.current === epoch) {
         requestInFlightRef.current = false;
+        if (chatAbortRef.current === controller) chatAbortRef.current = null;
         setPending(false);
       }
     }
@@ -516,6 +536,9 @@ export const AICopilot = ({
                     ? 'Checking current evidence, readiness, and related activity.'
                     : 'Turning the evidence into a clear answer and next action.'}
               </span>
+              <button type="button" className="ai-thinking-stop" onClick={() => chatAbortRef.current?.abort('user')}>
+                Stop response
+              </button>
             </div>
           </div>
         )}
