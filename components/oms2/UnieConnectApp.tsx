@@ -113,6 +113,7 @@ export default function UnieConnectApp() {
   const [screenKey, setScreenKey] = useState(0);
   const [userFeatures, setUserFeatures] = useState<Feature[]>([]);
   const [featureLoadComplete, setFeatureLoadComplete] = useState(false);
+  const [featureLoadError, setFeatureLoadError] = useState<string | null>(null);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
   const bumpScreen = useCallback(() => setScreenKey((k) => k + 1), []);
 
@@ -158,12 +159,18 @@ export default function UnieConnectApp() {
   const reloadUserFeatures = useCallback(() => {
     let cancelled = false;
     setFeatureLoadComplete(false);
+    setFeatureLoadError(null);
     fetchUserFeatures()
       .then((result) => {
-        if (!cancelled) setUserFeatures(result.features || []);
+        if (!cancelled) {
+          setUserFeatures(result.features || []);
+          setFeatureLoadError(null);
+        }
       })
-      .catch(() => {
-        if (!cancelled) setUserFeatures([]);
+      .catch((error: any) => {
+        if (!cancelled) {
+          setFeatureLoadError(error?.message || 'Installed feature access could not be verified.');
+        }
       })
       .finally(() => {
         if (!cancelled) setFeatureLoadComplete(true);
@@ -410,7 +417,7 @@ export default function UnieConnectApp() {
   }, []);
 
   useEffect(() => {
-    if (!router.isReady || !featureLoadComplete || !userLoadComplete) return;
+    if (!router.isReady || !featureLoadComplete || !userLoadComplete || featureLoadError) return;
     if (isScreenAvailable(section)) return;
     const featureId = featureForScreen(section) || SCREEN_FEATURES[section] || '';
     closeTransientUi();
@@ -420,7 +427,7 @@ export default function UnieConnectApp() {
       undefined,
       { shallow: true }
     );
-  }, [closeTransientUi, featureLoadComplete, isScreenAvailable, router, section, userLoadComplete]);
+  }, [closeTransientUi, featureLoadComplete, featureLoadError, isScreenAvailable, router, section, userLoadComplete]);
 
   // Apply theme/density/accent to shell root only
   const shellRef = React.useRef<HTMLDivElement>(null);
@@ -529,6 +536,15 @@ export default function UnieConnectApp() {
               onSelectSearchResult={openSearchResult}
             />
             <FulfillmentPausedBanner user={currentUser} />
+            {featureLoadError && (
+              <div className="inline-banner warn app-wide" role="alert">
+                <Icon name="warning" size={13} />
+                <span>Installed feature access could not be refreshed. Existing navigation is preserved until verification succeeds.</span>
+                <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => reloadUserFeatures()} disabled={!featureLoadComplete}>
+                  <Icon name="refresh" size={11} /> {featureLoadComplete ? 'Retry' : 'Checking'}
+                </button>
+              </div>
+            )}
             {detailLoadError && (
               <div className="inline-banner danger app-wide" role="alert">
                 <Icon name="warning" size={13} />

@@ -17,6 +17,13 @@ export interface CurrentUser {
 const CAN_MANAGE_USERS: UserRole[] = ['super_admin', 'management'];
 const VALID_ROLES: UserRole[] = ['super_admin', 'management', 'ecommerce_client', 'billing'];
 
+function decodeTokenPayload(token: string): Record<string, unknown> {
+  const payload = token.split('.')[1];
+  if (!payload) throw new Error('Token payload is missing');
+  const base64 = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=');
+  return JSON.parse(atob(base64));
+}
+
 function parseRole(value: unknown): UserRole | undefined {
   if (typeof value !== 'string') return undefined;
   return VALID_ROLES.includes(value as UserRole) ? (value as UserRole) : undefined;
@@ -28,9 +35,8 @@ export function getRoleFromToken(): UserRole | undefined {
   const token = getStoredToken();
   if (!token) return undefined;
   try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return undefined;
-    const payload = JSON.parse(atob(parts[1]));
+    if (token.split('.').length !== 3) return undefined;
+    const payload = decodeTokenPayload(token);
     return parseRole(payload.role);
   } catch {
     return undefined;
@@ -47,7 +53,8 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
     const res = await authFetch(apiUrl('/api/v1/auth/me'), {
       headers: {},
     });
-    if (!res.ok) return null;
+    if (res.status === 401 || res.status === 403) return null;
+    if (!res.ok) throw new Error(`Account verification failed (${res.status})`);
     const data = await res.json();
     const role = parseRole(data.role);
     if (!role) return null;
@@ -66,9 +73,8 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
   } catch {
     const role = getRoleFromToken();
     if (!role || !token) return null;
-    const parts = token.split('.');
-    const payload = parts[1] ? JSON.parse(atob(parts[1])) : {};
-    return { userId: payload.userId, email: payload.email || '', role };
+    const payload = decodeTokenPayload(token);
+    return { userId: String(payload.userId || ''), email: String(payload.email || ''), role };
   }
 }
 
