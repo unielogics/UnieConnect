@@ -18,7 +18,7 @@ function formatDate(iso?: string) {
 const RETURN_MEDIA_NOTE =
   'Playback for condition-on-arrival video/photos is served directly from the warehouse -- contact support if you need the file.';
 
-export const Returns = ({ onNavigate }: ScreenProps) => {
+export const Returns = ({ onNavigate, onCortexEntityChange }: ScreenProps) => {
   const [returns, setReturns] = useState<OmsReturn[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -38,12 +38,19 @@ export const Returns = ({ onNavigate }: ScreenProps) => {
 
   const openDetail = (r: OmsReturn) => {
     setSelected(r);
+    onCortexEntityChange?.({ type: 'return', id: r.id });
     setDetailLoading(true);
     setDetailError(null);
     fetchOmsReturn(r.id)
       .then((d) => setSelected(d.return))
       .catch((error: any) => setDetailError(error?.message || 'The complete return detail could not be loaded.'))
       .finally(() => setDetailLoading(false));
+  };
+
+  const closeDetail = () => {
+    setSelected(null);
+    setDetailError(null);
+    onCortexEntityChange?.(null);
   };
 
   const openCount = returns.filter((r) => !['closed', 'cancelled'].includes(r.status)).length;
@@ -123,11 +130,11 @@ export const Returns = ({ onNavigate }: ScreenProps) => {
       </div>
 
       {selected && (
-        <div className="modal-overlay" onClick={() => setSelected(null)}>
+        <div className="modal-overlay" onClick={closeDetail}>
           <div className="modal" style={{ width: 560 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <div style={{ fontSize: 16, fontWeight: 700 }}>RMA {selected.rmaNumber || selected.displayId}</div>
-              <button className="icon-btn" onClick={() => setSelected(null)}>
+              <button className="icon-btn" onClick={closeDetail}>
                 <Icon name="x" size={16} />
               </button>
             </div>

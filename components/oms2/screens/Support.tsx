@@ -220,7 +220,7 @@ const TicketModal = ({
   );
 };
 
-export const Support = ({ onNewTicket }: ScreenProps) => {
+export const Support = ({ onNewTicket, onCortexEntityChange }: ScreenProps) => {
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [selected, setSelected] = useState<TicketRow | null>(null);
   const [messages, setMessages] = useState<SupportTicketMessage[]>([]);
@@ -293,6 +293,7 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
 
   const openTicket = async (ticket: TicketRow) => {
     setSelected(ticket);
+    onCortexEntityChange?.(ticket.id.startsWith('fallback-') ? null : { type: 'support_ticket', id: ticket.id });
     setMessages([]);
     if (ticket.id.startsWith('fallback-')) return;
     setDetailLoading(true);
@@ -306,6 +307,13 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
     } finally {
       setDetailLoading(false);
     }
+  };
+
+  const closeTicket = () => {
+    setSelected(null);
+    setMessages([]);
+    setDetailError(null);
+    onCortexEntityChange?.(null);
   };
 
   const changeStatus = async (ticket: TicketRow, status: string) => {
@@ -474,7 +482,7 @@ export const Support = ({ onNewTicket }: ScreenProps) => {
           messages={messages}
           loading={detailLoading}
           loadError={detailError}
-          onClose={() => setSelected(null)}
+          onClose={closeTicket}
           onReload={reloadSelected}
         />
       )}

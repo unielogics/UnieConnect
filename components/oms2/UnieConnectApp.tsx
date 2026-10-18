@@ -81,6 +81,7 @@ export interface ScreenProps {
   onImportCsv?: (entity: CsvImportEntity) => void;
   onSelectState?: (state: string) => void;
   onFeaturesChanged?: () => void;
+  onCortexEntityChange?: (entity: { type: string; id: string } | null) => void;
   skuId?: string | null;
 }
 
@@ -108,6 +109,7 @@ export default function UnieConnectApp() {
   const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [csvImport, setCsvImport] = useState<CsvImportEntity | null>(null);
   const [stateDetail, setStateDetail] = useState<string | null>(null);
+  const [focusedCortexEntity, setFocusedCortexEntity] = useState<{ type: string; id: string } | null>(null);
   const [screenKey, setScreenKey] = useState(0);
   const [userFeatures, setUserFeatures] = useState<Feature[]>([]);
   const [featureLoadComplete, setFeatureLoadComplete] = useState(false);
@@ -203,9 +205,14 @@ export default function UnieConnectApp() {
     if (router.query.openCortex === '1') setCopilotOpen(true);
   }, [router.isReady, router.query.view, router.query.sku, router.query.openCortex]);
 
+  useEffect(() => {
+    setFocusedCortexEntity(null);
+  }, [section]);
+
   const navigate: NavFn = useCallback(
     (target, payload) => {
       closeTransientUi();
+      setFocusedCortexEntity(null);
       const safeTarget = OMS_SCREEN_IDS.has(target) ? target : 'command';
       const q: Record<string, string> = { view: safeTarget };
       if (safeTarget === 'sku-detail') {
@@ -429,6 +436,7 @@ export default function UnieConnectApp() {
     onImportCsv: (entity) => setCsvImport(entity),
     onSelectState: (s: string) => setStateDetail(s),
     onFeaturesChanged: reloadUserFeatures,
+    onCortexEntityChange: setFocusedCortexEntity,
   };
 
   const screens: Record<string, React.ReactNode> = {
@@ -461,7 +469,7 @@ export default function UnieConnectApp() {
       ? { type: 'asn', id: asnModal.id }
       : section === 'sku-detail' && skuDetailId
         ? { type: 'sku', id: skuDetailId }
-        : null;
+        : focusedCortexEntity;
 
   return (
     <div className="uc-shell" ref={shellRef} data-theme={tweaks.theme} data-density={tweaks.density}>

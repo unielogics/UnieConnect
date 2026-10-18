@@ -54,7 +54,7 @@ const formatAddress = (customer: OmsCustomer) => {
   ].filter(Boolean).join(', ');
 };
 
-export const Customers = ({ onNavigate, onOpenOrderById, onNewCustomer, onImportCsv }: ScreenProps) => {
+export const Customers = ({ onNavigate, onOpenOrderById, onNewCustomer, onImportCsv, onCortexEntityChange }: ScreenProps) => {
   const router = useRouter();
   const [rows, setRows] = useState<OmsCustomer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +91,7 @@ export const Customers = ({ onNavigate, onOpenOrderById, onNewCustomer, onImport
 
   const openCustomer = (customerId: string) => {
     setDetailId(customerId);
+    onCortexEntityChange?.({ type: 'customer', id: customerId });
     setDetail(null);
     loadDetail(customerId);
     router.replace(
@@ -102,6 +103,7 @@ export const Customers = ({ onNavigate, onOpenOrderById, onNewCustomer, onImport
 
   const closeCustomer = () => {
     setDetailId(null);
+    onCortexEntityChange?.(null);
     setDetail(null);
     setDetailError(null);
     if (router.query.customer) {
@@ -114,6 +116,7 @@ export const Customers = ({ onNavigate, onOpenOrderById, onNewCustomer, onImport
     const customerId = typeof router.query.customer === 'string' ? router.query.customer.trim() : '';
     if (!customerId || customerId === detailId) return;
     setDetailId(customerId);
+    onCortexEntityChange?.({ type: 'customer', id: customerId });
     setDetail(null);
     loadDetail(customerId);
   }, [detailId, router.isReady, router.query.customer]);

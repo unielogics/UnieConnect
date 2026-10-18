@@ -12,7 +12,7 @@ import type { ScreenProps } from '../UnieConnectApp';
 
 type Tab = 'overview' | 'inventory' | 'orders' | 'asns' | 'events' | 'activity' | 'cortex';
 
-export const Warehouses = ({ onNavigate }: ScreenProps) => {
+export const Warehouses = ({ onNavigate, onCortexEntityChange }: ScreenProps) => {
   const [data, setData] = useState<{ warehouses: OmsWarehouseOverview[]; total: number } | null>(null);
   const [selected, setSelected] = useState<OmsWarehouseOverview | null>(null);
   const [detail, setDetail] = useState<OmsWarehouseDetail | null>(null);
@@ -33,6 +33,7 @@ export const Warehouses = ({ onNavigate }: ScreenProps) => {
 
   const openWarehouse = (warehouse: OmsWarehouseOverview) => {
     setSelected(warehouse);
+    onCortexEntityChange?.({ type: 'warehouse', id: warehouse.warehouseCode });
     setDetail(null);
     setDetailError(null);
     setDetailLoading(true);
@@ -153,6 +154,7 @@ export const Warehouses = ({ onNavigate }: ScreenProps) => {
             setSelected(null);
             setDetail(null);
             setDetailError(null);
+            onCortexEntityChange?.(null);
           }}
         />
       )}
