@@ -558,10 +558,22 @@ export const Connections = (_: ScreenProps) => {
     void load();
   }, [load]);
 
+  const requestedConnectionKind = typeof router.query.connect === 'string'
+    && ['shopify', 'amazon', 'ebay', 'wms'].includes(router.query.connect)
+    ? router.query.connect as 'shopify' | 'amazon' | 'ebay' | 'wms'
+    : null;
+
   useEffect(() => {
-    if (!router.isReady || router.query.connect !== 'wms') return;
+    if (!router.isReady || !requestedConnectionKind) return;
     setConnectOpen(true);
-  }, [router.isReady, router.query.connect]);
+  }, [requestedConnectionKind, router.isReady]);
+
+  const closeConnect = useCallback(() => {
+    setConnectOpen(false);
+    if (requestedConnectionKind) {
+      void router.replace({ pathname: '/oms', query: { view: 'connections' } }, undefined, { shallow: true });
+    }
+  }, [requestedConnectionKind, router]);
 
   const focusedConnectionId = typeof router.query.connection === 'string' ? router.query.connection : '';
 
@@ -787,8 +799,8 @@ export const Connections = (_: ScreenProps) => {
 
       {connectOpen && (
         <ConnectNewModal
-          initialKind={router.query.connect === 'wms' ? 'wms' : 'shopify'}
-          onClose={() => setConnectOpen(false)}
+          initialKind={requestedConnectionKind || 'shopify'}
+          onClose={closeConnect}
           onConnected={() => {
             load();
           }}

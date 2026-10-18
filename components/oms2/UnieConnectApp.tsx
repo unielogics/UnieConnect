@@ -233,8 +233,11 @@ export default function UnieConnectApp() {
       if (safeTarget === 'suppliers' && payload?.startsWith('filter:')) {
         q.filter = payload.slice('filter:'.length);
       }
+      if (safeTarget === 'suppliers' && payload === 'action:create-supplier') {
+        q.action = 'create-supplier';
+      }
       if (safeTarget === 'suppliers' && payload && !payload.startsWith('filter:')) {
-        q.supplier = payload;
+        if (payload !== 'action:create-supplier') q.supplier = payload;
       }
       if (safeTarget === 'customers' && payload) {
         q.customer = payload;
@@ -250,6 +253,8 @@ export default function UnieConnectApp() {
         if (payload.startsWith('action:repair:')) {
           q.connection = payload.slice('action:repair:'.length);
           q.action = 'repair';
+        } else if (payload.startsWith('action:connect:')) {
+          q.connect = payload.slice('action:connect:'.length);
         } else {
           q.connection = payload;
         }
@@ -421,6 +426,20 @@ export default function UnieConnectApp() {
     setNewSupplierCreatedHandler(() => onCreated || null);
     setNewSupplierOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady || router.query.view !== 'suppliers' || router.query.action !== 'create-supplier') return;
+    setNewSupplierCreatedHandler(null);
+    setNewSupplierOpen(true);
+  }, [router.isReady, router.query.action, router.query.view]);
+
+  const closeNewSupplier = useCallback(() => {
+    setNewSupplierOpen(false);
+    setNewSupplierCreatedHandler(null);
+    if (router.query.action === 'create-supplier') {
+      void router.replace({ pathname: '/oms', query: { view: 'suppliers' } }, undefined, { shallow: true });
+    }
+  }, [router]);
 
   useEffect(() => {
     if (!router.isReady || !featureLoadComplete || !userLoadComplete || featureLoadError) return;
@@ -626,14 +645,14 @@ export default function UnieConnectApp() {
           )}
           {newSupplierOpen && (
             <NewSupplierModal
-              onClose={() => {
-                setNewSupplierOpen(false);
-                setNewSupplierCreatedHandler(null);
-              }}
+              onClose={closeNewSupplier}
               onSuccess={(supplier) => {
                 setNewSupplierOpen(false);
                 newSupplierCreatedHandler?.(supplier);
                 setNewSupplierCreatedHandler(null);
+                if (router.query.action === 'create-supplier') {
+                  void router.replace({ pathname: '/oms', query: { view: 'suppliers' } }, undefined, { shallow: true });
+                }
                 bumpScreen();
               }}
             />

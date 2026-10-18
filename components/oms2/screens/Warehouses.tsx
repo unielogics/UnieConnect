@@ -83,7 +83,7 @@ export const Warehouses = ({ onNavigate, onCortexEntityChange }: ScreenProps) =>
         </div>
         <div className="page-actions">
           <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Refresh</button>
-          <button className="btn primary" onClick={() => onNavigate('connections')}><Icon name="plus" size={13} /> Connect warehouse</button>
+          <button className="btn primary" onClick={() => onNavigate('connections', 'action:connect:wms')}><Icon name="plus" size={13} /> Connect warehouse</button>
         </div>
       </div>
 
@@ -111,7 +111,7 @@ export const Warehouses = ({ onNavigate, onCortexEntityChange }: ScreenProps) =>
                 No warehouses connected yet.
                 <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center', gap: 8 }}>
                   <button className="btn sm" onClick={() => onNavigate('connections')}><Icon name="plug" size={12} /> Open Connections</button>
-                  <button className="btn primary sm" onClick={() => onNavigate('connections')}><Icon name="plus" size={12} /> Connect warehouse</button>
+                  <button className="btn primary sm" onClick={() => onNavigate('connections', 'action:connect:wms')}><Icon name="plus" size={12} /> Connect warehouse</button>
                 </div>
               </EmptyState>
             ) : (
