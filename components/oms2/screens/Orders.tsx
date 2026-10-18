@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation, downloadCsv } from '../ui';
-import { useCtxMenu } from '../ContextMenu';
+import { useCtxMenu, type CtxItem } from '../ContextMenu';
 import { CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
 import { cancelOrder, fetchOmsOrders, OmsOrder, publicEntityId } from '../../../lib/oms';
 import { num, channelColor } from '../../../lib/oms-adapters';
@@ -93,6 +93,25 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
       setCancelling(false);
     }
   };
+
+  const orderMenuItems = (o: ReturnType<typeof norm>, rec: ReturnType<typeof recFor>): CtxItem[] => [
+    { label: 'Order' },
+    { icon: 'eye', title: 'Open order details', onClick: () => onOpenOrder && onOpenOrder(o) },
+    ...(o.sku ? [{ icon: 'box', title: `Open SKU ${o.sku}`, onClick: () => onNavigate('sku-detail', o.sku!) } as CtxItem] : []),
+    ...(rec ? [{ icon: 'sparkle', title: 'Review Cortex decision', onClick: () => setSelectedRec(rec) } as CtxItem] : []),
+    ...(o.customer_email ? [{ icon: 'support', title: 'Email customer', shortcut: 'Ctrl E', onClick: () => { window.location.href = `mailto:${o.customer_email}`; } } as CtxItem] : []),
+    { divider: true },
+    { icon: 'audit', title: 'Open dispute', onClick: () => onNavigate('audits') },
+    { icon: 'refresh', title: `Re-sync from ${o._ch}`, shortcut: 'Ctrl R', onClick: load },
+    { divider: true },
+    {
+      icon: 'x',
+      title: o._status === 'cancelled' ? 'Order already cancelled' : 'Cancel order',
+      danger: true,
+      disabled: o._status === 'cancelled',
+      onClick: () => setCancelTarget(o),
+    },
+  ];
 
   return (
     <div className="page fade-in">
@@ -195,28 +214,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                     className={`clickable ${rec ? 'row-cortex-signal' : ''}`}
                     style={{ height: 56 }}
                     onClick={() => onOpenOrder && onOpenOrder(o)}
-                    onContextMenu={(e) =>
-                      ctx.open(e, [
-                        { label: 'Order' },
-                        { icon: 'eye', title: 'Open order details', onClick: () => onOpenOrder && onOpenOrder(o) },
-                        ...(o.sku ? [{ icon: 'box', title: `Open SKU ${o.sku}`, onClick: () => onNavigate('sku-detail', o.sku!) }] : []),
-                        ...(rec ? [{ icon: 'sparkle', title: 'Review Cortex decision', onClick: () => setSelectedRec(rec) }] : []),
-                        ...(o.customer_email ? [{ icon: 'support', title: 'Email customer', shortcut: '⌘E', onClick: () => { window.location.href = `mailto:${o.customer_email}`; } }] : []),
-                        { divider: true },
-                        { icon: 'audit', title: 'Open dispute', onClick: () => onNavigate('audits') },
-                        { icon: 'refresh', title: `Re-sync from ${o._ch}`, shortcut: '⌘R', onClick: load },
-                        { divider: true },
-                        {
-                          icon: 'x',
-                          title: o._status === 'cancelled' ? 'Order already cancelled' : 'Cancel order',
-                          danger: true,
-                          disabled: o._status === 'cancelled',
-                          onClick: () => {
-                            setCancelTarget(o);
-                          },
-                        },
-                      ])
-                    }
+                    onContextMenu={(e) => ctx.open(e, orderMenuItems(o, rec))}
                   >
                     <td>
                       <div
@@ -275,11 +273,12 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                         <div className="row-actions">
                           {rec && <CortexRowAction rec={rec} onOpen={() => setSelectedRec(rec)} />}
                           <button
-                            className="btn ghost sm"
-                            disabled={o._status === 'cancelled'}
-                            onClick={() => setCancelTarget(o)}
+                            className="icon-btn"
+                            data-hint="Order actions"
+                            aria-label="Order actions"
+                            onClick={(event) => ctx.open(event, orderMenuItems(o, rec))}
                           >
-                            <Icon name="x" size={12} /> Cancel
+                            <Icon name="more" size={14} />
                           </button>
                         </div>
                       </td>

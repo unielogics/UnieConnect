@@ -15,6 +15,9 @@ import {
 import { num, monthShort } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 import { CortexInlineBadge, CortexRowAction, useInlineRecommendations } from '../InlineRecommendation';
+import { useCtxMenu, type CtxItem } from '../ContextMenu';
+
+type AsnActionTarget = { asn: OmsAsn; action: 'cancel' | 'stop' };
 
 export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus = [] }: ScreenProps) => {
   const [plan, setPlan] = useState<InventoryPlanFull | null>(null);
@@ -27,6 +30,8 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
   const [acting, setActing] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
+  const [asnActionTarget, setAsnActionTarget] = useState<AsnActionTarget | null>(null);
+  const ctxMenu = useCtxMenu();
   const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('shipments');
 
   const load = () => {
@@ -89,6 +94,7 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
         tone: 'success',
         text: `${asn.displayId || asn.publicId || asn.asnNumber || 'ASN'} ${action === 'stop' ? 'stopped' : 'cancelled'} successfully.`,
       });
+      setAsnActionTarget(null);
     } catch (error: any) {
       setActionFeedback({
         tone: 'error',
@@ -98,6 +104,26 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
       setActing(null);
     }
   };
+
+  const asnMenuItems = (asn: OmsAsn, rec: ReturnType<typeof recFor>, locked: boolean): CtxItem[] => [
+    { label: 'ASN' },
+    { icon: 'ledger', title: 'View activity in ledger', onClick: () => onNavigate('ledger', asn.id) },
+    ...(rec ? [{ icon: 'sparkle', title: 'Review Cortex decision', onClick: () => setSelectedRec(rec) } as CtxItem] : []),
+    { divider: true },
+    {
+      icon: 'x',
+      title: locked ? 'ASN can no longer be stopped' : 'Stop before warehouse execution',
+      disabled: locked || Boolean(acting),
+      onClick: () => setAsnActionTarget({ asn, action: 'stop' }),
+    },
+    {
+      icon: 'archive',
+      title: locked ? 'ASN can no longer be cancelled' : 'Cancel ASN',
+      danger: true,
+      disabled: locked || Boolean(acting),
+      onClick: () => setAsnActionTarget({ asn, action: 'cancel' }),
+    },
+  ];
 
   return (
     <div className="page fade-in">
@@ -253,7 +279,11 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                           const locked = ['cancelled', 'stopped', 'received', 'closed'].includes(String(asn.status || '').toLowerCase());
                           const rec = recFor(asn.id, asn.publicId, asn.asnNumber, asn.shipmentPlanId);
                           return (
-                            <tr key={asn.id} style={{ boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : undefined, background: rec ? 'var(--purple-soft)' : undefined }}>
+                            <tr
+                              key={asn.id}
+                              style={{ boxShadow: rec ? 'inset 3px 0 0 var(--purple)' : undefined, background: rec ? 'var(--purple-soft)' : undefined }}
+                              onContextMenu={(event) => ctxMenu.open(event, asnMenuItems(asn, rec, locked))}
+                            >
                               <td>
                                 <div className="mono strong">{asn.displayId || asn.publicId || publicEntityId('AS', asn.id)}</div>
                                 <div className="mono muted" style={{ fontSize: 10.5 }}>{asn.asnNumber || asn.shipmentDisplayId || ''}</div>
@@ -281,11 +311,14 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
                               <td>
                                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                   <CortexRowAction rec={rec} onOpen={() => rec && setSelectedRec(rec)} />
-                                  <button className="btn ghost sm" disabled={locked || Boolean(acting)} onClick={() => mutateAsn(asn, 'stop')}>
-                                    {acting === `stop:${asn.id}` ? 'Stopping...' : 'Stop'}
-                                  </button>
-                                  <button className="btn ghost sm" disabled={locked || Boolean(acting)} onClick={() => mutateAsn(asn, 'cancel')}>
-                                    <Icon name="x" size={12} /> {acting === `cancel:${asn.id}` ? 'Cancelling...' : 'Cancel'}
+                                  <button
+                                    className="icon-btn"
+                                    data-hint="ASN actions"
+                                    aria-label="ASN actions"
+                                    disabled={Boolean(acting)}
+                                    onClick={(event) => ctxMenu.open(event, asnMenuItems(asn, rec, locked))}
+                                  >
+                                    <Icon name="more" size={14} />
                                   </button>
                                 </div>
                               </td>
@@ -373,6 +406,43 @@ export const Shipments = ({ onNavigate, toggleSelect, isSelected, selectedSkus =
             </div>
           </div>
           {recDrawer}
+          {asnActionTarget && (
+            <div className="modal-overlay" onClick={() => !acting && setAsnActionTarget(null)}>
+              <div className="modal" style={{ width: 460 }} onClick={(event) => event.stopPropagation()}>
+                <div className="modal-head">
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700 }}>
+                      {asnActionTarget.action === 'stop' ? 'Stop ASN' : 'Cancel ASN'}
+                    </div>
+                    <div className="mono muted" style={{ fontSize: 11, marginTop: 3 }}>
+                      {asnActionTarget.asn.displayId || asnActionTarget.asn.publicId || asnActionTarget.asn.asnNumber || publicEntityId('AS', asnActionTarget.asn.id)}
+                    </div>
+                  </div>
+                  <button className="icon-btn" aria-label="Close" disabled={Boolean(acting)} onClick={() => setAsnActionTarget(null)}><Icon name="x" /></button>
+                </div>
+                <div className="modal-body">
+                  <div className="inline-banner warn">
+                    <Icon name="warning" size={14} />
+                    {asnActionTarget.action === 'stop'
+                      ? 'Stop this ASN before warehouse execution. The status change and reason will be written to the ledger.'
+                      : 'Cancel this ASN. The cancellation will be written to the ledger and the ASN will no longer be actionable.'}
+                  </div>
+                </div>
+                <div className="modal-foot">
+                  <button className="btn ghost" disabled={Boolean(acting)} onClick={() => setAsnActionTarget(null)}>Back</button>
+                  <button
+                    className="btn primary"
+                    disabled={Boolean(acting)}
+                    onClick={() => mutateAsn(asnActionTarget.asn, asnActionTarget.action)}
+                  >
+                    {acting
+                      ? asnActionTarget.action === 'stop' ? 'Stopping...' : 'Cancelling...'
+                      : asnActionTarget.action === 'stop' ? 'Stop ASN' : 'Cancel ASN'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
