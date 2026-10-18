@@ -457,16 +457,26 @@ export const Connections = (_: ScreenProps) => {
         if (!accounts) out.push(...current.filter((connection) => connection.owner === 'marketplace'));
         (accounts || []).forEach((a) => {
           const syncEntries = Object.entries(a.sync || {});
-          const syncIssue = syncEntries
+          const entitySyncIssue = syncEntries
             .map(([entity, state]) => state?.error || state?.metadata?.warning
               ? `${entity.replace(/_/g, ' ')}: ${state.error || state.metadata?.warning}`
               : null)
             .filter(Boolean)
             .join('; ');
+          const webhookError = a.channel === 'shopify'
+            ? String(a.metadata?.shopifyWebhookRegistrationError || '').trim()
+            : '';
+          const webhookRegistered = a.channel === 'shopify'
+            && Boolean(a.metadata?.shopifyWebhookRegisteredAt)
+            && !webhookError;
+          const syncIssue = [
+            entitySyncIssue,
+            webhookError ? `real-time updates: ${webhookError}. Use Refresh to retry webhook setup.` : '',
+          ].filter(Boolean).join('; ');
           const missingLocationScope = a.channel === 'shopify'
             && !(a.scopes || []).some((scope) => scope === 'read_locations' || scope === 'write_locations');
           const degraded = Boolean(missingLocationScope || syncIssue || syncEntries.some(([, state]) => state?.metadata?.degraded));
-          const entities: ConnectionCapability[] = syncEntries.length
+          const syncedEntities: ConnectionCapability[] = syncEntries.length
             ? syncEntries.map(([entity, state]) => {
                 const hasIssue = Boolean(state?.error || state?.metadata?.warning || state?.metadata?.degraded);
                 const isCurrent = ['synced', 'complete', 'completed', 'healthy'].includes(String(state?.status || '').toLowerCase());
@@ -481,6 +491,15 @@ export const Connections = (_: ScreenProps) => {
                 label,
                 status: a.status === 'connected' ? 'pending' : 'degraded',
               }));
+          const entities: ConnectionCapability[] = a.channel === 'shopify'
+            ? [
+                ...syncedEntities,
+                {
+                  label: 'Real-time updates',
+                  status: webhookError ? 'degraded' : webhookRegistered ? 'healthy' : 'pending',
+                },
+              ]
+            : syncedEntities;
           out.push({
             id: `marketplace-${a.id}`,
             name: a.label || a.displayName || a.shopDomain || a.channel.toUpperCase(),
