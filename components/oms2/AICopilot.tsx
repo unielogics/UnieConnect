@@ -95,23 +95,42 @@ const cortexDisplayText = (text?: string | null) =>
 
 const ANSWER_SECTION_LABELS = new Set([
   'account snapshot',
+  'marketplace health',
+  'order flow',
+  'warehouse evidence',
+  'financial evidence',
+  'intelligence readiness',
   'first priority',
   'first action',
   'why',
   'action',
   'next step',
+  'other recorded changes',
   'what is holding it back',
+  'what becomes measurable',
+  'what this means',
   'readiness',
+  'data quality',
   'connected data',
   'synchronized data',
   'attention required',
   'expected impact',
+  'missing evidence',
+  'missing inputs',
+  'cost concentration',
+  'profitability blind spot',
   'cost baseline',
   'warehouse baseline',
   'next steps',
   'current evidence',
   'suggested change',
   'measurable impact',
+]);
+
+const ANSWER_LEAD_LABELS = new Set([
+  'account snapshot',
+  'recent account activity',
+  'recommended two-week sequence',
 ]);
 
 type ParsedAnswerBlock = { label?: string; content: string };
@@ -165,6 +184,9 @@ const CortexAnswer = ({ text }: { text?: string | null }) => {
               <AnswerBlockContent content={block.content} />
             </section>
           );
+        }
+        if (!label && index === 0 && ANSWER_LEAD_LABELS.has(block.content.trim().toLowerCase())) {
+          return <div key={index} className="ai-answer-lead">{block.content}</div>;
         }
         return <AnswerBlockContent key={index} content={block.content} />;
       })}
@@ -636,6 +658,8 @@ export const AICopilot = ({
                     <button
                       key={`${action.id || action.title || 'action'}-${idx}`}
                       className="ai-answer-action"
+                      title={action.actionLabel || action.title || 'Open'}
+                      aria-label={action.actionLabel || action.title || 'Open Cortex action'}
                       onClick={() => onNavigate?.(
                         action.actionTarget || action.screen || 'command',
                         action.navigationPayload || action.entityId || undefined,
