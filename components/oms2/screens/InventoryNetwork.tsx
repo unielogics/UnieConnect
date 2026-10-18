@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Loading, ErrorState, EmptyState, Thumb, useCloseOnOmsNavigation, useModalOverlayKeyboard, downloadCsv } from '../ui';
-import { DecisionComparison } from '../DecisionComparison';
+import { DecisionComparison, isActionableDecisionRecommendation } from '../DecisionComparison';
 import { CortexPlanApprovals } from '../CortexPlanApprovals';
 import { useCtxMenu } from '../ContextMenu';
 import {
@@ -86,7 +86,7 @@ export const InventoryNetwork = ({ onNavigate, toggleSelect, isSelected, onNewPr
     setRecommendationError(null);
     try {
       const response = await fetchRecommendations({ screen: 'skus', status: 'open', entityType: 'sku', limit: 100 });
-      setRecommendations(response.recommendations || []);
+      setRecommendations((response.recommendations || []).filter(isActionableDecisionRecommendation));
     } catch (error: any) {
       setRecommendations([]);
       setRecommendationError(error?.message || 'Cortex SKU recommendations could not be loaded.');

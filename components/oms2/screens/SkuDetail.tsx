@@ -28,6 +28,7 @@ import { sizeTierLabel } from '../../../lib/size';
 import type { ScreenProps } from '../UnieConnectApp';
 import { AmazonListingDrawer, RecommendationDrawer } from './InventoryNetwork';
 import { AuthenticatedImage } from '../../AuthenticatedImage';
+import { isActionableDecisionRecommendation } from '../DecisionComparison';
 
 type Tab = 'overview' | 'heatmap' | 'warehouses' | 'history' | 'channels' | 'billing' | 'orders' | 'replenishment';
 
@@ -286,7 +287,10 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
           .finally(() => setPricingLoading(false));
         fetchRecommendations({ entityType: 'sku', status: 'open', limit: 5 }).then((r) => {
           const seen = new Set<string>();
-          const matching = (r.recommendations || []).filter((rec) => rec.entityId === detail.id || rec.entityId === detail.sku);
+          const matching = (r.recommendations || []).filter((rec) =>
+            (rec.entityId === detail.id || rec.entityId === detail.sku)
+            && isActionableDecisionRecommendation(rec)
+          );
           setRecommendations(matching.filter((rec) => {
             const fields = [
               ...(Array.isArray((rec.currentValue as any)?.missingFields) ? (rec.currentValue as any).missingFields : []),
