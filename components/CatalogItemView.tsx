@@ -10,6 +10,7 @@ import { CatalogAsnsTable } from './catalog/CatalogAsnsTable';
 import { CatalogActivityFeed } from './catalog/CatalogActivityFeed';
 import { apiUrl, TOKEN_KEY } from '../lib/api';
 import type { CatalogItem } from '../lib/catalog-types';
+import { AuthenticatedImage } from './AuthenticatedImage';
 
 interface WmsInventory {
   inbound: number;
@@ -131,13 +132,11 @@ export function CatalogItemView({ item, supplierName }: CatalogItemViewProps) {
         <div className="flex-shrink-0 flex flex-col gap-2">
           <div className="relative w-full sm:w-56 aspect-square rounded-xl border border-gray-200 bg-white overflow-hidden">
             {mainImage ? (
-              <img
+              <AuthenticatedImage
                 src={mainImage}
                 alt={item.title}
                 className="w-full h-full object-contain p-2"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
+                fallback={<div className="w-full h-full flex items-center justify-center text-gray-400"><Box className="w-16 h-16" /></div>}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -153,7 +152,7 @@ export function CatalogItemView({ item, supplierName }: CatalogItemViewProps) {
                   type="button"
                   className="flex-shrink-0 w-12 h-12 rounded-lg border border-gray-200 overflow-hidden"
                 >
-                  <img src={src} alt="" className="w-full h-full object-cover" />
+                  <AuthenticatedImage src={src} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>

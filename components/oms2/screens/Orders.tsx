@@ -7,6 +7,7 @@ import { cancelOrder, fetchOmsOrders, OmsOrder, publicEntityId } from '../../../
 import { num, channelColor } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 import { MarketplaceFilter, MarketplaceFilterValue } from '../MarketplaceFilter';
+import { AuthenticatedImage } from '../../AuthenticatedImage';
 
 const ChannelTag = ({ ch }: { ch: string }) => (
   <span
@@ -225,12 +226,12 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                           display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)',
                         }}
                       >
-                        {o.image ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={o.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          <Icon name="box" size={18} />
-                        )}
+                        <AuthenticatedImage
+                          src={o.image}
+                          alt=""
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          fallback={<Icon name="box" size={18} />}
+                        />
                       </div>
                     </td>
                     <td>

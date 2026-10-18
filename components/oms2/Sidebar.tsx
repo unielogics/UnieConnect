@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './icons';
 import type { CurrentUser } from '../../lib/user';
 import { apiUrl, authFetch, clearStoredToken } from '../../lib/api';
+import { AuthenticatedImage } from '../AuthenticatedImage';
 
 export type NavItem = {
   id: string;
@@ -303,7 +304,7 @@ export const Sidebar = ({
             }}
           >
             <div className="avatar">
-              {user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials}
+              <AuthenticatedImage src={user?.avatarUrl} alt="" fallback={initials} />
             </div>
           </button>
         </div>
@@ -325,7 +326,7 @@ export const Sidebar = ({
         <div className="account-menu fade-in" role="menu">
           <div className="account-menu-head">
             <div className="avatar sm">
-              {user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials}
+              <AuthenticatedImage src={user?.avatarUrl} alt="" fallback={initials} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div className="account-menu-name">{displayName}</div>

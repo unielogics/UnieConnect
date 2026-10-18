@@ -27,6 +27,7 @@ import { fetchTransportationTemplates, type TransportationTemplate } from '../li
 import { itemCubicFeet, sizeTier } from '../lib/size';
 import { CortexPricingPanel } from './oms2/CortexPricingPanel';
 import { Thumb } from './oms2/ui';
+import { AuthenticatedImage } from './AuthenticatedImage';
 
 export type CreateShipmentPlanInitialItem = {
   sku: string;
@@ -918,28 +919,16 @@ export function CreateShipmentPlanModal({
                           marginBottom: 12,
                         }}
                       >
-                        {(it as any).imageUrl ? (
-                          <img
-                            src={(it as any).imageUrl}
-                            alt=""
-                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'var(--muted)',
-                              fontSize: 12,
-                            }}
-                          >
-                            —
-                          </div>
-                        )}
+                        <AuthenticatedImage
+                          src={(it as any).imageUrl}
+                          alt=""
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                          fallback={(
+                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 12 }}>
+                              —
+                            </div>
+                          )}
+                        />
                       </div>
                       <div style={{ fontWeight: 600, fontSize: 14, textAlign: 'center', marginBottom: 4 }}>{it.sku}</div>
                       <div

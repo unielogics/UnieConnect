@@ -3,6 +3,7 @@ import { Button } from './Button';
 import type { CatalogItem } from '../lib/catalog-types';
 import type { Supplier } from '../lib/amazon-fba';
 import { uploadCatalogImage } from '../lib/oms';
+import { AuthenticatedImage } from './AuthenticatedImage';
 
 interface CatalogItemFormProps {
   item?: CatalogItem | null;
@@ -124,11 +125,12 @@ export function CatalogItemForm({
           <div className="flex gap-4 items-start">
             <div className="flex-shrink-0">
               {imagePreview ? (
-                <img
+                <AuthenticatedImage
                   src={imagePreview}
                   alt="Preview"
                   className="w-24 h-24 object-contain rounded-lg border border-gray-200 bg-gray-50"
                   onError={() => setImagePreview(null)}
+                  fallback={<div className="w-24 h-24 rounded-lg border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-gray-400 text-xs">No image</div>}
                 />
               ) : (
                 <div className="w-24 h-24 rounded-lg border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-gray-400 text-xs">

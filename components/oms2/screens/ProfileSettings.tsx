@@ -5,6 +5,7 @@ import { TOKEN_KEY, apiUrl } from '../../../lib/api';
 import { uploadProfileAvatar } from '../../../lib/user';
 import { PlatformPaymentMethod } from '../PlatformPaymentMethod';
 import type { ScreenProps } from '../UnieConnectApp';
+import { AuthenticatedImage } from '../../AuthenticatedImage';
 
 type Tab = 'account' | 'billing' | 'security';
 
@@ -223,7 +224,7 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
             <div className="card-body" style={{ maxWidth: 720, display: 'grid', gap: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ width: 56, height: 56, borderRadius: '50%', overflow: 'hidden', display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg, var(--accent), var(--purple))', color: 'white', fontWeight: 800 }}>
-                  {profile.avatarUrl ? <img src={profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+                  <AuthenticatedImage src={profile.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} fallback={initials} />
                 </div>
                 <label className="btn" style={{ cursor: saving === 'avatar' ? 'not-allowed' : 'pointer' }}>
                   <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> {saving === 'avatar' ? 'Uploading...' : 'Upload image'}

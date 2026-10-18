@@ -27,6 +27,7 @@ import { fetchShipmentPricingPreview, type ShipmentPricingPreview } from '../../
 import { sizeTierLabel } from '../../../lib/size';
 import type { ScreenProps } from '../UnieConnectApp';
 import { AmazonListingDrawer, RecommendationDrawer } from './InventoryNetwork';
+import { AuthenticatedImage } from '../../AuthenticatedImage';
 
 type Tab = 'overview' | 'heatmap' | 'warehouses' | 'history' | 'channels' | 'billing' | 'orders' | 'replenishment';
 
@@ -377,7 +378,12 @@ export const SkuDetail = ({ skuId, onBack, onNavigate, toggleSelect, isSelected 
               overflow: 'hidden',
             }}
           >
-            {data.image ? <img src={data.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Icon name="box" size={36} />}
+            <AuthenticatedImage
+              src={data.image}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              fallback={<Icon name="box" size={36} />}
+            />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
