@@ -70,6 +70,8 @@ export const PlatformPaymentMethod = () => {
   const [starting, setStarting] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsSaving, setTermsSaving] = useState(false);
+  const [termsError, setTermsError] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -94,13 +96,23 @@ export const PlatformPaymentMethod = () => {
     }
   };
 
-  const onSetupDone = async () => {
-    setClientSecret(null);
+  const recordTerms = async () => {
+    setTermsSaving(true);
+    setTermsError('');
     try {
       await acceptOmsPlatformTerms(TERMS_VERSION);
-    } catch {
-      /* non-fatal — payment method is saved either way */
+      return true;
+    } catch (e: any) {
+      setTermsError(e?.message || 'Billing authorization could not be recorded.');
+      return false;
+    } finally {
+      setTermsSaving(false);
     }
+  };
+
+  const onSetupDone = async () => {
+    setClientSecret(null);
+    await recordTerms();
     load();
   };
 
@@ -126,6 +138,18 @@ export const PlatformPaymentMethod = () => {
         Card or bank account UnieLogics charges directly for your account activity — used only if
         your account bills straight to UnieLogics rather than through a specific warehouse.
       </div>
+
+      {termsError && (
+        <div className="inline-banner danger" role="alert">
+          <Icon name="warning" size={13} />
+          <span style={{ flex: 1 }}>
+            Your payment method was saved, but billing authorization was not recorded. Retry before relying on automatic charges. {termsError}
+          </span>
+          <button className="btn ghost sm" onClick={() => void recordTerms()} disabled={termsSaving}>
+            <Icon name="refresh" size={12} /> {termsSaving ? 'Retrying' : 'Retry authorization'}
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="muted">Loading…</div>
