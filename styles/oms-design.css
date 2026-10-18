@@ -1042,6 +1042,19 @@
 .uc-shell .business-context-strip { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; }
 .uc-shell .business-strategy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .uc-shell .business-impact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.uc-shell .business-observed-baseline { display: grid; gap: 14px; }
+.uc-shell .business-observed-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.uc-shell .business-observed-head > div { display: grid; gap: 3px; }
+.uc-shell .business-observed-head strong { color: var(--text); font-size: 13px; }
+.uc-shell .business-observed-head span { color: var(--text-secondary); font-size: 11.5px; line-height: 1.4; }
+.uc-shell .business-observed-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border: 1px solid var(--border-subtle); border-radius: var(--radius); overflow: hidden; }
+.uc-shell .business-observed-rows > div { display: grid; gap: 4px; min-width: 0; padding: 12px 14px; border-right: 1px solid var(--border-subtle); background: var(--bg-elev); }
+.uc-shell .business-observed-rows > div:last-child { border-right: 0; }
+.uc-shell .business-observed-rows span { color: var(--text-tertiary); font-size: 10.5px; font-weight: 700; text-transform: uppercase; }
+.uc-shell .business-observed-rows strong { color: var(--text); font-family: var(--mono); font-size: 14px; }
+.uc-shell .business-observed-rows .total { background: var(--bg-subtle); }
+.uc-shell .business-observed-note { display: flex; align-items: flex-start; gap: 7px; color: var(--text-secondary); font-size: 11.5px; line-height: 1.45; }
+.uc-shell .business-observed-note svg { flex: 0 0 auto; margin-top: 1px; color: var(--amber); }
 .uc-shell .business-map-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .uc-shell .business-decision-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(140px, .7fr) auto auto; }
 .uc-shell .business-autonomy-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1085,6 +1098,11 @@
   .uc-shell .research-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
+  .uc-shell .business-observed-head { align-items: stretch; flex-direction: column; }
+  .uc-shell .business-observed-head .chip { align-self: flex-start; }
+  .uc-shell .business-observed-rows { grid-template-columns: minmax(0, 1fr); }
+  .uc-shell .business-observed-rows > div { border-right: 0; border-bottom: 1px solid var(--border-subtle); }
+  .uc-shell .business-observed-rows > div:last-child { border-bottom: 0; }
   .uc-shell .business-context-strip,
   .uc-shell .business-strategy-grid,
   .uc-shell .business-decision-grid,

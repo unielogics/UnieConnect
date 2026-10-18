@@ -29,6 +29,7 @@ const METRIC_LABELS: Record<string, { label: string; unit?: string; inverse?: bo
   freight: { label: 'Freight' },
   storage: { label: 'Storage' },
   handling: { label: 'Handling', inverse: true },
+  materials: { label: 'Materials' },
   accessorials: { label: 'Accessorials' },
   lostRevenue: { label: 'Lost revenue (SLA)' },
   sla: { label: 'SLA (days)', unit: 'd' },
@@ -167,6 +168,14 @@ export const BusinessDouble = (_: ScreenProps) => {
 
   const impactKeys = decisionReady ? Object.keys(METRIC_LABELS).filter((k) => k in cur || k in opt) : [];
   const uniqueImpact = impactKeys.filter((k, i) => impactKeys.findIndex((x) => METRIC_LABELS[x].label === METRIC_LABELS[k].label) === i).slice(0, 5);
+  const observedCostRows = [
+    { key: 'freight', label: 'Freight', value: num(cur.freight), credit: false },
+    { key: 'storage', label: 'Storage', value: num(cur.storage), credit: false },
+    { key: 'handling', label: 'Handling', value: num(cur.handling), credit: false },
+    { key: 'materials', label: 'Materials', value: num(cur.materials), credit: false },
+    { key: 'accessorials', label: 'Accessorials', value: num(cur.accessorials), credit: false },
+    { key: 'refundsCaptured', label: 'Refunds captured', value: num(cur.refundsCaptured), credit: true },
+  ].filter((row) => row.value > 0);
 
   return (
     <div className="page fade-in">
@@ -320,9 +329,39 @@ export const BusinessDouble = (_: ScreenProps) => {
         </div>
         <div className="card-body" style={{ paddingTop: 18 }}>
           {uniqueImpact.length === 0 ? (
-            <EmptyState>{hasModeledPlan && !decisionReady
-              ? 'Modeled impact is hidden until its cost and warehouse baseline reconciles with observed account data.'
-              : 'Cost breakdown not yet returned by the plan model.'}</EmptyState>
+            <div className="business-observed-baseline">
+              <div className="business-observed-head">
+                <div>
+                  <strong>Observed 30-day baseline</strong>
+                  <span>Current account costs remain visible while optimized impact is unavailable.</span>
+                </div>
+                <Chip tone="blue" dot={false}>Account evidence</Chip>
+              </div>
+              {observedCostRows.length > 0 ? (
+                <div className="business-observed-rows">
+                  {observedCostRows.map((row) => (
+                    <div key={row.key}>
+                      <span>{row.label}</span>
+                      <strong style={{ color: row.credit ? 'var(--green-text)' : undefined }}>
+                        {row.credit ? '−' : ''}{fmt.money(row.value)}
+                      </strong>
+                    </div>
+                  ))}
+                  <div className="total">
+                    <span>Net operating cost</span>
+                    <strong>{fmt.money(totalCur)}</strong>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState>No observed cost activity is available for the last 30 days.</EmptyState>
+              )}
+              <div className="business-observed-note">
+                <Icon name="info" size={13} />
+                <span>{hasModeledPlan && !decisionReady
+                  ? 'Cortex produced a reference scenario, but suggested values stay hidden until its billing and warehouse baseline matches account truth.'
+                  : 'Run Seller Optimization after resolving readiness gaps to produce traceable suggested values and approval actions.'}</span>
+              </div>
+            </div>
           ) : (
             <div className="business-impact-grid" style={{ gap: 16 }}>
               {uniqueImpact.map((k) => (
