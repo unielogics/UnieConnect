@@ -69,6 +69,7 @@ const chatTimeLabel = (value?: string) => {
 
 const cortexDisplayText = (text?: string | null) =>
   String(text || '')
+    .split(/\n{1,2}(?:Sources|Suggested actions|Readiness notes|Confidence):?/i, 1)[0]
     .replace(/\bNVIDIA\s*NIM\b/gi, 'Cortex')
     .replace(/\bNIM\b/g, 'Cortex')
     .replace(/\bNVIDIA\b/gi, 'Cortex')
@@ -149,14 +150,27 @@ const CortexAnswer = ({ text }: { text?: string | null }) => {
           return (
             <section key={`${normalizedLabel}-${index}`} className={`ai-answer-section ${sectionClass}`}>
               <span>{label}</span>
-              <div>{block.content}</div>
+              <AnswerBlockContent content={block.content} />
             </section>
           );
         }
-        return <p key={index}>{block.content}</p>;
+        return <AnswerBlockContent key={index} content={block.content} />;
       })}
     </div>
   );
+};
+
+const AnswerBlockContent = ({ content }: { content: string }) => {
+  const lines = content.split('\n').map((line) => line.trim()).filter(Boolean);
+  const unordered = lines.length > 1 && lines.every((line) => /^[-*]\s+/.test(line));
+  const ordered = lines.length > 1 && lines.every((line) => /^\d+[.)]\s+/.test(line));
+  if (unordered) {
+    return <ul>{lines.map((line, index) => <li key={index}>{line.replace(/^[-*]\s+/, '')}</li>)}</ul>;
+  }
+  if (ordered) {
+    return <ol>{lines.map((line, index) => <li key={index}>{line.replace(/^\d+[.)]\s+/, '')}</li>)}</ol>;
+  }
+  return <p>{content}</p>;
 };
 
 const AnswerConfidence = ({ value }: { value: number }) => (
@@ -453,9 +467,10 @@ export const AICopilot = ({
   const prompts = ctx?.recommendedPrompts?.length
     ? ctx.recommendedPrompts
     : ['What should I work on next?', 'Which SKUs need enrichment?', 'Audit recent carrier labels', 'What tasks are blocking Cortex readiness?'];
+  const showSuggestedPrompts = !pending && !loadingThread && history.every((message) => message.role !== 'user');
 
   return (
-    <aside className="copilot">
+    <aside className="copilot" aria-label="Cortex account assistant">
       <div className="copilot-head">
         <div className="copilot-title">
           <span className={`ai-dot ${cortexHealth}`} />
@@ -465,7 +480,7 @@ export const AICopilot = ({
           </Chip>
           {entityId ? <span className="copilot-entity-context" title={entityId}>Focused on this {entityType || 'record'}</span> : null}
         </div>
-        <button className="icon-btn" onClick={onClose} data-hint="Close">
+        <button className="icon-btn" onClick={onClose} data-hint="Close" aria-label="Close Cortex">
           <Icon name="x" />
         </button>
       </div>
@@ -583,13 +598,15 @@ export const AICopilot = ({
       </div>
 
       <div className="copilot-foot">
-        <div className="copilot-chips">
-          {prompts.map((ex) => (
-            <button key={ex} className="copilot-chip" onClick={() => send(ex)} disabled={pending || loadingThread}>
-              {ex}
-            </button>
-          ))}
-        </div>
+        {showSuggestedPrompts ? (
+          <div className="copilot-chips" aria-label="Suggested questions">
+            {prompts.slice(0, 4).map((ex) => (
+              <button key={ex} className="copilot-chip" onClick={() => send(ex)} disabled={pending || loadingThread}>
+                {ex}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <CopilotInput onSubmit={send} disabled={pending || loadingThread} />
       </div>
     </aside>
