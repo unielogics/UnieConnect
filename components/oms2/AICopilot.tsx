@@ -126,7 +126,8 @@ const humanizeScreen = (screen?: string | null) =>
     .replace(/[-_]+/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
-const humanizeChatTimestamp = (value: string) => {
+const humanizeChatTimestamp = (value?: string) => {
+  if (!value) return '';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -137,6 +138,19 @@ const chatTimeLabel = (value?: string) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
   return parsed.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+};
+
+const threadTimeLabel = (value?: string) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const now = new Date();
+  const sameDay = parsed.getFullYear() === now.getFullYear()
+    && parsed.getMonth() === now.getMonth()
+    && parsed.getDate() === now.getDate();
+  return sameDay
+    ? parsed.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    : parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
 const activeThreadKey = (screen: string, entityType?: string | null, entityId?: string | null) =>
@@ -782,12 +796,13 @@ export const AICopilot = ({
             key={thread.id}
             className={`copilot-thread-pill ${threadId === thread.id ? 'active' : ''}`}
             onClick={() => openThread(thread.id)}
-            title={thread.title}
+            title={`${thread.title || 'Cortex thread'} · ${humanizeChatTimestamp(thread.lastMessageAt || thread.createdAt)}`}
             disabled={pending || loadingThread}
             type="button"
             aria-current={threadId === thread.id ? 'true' : undefined}
           >
-            {thread.title || 'Cortex thread'}
+            <span className="copilot-thread-name">{thread.title || 'Cortex thread'}</span>
+            <time dateTime={thread.lastMessageAt || thread.createdAt}>{threadTimeLabel(thread.lastMessageAt || thread.createdAt)}</time>
           </button>
         ))}
         {threadsLoading && threads.length === 0 ? (
