@@ -226,6 +226,12 @@ export default function UnieConnectApp() {
       if (safeTarget === 'suppliers' && payload?.startsWith('filter:')) {
         q.filter = payload.slice('filter:'.length);
       }
+      if (safeTarget === 'suppliers' && payload && !payload.startsWith('filter:')) {
+        q.supplier = payload;
+      }
+      if (safeTarget === 'customers' && payload) {
+        q.customer = payload;
+      }
       if (safeTarget === 'connections' && payload) {
         q.connection = payload;
       }
