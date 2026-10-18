@@ -120,10 +120,11 @@ export const isActionableDecisionRecommendation = (rec?: OmsRecommendation | nul
   return concreteDomain && meaningfulImpact;
 };
 
-const decisionLabel = (state?: string) => {
+const decisionLabel = (state?: string, actionable = true) => {
   const tone = decisionTone(state);
   if (tone === 'green') return 'Approved';
   if (tone === 'red') return 'Denied';
+  if (!actionable) return 'Task, not approval';
   const normalized = String(state || '').toLowerCase();
   if (normalized === 'waiting_approval' || normalized === 'draft') return 'Needs decision';
   if (normalized === 'blocked') return 'Blocked by missing data';
@@ -200,7 +201,8 @@ export const DecisionComparison = ({
 }) => {
   const tone = decisionTone(rec.approvalState);
   const normalizedState = String(rec.approvalState || '').toLowerCase();
-  const isNotice = ['blocked', 'not_required', 'not required'].includes(normalizedState);
+  const actionable = isActionableDecisionRecommendation(rec);
+  const isNotice = ['blocked', 'not_required', 'not required'].includes(normalizedState) || !actionable;
   const canDecide = tone === 'default' && !isNotice;
   const context = decisionContext(rec);
   return (
@@ -238,7 +240,7 @@ export const DecisionComparison = ({
         </div>
       </div>
       <div className="decision-actions" onClick={(e) => e.stopPropagation()}>
-        <Chip tone={tone === 'default' ? 'default' : tone} dot={false}>{decisionLabel(rec.approvalState)}</Chip>
+        <Chip tone={tone === 'default' ? 'default' : tone} dot={false}>{decisionLabel(rec.approvalState, actionable)}</Chip>
         {(onApprove || onDeny) && (
           <>
           {isNotice ? (
