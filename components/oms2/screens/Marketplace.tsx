@@ -153,8 +153,15 @@ export const Marketplace = (props: ScreenProps) => {
     try {
       const result = await enableFeature(f.id);
       replaceFeature(result.feature);
-      setActionFeedback({ tone: 'success', text: result.message || `${f.name} installed.` });
-      props.onFeaturesChanged?.();
+      try {
+        await props.onFeaturesChanged?.();
+        setActionFeedback({ tone: 'success', text: result.message || `${f.name} installed.` });
+      } catch (error: any) {
+        setActionFeedback({
+          tone: 'error',
+          text: `${f.name} was installed, but navigation access could not be refreshed. ${error?.message || 'Reload the OMS to verify access.'}`,
+        });
+      }
     } catch (e: any) {
       setActionFeedback({ tone: 'error', text: e?.message || `${f.name} could not be installed.` });
     } finally {
@@ -170,8 +177,15 @@ export const Marketplace = (props: ScreenProps) => {
     try {
       const result = await disableFeature(f.id);
       replaceFeature(result.feature);
-      setActionFeedback({ tone: 'success', text: result.message || `${f.name} uninstalled.` });
-      props.onFeaturesChanged?.();
+      try {
+        await props.onFeaturesChanged?.();
+        setActionFeedback({ tone: 'success', text: result.message || `${f.name} uninstalled.` });
+      } catch (error: any) {
+        setActionFeedback({
+          tone: 'error',
+          text: `${f.name} was uninstalled, but navigation access could not be refreshed. ${error?.message || 'Reload the OMS to verify access.'}`,
+        });
+      }
     } catch (e: any) {
       setActionFeedback({ tone: 'error', text: e?.message || `${f.name} could not be uninstalled.` });
     } finally {

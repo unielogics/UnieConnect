@@ -82,7 +82,7 @@ export interface ScreenProps {
   onNewTicket?: () => void;
   onImportCsv?: (entity: CsvImportEntity) => void;
   onSelectState?: (state: string) => void;
-  onFeaturesChanged?: () => void;
+  onFeaturesChanged?: () => void | Promise<void>;
   onCortexEntityChange?: (entity: { type: string; id: string } | null) => void;
   skuId?: string | null;
 }
@@ -113,6 +113,7 @@ export default function UnieConnectApp() {
   const [csvImport, setCsvImport] = useState<CsvImportEntity | null>(null);
   const [stateDetail, setStateDetail] = useState<string | null>(null);
   const [focusedCortexEntity, setFocusedCortexEntity] = useState<{ type: string; id: string } | null>(null);
+  const featureRequestRef = React.useRef(0);
   const [screenKey, setScreenKey] = useState(0);
   const [userFeatures, setUserFeatures] = useState<Feature[]>([]);
   const [featureLoadComplete, setFeatureLoadComplete] = useState(false);
@@ -167,28 +168,22 @@ export default function UnieConnectApp() {
     loadCurrentUser();
   }, [loadCurrentUser]);
 
-  const reloadUserFeatures = useCallback(() => {
-    let cancelled = false;
+  const reloadUserFeatures = useCallback(async () => {
+    const requestId = ++featureRequestRef.current;
     setFeatureLoadComplete(false);
     setFeatureLoadError(null);
-    fetchUserFeatures()
-      .then((result) => {
-        if (!cancelled) {
-          setUserFeatures(result.features || []);
-          setFeatureLoadError(null);
-        }
-      })
-      .catch((error: any) => {
-        if (!cancelled) {
-          setFeatureLoadError(error?.message || 'Installed feature access could not be verified.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setFeatureLoadComplete(true);
-      });
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const result = await fetchUserFeatures();
+      if (featureRequestRef.current !== requestId) return;
+      setUserFeatures(result.features || []);
+      setFeatureLoadError(null);
+    } catch (error: any) {
+      if (featureRequestRef.current !== requestId) return;
+      setFeatureLoadError(error?.message || 'Installed feature access could not be verified.');
+      throw error;
+    } finally {
+      if (featureRequestRef.current === requestId) setFeatureLoadComplete(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -197,7 +192,8 @@ export default function UnieConnectApp() {
       setFeatureLoadComplete(true);
       return;
     }
-    return reloadUserFeatures();
+    void reloadUserFeatures().catch(() => null);
+    return () => { featureRequestRef.current += 1; };
   }, [currentUser, reloadUserFeatures, userLoadComplete]);
 
   const setTweak = useCallback(<K extends keyof Tweaks>(k: K, v: Tweaks[K]) => {
@@ -626,7 +622,7 @@ export default function UnieConnectApp() {
               <div className="inline-banner warn app-wide" role="alert">
                 <Icon name="warning" size={13} />
                 <span>Installed feature access could not be refreshed. Existing navigation is preserved until verification succeeds.</span>
-                <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => reloadUserFeatures()} disabled={!featureLoadComplete}>
+                <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => void reloadUserFeatures().catch(() => null)} disabled={!featureLoadComplete}>
                   <Icon name="refresh" size={11} /> {featureLoadComplete ? 'Retry' : 'Checking'}
                 </button>
               </div>
