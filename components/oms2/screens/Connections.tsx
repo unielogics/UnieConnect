@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Loading, EmptyState, Modal } from '../ui';
-import { apiFetch, fetchCortexChatHealth, fetchLabelAudit } from '../../../lib/oms';
+import { apiFetch, fetchCortexChatHealth, fetchLabelAudit, refreshCortexTasks } from '../../../lib/oms';
 import { apiUrl, authFetch, oauthApiUrl, TOKEN_KEY } from '../../../lib/api';
 import { timeAgo } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -436,8 +436,10 @@ export const Connections = (_: ScreenProps) => {
   const [loadErrors, setLoadErrors] = useState<Partial<Record<Owner, string>>>({});
   const handledRouteAction = useRef<string | null>(null);
   const handledConnectedChannel = useRef<string | null>(null);
+  const loadRequestRef = useRef(0);
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     setLoadErrors({});
     const [cortexResult, labelResult, accountResult, warehouseResult] = await Promise.allSettled([
@@ -446,6 +448,7 @@ export const Connections = (_: ScreenProps) => {
       apiFetch<ChannelAccount[]>('/channel-accounts'),
       apiFetch<{ warehouses: any[] }>('/oms/warehouses'),
     ]);
+    if (loadRequestRef.current !== requestId) return;
     const errors: Partial<Record<Owner, string>> = {};
     if (accountResult.status === 'rejected') errors.marketplace = 'Marketplace connection status could not be loaded.';
     if (warehouseResult.status === 'rejected') errors.wms = 'Warehouse connection status could not be loaded.';
@@ -579,12 +582,19 @@ export const Connections = (_: ScreenProps) => {
         );
         return out;
       });
-    setLoadErrors(errors);
-    setLoading(false);
+    if (loadRequestRef.current === requestId) {
+      setLoadErrors(errors);
+      setLoading(false);
+    }
+  }, []);
+
+  const refreshGuidance = useCallback(async () => {
+    await refreshCortexTasks().catch(() => null);
   }, []);
 
   useEffect(() => {
     void load();
+    return () => { loadRequestRef.current += 1; };
   }, [load]);
 
   const connectedChannel = typeof router.query.connected === 'string'
@@ -603,14 +613,17 @@ export const Connections = (_: ScreenProps) => {
     setNotice(`${provider} authorization completed. Verifying permissions and syncing account data...`);
     const firstRefresh = window.setTimeout(() => { void load(); }, 2500);
     const finalRefresh = window.setTimeout(() => {
-      void load();
-      void router.replace({ pathname: '/oms', query: { view: 'connections' } }, undefined, { shallow: true });
+      void (async () => {
+        await load();
+        await refreshGuidance();
+        await router.replace({ pathname: '/oms', query: { view: 'connections' } }, undefined, { shallow: true });
+      })();
     }, 8000);
     return () => {
       window.clearTimeout(firstRefresh);
       window.clearTimeout(finalRefresh);
     };
-  }, [connectedChannel, load, router]);
+  }, [connectedChannel, load, refreshGuidance, router]);
 
   const requestedConnectionKind = typeof router.query.connect === 'string'
     && ['shopify', 'amazon', 'ebay', 'wms'].includes(router.query.connect)
@@ -653,7 +666,8 @@ export const Connections = (_: ScreenProps) => {
       } else {
         setNotice(`${c.name} is monitored continuously.`);
       }
-      load();
+      await load();
+      await refreshGuidance();
     } catch (err: any) {
       setNotice(err?.message || 'Connection action failed');
     } finally {
@@ -695,12 +709,13 @@ export const Connections = (_: ScreenProps) => {
       }
       setNotice(payload?.message || `${c.name} authorization is ready for provider configuration.`);
       setBusy(null);
-      load();
+      await load();
+      await refreshGuidance();
     } catch (error: any) {
       setNotice(error?.message || `${c.name} authorization failed.`);
       setBusy(null);
     }
-  }, [load]);
+  }, [load, refreshGuidance]);
 
   useEffect(() => {
     if (router.query.action !== 'repair') {
@@ -734,7 +749,8 @@ export const Connections = (_: ScreenProps) => {
         throw new Error('This connection type cannot be removed here.');
       }
       setNotice(`${c.name} removed.`);
-      load();
+      await load();
+      await refreshGuidance();
     } catch (err: any) {
       setNotice(err?.message || 'Remove connection failed');
     } finally {
@@ -768,6 +784,7 @@ export const Connections = (_: ScreenProps) => {
         ? `${healthy} connection${healthy === 1 ? '' : 's'} checked successfully; ${attention} need${attention === 1 ? 's' : ''} attention. Review the highlighted rows for repair actions.`
         : `${healthy} connection${healthy === 1 ? '' : 's'} checked successfully.`);
       await load();
+      await refreshGuidance();
     } catch (err: any) {
       setNotice(err?.message || 'Sync all failed');
     } finally {
@@ -865,7 +882,10 @@ export const Connections = (_: ScreenProps) => {
           initialKind={requestedConnectionKind || 'shopify'}
           onClose={closeConnect}
           onConnected={() => {
-            load();
+            void (async () => {
+              await load();
+              await refreshGuidance();
+            })();
           }}
         />
       )}
