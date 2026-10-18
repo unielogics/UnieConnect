@@ -43,16 +43,18 @@ export const Shipments = ({ onNavigate, onOpenAsnById, toggleSelect, isSelected,
   const ctxMenu = useCtxMenu();
   const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('shipments');
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
     setErr(null);
-    Promise.all([fetchInventoryPlan('6m'), fetchOmsAsns()])
-      .then(([nextPlan, asnPayload]) => {
-        setPlan(nextPlan);
-        setAsns(asnPayload.asns || []);
-      })
-      .catch((e) => setErr(e.message || 'Failed to load shipments'))
-      .finally(() => setLoading(false));
+    try {
+      const [nextPlan, asnPayload] = await Promise.all([fetchInventoryPlan('6m'), fetchOmsAsns()]);
+      setPlan(nextPlan);
+      setAsns(asnPayload.asns || []);
+    } catch (error: any) {
+      setErr(error?.message || 'Failed to load shipments');
+    } finally {
+      setLoading(false);
+    }
   };
   const loadGuidance = () => {
     setCtxLoading(true);
@@ -63,7 +65,7 @@ export const Shipments = ({ onNavigate, onOpenAsnById, toggleSelect, isSelected,
       .finally(() => setCtxLoading(false));
   };
   useEffect(() => {
-    load();
+    void load();
     loadGuidance();
   }, []);
 
@@ -280,7 +282,7 @@ export const Shipments = ({ onNavigate, onOpenAsnById, toggleSelect, isSelected,
                   <div className="card-title">
                     ASN control <Chip dot={false}>{asns.length}</Chip>
                   </div>
-                  <button className="btn ghost sm" onClick={load}><Icon name="refresh" size={12} /> Sync</button>
+                  <button className="btn ghost sm" onClick={() => void load()}><Icon name="refresh" size={12} /> Sync</button>
                 </div>
                 {actionFeedback && (
                   <div className={`decision-feedback ${actionFeedback.tone}`} role={actionFeedback.tone === 'error' ? 'alert' : 'status'}>

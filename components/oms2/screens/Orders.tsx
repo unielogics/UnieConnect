@@ -40,22 +40,35 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
   const [cancelTarget, setCancelTarget] = useState<OmsOrder | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
-  useCloseOnOmsNavigation(() => setCancelTarget(null), !!cancelTarget);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const closeCancelDialog = () => {
+    if (cancelling) return;
+    setCancelTarget(null);
+    setCancelReason('');
+    setCancelError(null);
+  };
+  useCloseOnOmsNavigation(closeCancelDialog, !!cancelTarget);
   const cancelOverlayRef = useModalOverlayKeyboard(() => {
-    if (!cancelling) setCancelTarget(null);
+    closeCancelDialog();
   }, !!cancelTarget);
   const ctx = useCtxMenu();
   const { recFor, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('orders');
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
     setErr(null);
-    fetchOmsOrders(marketplaceFilter)
-      .then((d) => setOrders(d.orders || []))
-      .catch((e) => setErr(e.message || 'Failed to load orders'))
-      .finally(() => setLoading(false));
+    try {
+      const data = await fetchOmsOrders(marketplaceFilter);
+      setOrders(data.orders || []);
+    } catch (error: any) {
+      setErr(error?.message || 'Failed to load orders');
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(load, [marketplaceFilter.channel, marketplaceFilter.channelAccountId]);
+  useEffect(() => {
+    void load();
+  }, [marketplaceFilter.channel, marketplaceFilter.channelAccountId]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -108,11 +121,14 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
   const submitCancel = async () => {
     if (!cancelTarget) return;
     setCancelling(true);
+    setCancelError(null);
     try {
       await cancelOrder(cancelTarget.id, cancelReason.trim() || 'Cancelled from OMS order screen');
+      await load();
       setCancelTarget(null);
       setCancelReason('');
-      await load();
+    } catch (error: any) {
+      setCancelError(error?.message || 'The order could not be cancelled.');
     } finally {
       setCancelling(false);
     }
@@ -126,14 +142,18 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
     ...(o.customer_email ? [{ icon: 'support', title: 'Email customer', shortcut: 'Ctrl E', onClick: () => { window.location.href = `mailto:${o.customer_email}`; } } as CtxItem] : []),
     { divider: true },
     { icon: 'audit', title: 'Open dispute', onClick: () => onNavigate('audits') },
-    { icon: 'refresh', title: `Re-sync from ${o._ch}`, shortcut: 'Ctrl R', onClick: load },
+    { icon: 'refresh', title: `Re-sync from ${o._ch}`, shortcut: 'Ctrl R', onClick: () => void load() },
     { divider: true },
     {
       icon: 'x',
       title: o._status === 'cancelled' ? 'Order already cancelled' : 'Cancel order',
       danger: true,
       disabled: o._status === 'cancelled',
-      onClick: () => setCancelTarget(o),
+      onClick: () => {
+        setCancelError(null);
+        setCancelReason('');
+        setCancelTarget(o);
+      },
     },
   ];
 
@@ -147,7 +167,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
           </p>
         </div>
         <div className="page-actions">
-          <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Sync</button>
+          <button className="btn" onClick={() => void load()}><Icon name="refresh" size={13} /> Sync</button>
           <button className="btn" onClick={() => onImportCsv?.('orders')}>
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Import CSV
           </button>
@@ -316,7 +336,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
       )}
       {recDrawer}
       {cancelTarget && (
-        <div ref={cancelOverlayRef} className="modal-overlay" onClick={() => !cancelling && setCancelTarget(null)}>
+        <div ref={cancelOverlayRef} className="modal-overlay" onClick={closeCancelDialog}>
           <div className="modal" role="dialog" aria-modal="true" aria-label="Cancel order" tabIndex={-1} style={{ width: 460 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <div>
@@ -325,7 +345,7 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                   {cancelTarget.displayId || cancelTarget.publicId || publicEntityId('OR', cancelTarget.id)}
                 </div>
               </div>
-              <button className="icon-btn" aria-label="Close cancellation dialog" disabled={cancelling} onClick={() => setCancelTarget(null)}><Icon name="x" /></button>
+              <button className="icon-btn" aria-label="Close cancellation dialog" disabled={cancelling} onClick={closeCancelDialog}><Icon name="x" /></button>
             </div>
             <div className="modal-body">
               <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -347,11 +367,17 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
                   resize: 'vertical',
                 }}
               />
+              {cancelError && (
+                <div className="inline-banner danger" role="alert" style={{ marginTop: 10 }}>
+                  <Icon name="warning" size={13} />
+                  <span>{cancelError}</span>
+                </div>
+              )}
             </div>
             <div className="modal-foot">
               <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>This archives OMS execution and writes the cancellation to the ledger.</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn ghost" onClick={() => setCancelTarget(null)}>Back</button>
+                <button className="btn ghost" onClick={closeCancelDialog}>Back</button>
                 <button className="btn primary" onClick={submitCancel} disabled={cancelling}>
                   {cancelling ? 'Cancelling…' : 'Cancel order'}
                 </button>

@@ -237,42 +237,45 @@ export const Support = ({ onNewTicket, onCortexEntityChange, onNavigate }: Scree
   const [updating, setUpdating] = useState<string | null>(null);
   const [ticketFilter, setTicketFilter] = useState<'all' | 'open' | 'resolved'>('all');
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
     setLoadError(null);
     setSourceNotice(null);
     setOperationalExceptions([]);
-    fetchTickets()
-      .then((d) => {
-        setTickets(
-          (d.tickets || []).map((t) => ({
-            ...t,
-            opened: t.createdAt || '-',
-          })),
-        );
-        setOperationalExceptions([]);
-        setSourceNotice(null);
-      })
-      .catch((ticketError) =>
-        fetchLedger()
-          .then((lg: LedgerResponse) => {
-            const exceptions = (lg.events || [])
-              .filter((e) => /exception|dispute|short|mis-?pick|claim|return/i.test(`${e.subject} ${e.summary} ${e.event_type}`))
-              .slice(0, 12)
-              .map((event) => ({
-                ...event,
-                priority: /short|exception|fraud/i.test(`${event.subject} ${event.summary} ${event.event_type}`) ? 'high' as const : 'med' as const,
-              }));
-            setTickets([]);
-            setOperationalExceptions(exceptions);
-            setSourceNotice('Support tickets are temporarily unavailable. Showing read-only operational exceptions from the account ledger.');
-          })
-          .catch(() => setLoadError(ticketError?.message || 'Support tickets and operational exceptions could not be loaded.')),
-      )
-      .finally(() => setLoading(false));
+    try {
+      const data = await fetchTickets();
+      setTickets(
+        (data.tickets || []).map((ticket) => ({
+          ...ticket,
+          opened: ticket.createdAt || '-',
+        })),
+      );
+      setOperationalExceptions([]);
+      setSourceNotice(null);
+    } catch (ticketError: any) {
+      try {
+        const ledger = await fetchLedger();
+        const exceptions = (ledger.events || [])
+          .filter((event) => /exception|dispute|short|mis-?pick|claim|return/i.test(`${event.subject} ${event.summary} ${event.event_type}`))
+          .slice(0, 12)
+          .map((event) => ({
+            ...event,
+            priority: /short|exception|fraud/i.test(`${event.subject} ${event.summary} ${event.event_type}`) ? 'high' as const : 'med' as const,
+          }));
+        setTickets([]);
+        setOperationalExceptions(exceptions);
+        setSourceNotice('Support tickets are temporarily unavailable. Showing read-only operational exceptions from the account ledger.');
+      } catch {
+        setLoadError(ticketError?.message || 'Support tickets and operational exceptions could not be loaded.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    void load();
+  }, []);
 
   const reloadSelected = async () => {
     if (!selected) return;
@@ -337,10 +340,13 @@ export const Support = ({ onNewTicket, onCortexEntityChange, onNavigate }: Scree
 
   const changeStatus = async (ticket: TicketRow, status: string) => {
     setUpdating(ticket.id);
+    setLoadError(null);
     try {
       await updateTicketStatus(ticket.id, status);
       await load();
       if (selected?.id === ticket.id) await reloadSelected();
+    } catch (error: any) {
+      setLoadError(error?.message || 'The ticket status could not be updated.');
     } finally {
       setUpdating(null);
     }
@@ -376,7 +382,7 @@ export const Support = ({ onNewTicket, onCortexEntityChange, onNavigate }: Scree
         <div className="card" style={{ marginBottom: 12 }}>
           <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', color: loadError ? 'var(--red-text)' : 'var(--amber-text)' }}>
             <span style={{ fontSize: 12.5 }}><Icon name="warning" size={14} /> {loadError || sourceNotice}</span>
-            <button className="btn sm" onClick={load}>Retry support</button>
+            <button className="btn sm" onClick={() => void load()}>Retry support</button>
           </div>
         </div>
       )}

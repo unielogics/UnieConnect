@@ -99,25 +99,29 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
   const ctx = useCtxMenu();
   const { recommendations, recFor, screenRec, setSelectedRec, drawer: recDrawer, recommendationStatus } = useInlineRecommendations('labels');
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
     setErr(null);
     setRunHistoryError(null);
-    Promise.all([
-      fetchLabelAudit(),
-      fetchLabelAuditRuns().catch((error: any) => {
-        setRunHistoryError(error?.message || 'CSV audit run history could not be loaded.');
-        return null;
-      }),
-    ])
-      .then(([audit, runData]) => {
-        setData(audit);
-        if (runData) setRuns(runData.runs || []);
-      })
-      .catch((e) => setErr(e.message || 'Failed to load label audit'))
-      .finally(() => setLoading(false));
+    try {
+      const [audit, runData] = await Promise.all([
+        fetchLabelAudit(),
+        fetchLabelAuditRuns().catch((error: any) => {
+          setRunHistoryError(error?.message || 'CSV audit run history could not be loaded.');
+          return null;
+        }),
+      ]);
+      setData(audit);
+      if (runData) setRuns(runData.runs || []);
+    } catch (error: any) {
+      setErr(error?.message || 'Failed to load label audit');
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(load, []);
+  useEffect(() => {
+    void load();
+  }, []);
   useEffect(() => {
     if (!router.isReady || router.query.action !== 'upload-csv') return;
     setUploadOpen(true);
@@ -216,7 +220,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
           <button className="btn primary" disabled={!cortexAvailable} title={!cortexAvailable ? cortexMessage : undefined} onClick={() => setUploadOpen(true)}>
             <Icon name="download" size={13} style={{ transform: 'rotate(180deg)' }} /> Upload CSV
           </button>
-          <button className="btn" onClick={load}><Icon name="refresh" size={13} /> Re-scan all labels</button>
+          <button className="btn" onClick={() => void load()}><Icon name="refresh" size={13} /> Re-scan all labels</button>
         </div>
       </div>
 
@@ -226,7 +230,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
         <div className="inline-banner danger" role="alert" style={{ marginBottom: 12 }}>
           <Icon name="warning" size={13} />
           <span style={{ flex: 1 }}>{runHistoryError} Current findings remain available.</span>
-          <button className="btn ghost sm" onClick={load}><Icon name="refresh" size={12} /> Retry history</button>
+          <button className="btn ghost sm" onClick={() => void load()}><Icon name="refresh" size={12} /> Retry history</button>
         </div>
       )}
       {actionError && (
@@ -345,7 +349,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
                             ...(l.order ? [{ icon: 'orders', title: `Open order ${l.order}`, onClick: () => onOpenOrderById?.(String(l.order)) }] : []),
                             ...(rec ? [{ icon: 'sparkle', title: 'Review Cortex recommendation', onClick: () => setSelectedRec(rec) }] : []),
                             ...((sourceRun || l.order || rec) ? [{ divider: true } as const] : []),
-                            { icon: 'refresh', title: 'Rescan', shortcut: '⌘R', onClick: load },
+                            { icon: 'refresh', title: 'Rescan', shortcut: '⌘R', onClick: () => void load() },
                           ])
                         }
                       >
