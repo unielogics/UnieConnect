@@ -28,6 +28,8 @@ type Msg = {
   muted?: boolean;
   sources?: Array<Record<string, unknown>>;
   actions?: ChatAction[];
+  readinessNote?: string | null;
+  createdAt?: string;
 };
 
 const sourceLabel = (source: Record<string, unknown>) => {
@@ -56,6 +58,13 @@ const humanizeChatTimestamp = (value: string) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+const chatTimeLabel = (value?: string) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 };
 
 const cortexDisplayText = (text?: string | null) =>
@@ -162,11 +171,19 @@ const shouldMuteMessage = (m: CortexChatMessage) => {
   return content.includes('cortex is not available') || content.includes('cortex chat is unavailable');
 };
 
+const visibleReadinessNote = (content?: string | null, note?: string | null) => {
+  const normalized = cortexDisplayText(note);
+  if (!normalized || /answer generated from this account/i.test(normalized)) return null;
+  return cortexDisplayText(content).toLowerCase().includes(normalized.toLowerCase()) ? null : normalized;
+};
+
 const messageToHistory = (m: CortexChatMessage): Msg => ({
   role: m.role === 'user' ? 'user' : 'ai',
   muted: shouldMuteMessage(m),
   sources: m.sources,
   actions: (m.tasks || []) as ChatAction[],
+  readinessNote: visibleReadinessNote(m.content, m.readinessNotes),
+  createdAt: m.createdAt,
   body: (
     <>
       <CortexAnswer text={m.content} />
@@ -186,6 +203,7 @@ const CopilotInput = ({ onSubmit, disabled }: { onSubmit: (q: string) => void; d
     <form onSubmit={(e) => { e.preventDefault(); submit(); }} style={{ position: 'relative' }}>
       <textarea
         className="copilot-input"
+        aria-label="Ask Cortex"
         placeholder="Ask Cortex about this account, screen, SKUs, orders, warehouses, or tasks"
         value={text}
         disabled={disabled}
@@ -311,7 +329,8 @@ export const AICopilot = ({
       })
       .catch(() => {
         if (cancelled) return;
-        setHistory([{ role: 'ai', body: 'Cortex context is temporarily unavailable. Operating views remain fully functional.', muted: true }]);
+        setCtx(null);
+        setHistory([{ role: 'ai', body: welcomeMessage() }]);
       });
     loadThreads();
     return () => {
@@ -348,7 +367,7 @@ export const AICopilot = ({
     chatAbortRef.current = controller;
     const timeout = window.setTimeout(() => controller.abort('timeout'), 45000);
     const epoch = conversationEpochRef.current;
-    if (appendUser) setHistory((h) => [...h, { role: 'user', body: q }]);
+    if (appendUser) setHistory((h) => [...h, { role: 'user', body: q, createdAt: new Date().toISOString() }]);
     setPending(true);
     try {
       const res = await sendCortexChat(
@@ -372,6 +391,8 @@ export const AICopilot = ({
           muted: cortexUnavailable,
           sources: res.message?.sources,
           actions: (res.message?.tasks || []) as ChatAction[],
+          readinessNote: visibleReadinessNote(res.message?.content, res.message?.readinessNotes),
+          createdAt: res.message?.createdAt || new Date().toISOString(),
           body: (
             <>
               <CortexAnswer text={res.message?.content || 'Cortex returned no answer.'} />
@@ -383,8 +404,10 @@ export const AICopilot = ({
       loadThreads();
     } catch (error: any) {
       if (conversationEpochRef.current !== epoch) return;
-      const stopped = controller.signal.aborted || error?.name === 'AbortError';
-      if (!stopped) {
+      const aborted = controller.signal.aborted || error?.name === 'AbortError';
+      const timedOut = aborted && controller.signal.reason === 'timeout';
+      const stoppedByUser = aborted && !timedOut;
+      if (!stoppedByUser) {
         fetchCortexChatHealth(section)
           .then((health) => setCortexHealth(health.ok ? 'online' : 'offline'))
           .catch(() => setCortexHealth('offline'));
@@ -394,11 +417,14 @@ export const AICopilot = ({
         {
           role: 'ai',
           muted: true,
+          createdAt: new Date().toISOString(),
           body: (
             <>
-              <CortexAnswer text={stopped
-                ? 'That response was stopped. Your question remains in this account thread and can be retried.'
-                : 'Cortex could not complete that answer. Account data remains isolated and no unrelated data was used.'} />
+              <CortexAnswer text={timedOut
+                ? 'That answer took longer than expected. Your question is still here and can be retried.'
+                : stoppedByUser
+                  ? 'That response was stopped. Your question remains in this account thread and can be retried.'
+                  : 'Cortex could not complete that answer. Account data remains isolated and no unrelated data was used.'} />
               <div className="ai-answer-actions">
                 <button
                   className="ai-answer-action"
@@ -472,7 +498,7 @@ export const AICopilot = ({
         ) : null}
       </div>
 
-      <div className="copilot-body">
+      <div className="copilot-body" role="log" aria-live="polite" aria-relevant="additions text">
         {loadingThread && (
           <div className="ai-msg">
             <div className="ai-avatar">CX</div>
@@ -484,6 +510,12 @@ export const AICopilot = ({
             <div className="ai-avatar">{m.role === 'user' ? 'You' : 'CX'}</div>
             <div className="ai-body">
               {m.body}
+              {m.role === 'ai' && m.readinessNote ? (
+                <div className="ai-readiness-note">
+                  <Icon name="info" size={11} />
+                  <span>{m.readinessNote}</span>
+                </div>
+              ) : null}
               {m.role === 'ai' && m.sources?.length ? (
                 <div className="ai-sources">
                   {m.sources.slice(0, 4).map((source, idx) => {
@@ -513,6 +545,11 @@ export const AICopilot = ({
                     </button>
                   ))}
                 </div>
+              ) : null}
+              {m.createdAt ? (
+                <time className="ai-msg-time" dateTime={m.createdAt} title={humanizeChatTimestamp(m.createdAt)}>
+                  {chatTimeLabel(m.createdAt)}
+                </time>
               ) : null}
             </div>
           </div>
