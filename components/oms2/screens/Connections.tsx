@@ -178,10 +178,17 @@ const ConnectionCard = ({
     <td className="num">
       <div style={{ display: 'inline-flex', gap: 4 }}>
         {c.needsRepair && (
-          <button className="btn ghost sm" onClick={() => onRepair(c)} disabled={busy} data-hint="Open provider authorization">
+          <button
+            className="btn ghost sm"
+            onClick={() => onRepair(c)}
+            disabled={busy}
+            data-hint={String(c.raw?.channel || '').toLowerCase() === 'shopify'
+              ? 'Reconnect Shopify and approve location inventory access'
+              : 'Open provider authorization'}
+          >
             <Icon name="plug" size={11} />
             {String(c.raw?.channel || '').toLowerCase() === 'shopify'
-              ? 'Repair Shopify access'
+              ? 'Approve inventory access'
               : ['needs_authorization', 'needs_configuration'].includes(String(c.raw?.status || '')) ? 'Authorize' : 'Repair'}
           </button>
         )}

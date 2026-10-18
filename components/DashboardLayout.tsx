@@ -301,7 +301,7 @@ export default function DashboardLayout({ children, title, subtitle }: Dashboard
               <Brain size={16} />
               <span>Cortex</span>
             </button>
-            <Link href="/profile" className="oms-profile">
+            <Link href="/oms?view=profile" className="oms-profile">
               {(currentUser?.email || 'UC').slice(0, 2).toUpperCase()}
             </Link>
           </div>
