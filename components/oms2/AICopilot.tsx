@@ -136,6 +136,11 @@ const chatTimeLabel = (value?: string) => {
 const activeThreadKey = (screen: string, entityType?: string | null, entityId?: string | null) =>
   `unie:cortex-active-thread:${encodeURIComponent([screen || 'command', entityType || '', entityId || ''].join(':'))}`;
 
+const createChatRequestId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+};
+
 const cortexDisplayText = (text?: string | null) =>
   String(text || '')
     .split(/\n{1,2}(?:Sources|Suggested actions|Readiness notes|Confidence):?/i, 1)[0]
@@ -537,7 +542,7 @@ export const AICopilot = ({
     };
   }, [pending]);
 
-  const send = async (q: string, appendUser = true) => {
+  const send = async (q: string, appendUser = true, requestId = createChatRequestId()) => {
     if (!q || requestInFlightRef.current || loadingThread) return;
     requestInFlightRef.current = true;
     const controller = new AbortController();
@@ -554,6 +559,7 @@ export const AICopilot = ({
           threadId,
           entityType: entityType || undefined,
           entityId: entityId || undefined,
+          requestId,
         },
         controller.signal,
       );
@@ -594,6 +600,7 @@ export const AICopilot = ({
       const aborted = controller.signal.aborted || error?.name === 'AbortError';
       const timedOut = aborted && controller.signal.reason === 'timeout';
       const stoppedByUser = aborted && !timedOut;
+      const stillProcessing = /still preparing the original answer/i.test(String(error?.message || ''));
       if (!stoppedByUser) {
         fetchCortexChatHealth(section)
           .then((health) => setCortexHealth(health.ok ? 'online' : 'offline'))
@@ -607,7 +614,9 @@ export const AICopilot = ({
           createdAt: new Date().toISOString(),
           body: (
             <>
-              <CortexAnswer text={timedOut
+              <CortexAnswer text={stillProcessing
+                ? 'Cortex is still preparing the original answer. Retry shortly; the question will not be duplicated.'
+                : timedOut
                 ? 'That answer took longer than expected. Your question is still here and can be retried.'
                 : stoppedByUser
                   ? 'That response was stopped. Your question remains in this account thread and can be retried.'
@@ -617,7 +626,7 @@ export const AICopilot = ({
                   className="ai-answer-action"
                   onClick={() => {
                     setHistory((current) => current.slice(0, -1));
-                    void send(q, false);
+                    void send(q, false, requestId);
                   }}
                 >
                   <Icon name="refresh" size={11} /> Retry

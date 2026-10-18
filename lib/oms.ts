@@ -872,6 +872,7 @@ export type CortexChatMessage = {
   confidence?: number | null;
   readinessNotes?: string | null;
   cortexStatus?: string;
+  clientRequestId?: string;
   createdAt?: string;
 };
 
@@ -1398,7 +1399,7 @@ export const fetchCopilotContext = (screen: string) =>
   omsFetch<CopilotContext>(`/intelligence/copilot/context?screen=${encodeURIComponent(screen)}`);
 
 export const sendCortexChat = (
-  body: { screen: string; message: string; threadId?: string | null; entityType?: string; entityId?: string },
+  body: { screen: string; message: string; threadId?: string | null; entityType?: string; entityId?: string; requestId?: string },
   signal?: AbortSignal,
 ) =>
   omsFetch<CortexChatResponse>('/intelligence/cortex/chat', {
