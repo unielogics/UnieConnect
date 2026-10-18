@@ -1054,7 +1054,7 @@
   .uc-shell .cortex-task-summary > div { padding: 0; }
   .uc-shell .cortex-task-summary > div + div { border-left: 0; border-top: 1px solid var(--border-subtle); padding-top: 10px; margin-top: 10px; }
 }
-@media (max-width: 1320px) {
+@media (max-width: 1100px) {
   .uc-shell .command-task-plan-row { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {

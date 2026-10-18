@@ -52,14 +52,18 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
   const [decisionFeedback, setDecisionFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [decisionUpdatingId, setDecisionUpdatingId] = useState<string | null>(null);
+  const commandRequestRef = useRef(0);
+  const intelligenceRequestRef = useRef(0);
 
   const refreshIntelligencePanels = useCallback(async (refreshTasks = false) => {
+    const requestId = ++intelligenceRequestRef.current;
     setIntelligenceLoading(true);
     const [planResult, latestResult, tasksResult] = await Promise.allSettled([
       fetchBusinessDouble(),
       fetchLatestOptimization(),
       fetchCortexTasks({ status: 'open', refresh: refreshTasks, limit: 10 }),
     ]);
+    if (intelligenceRequestRef.current !== requestId) return;
     const nextErrors: { plan?: string; readiness?: string; tasks?: string } = {};
     if (planResult.status === 'fulfilled') setBd(planResult.value);
     else nextErrors.plan = planResult.reason?.message || 'The AI plan could not be loaded.';
@@ -74,21 +78,26 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
       setTaskSummary(tasksResult.value.summary || { highPriority: 0, workAreas: [], sources: [] });
     } else nextErrors.tasks = tasksResult.reason?.message || 'Cortex tasks could not be loaded.';
     setIntelligenceErrors(nextErrors);
-    setIntelligenceLoading(false);
+    if (intelligenceRequestRef.current === requestId) setIntelligenceLoading(false);
   }, []);
 
-  const load = (r: Range) => {
+  const load = useCallback(async (r: Range) => {
+    const requestId = ++commandRequestRef.current;
     setLoading(true);
     setErr(null);
-    fetchCommandCenter(r)
-      .then((d) => setData(d))
-      .catch((e) => setErr(e.message || 'Failed to load command center'))
-      .finally(() => setLoading(false));
-  };
+    try {
+      const next = await fetchCommandCenter(r);
+      if (commandRequestRef.current === requestId) setData(next);
+    } catch (error: any) {
+      if (commandRequestRef.current === requestId) setErr(error?.message || 'Failed to load command center');
+    } finally {
+      if (commandRequestRef.current === requestId) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    load(range);
-  }, [range]);
+    void load(range);
+  }, [load, range]);
   useEffect(() => {
     void refreshIntelligencePanels(true);
   }, [refreshIntelligencePanels]);
@@ -119,7 +128,11 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
       window.removeEventListener(CORTEX_TASKS_CHANGED_EVENT, onTasksChanged);
     };
   }, []);
-  useEffect(() => () => optimizationAbortRef.current?.abort(), []);
+  useEffect(() => () => {
+    commandRequestRef.current += 1;
+    intelligenceRequestRef.current += 1;
+    optimizationAbortRef.current?.abort();
+  }, []);
   useEffect(() => {
     if (!router.isReady || router.query.focus !== 'cortex-tasks') return;
     const timer = window.setTimeout(() => {
@@ -154,7 +167,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
         : 'Cortex is still processing. The plan will refresh from the latest completed run.');
       await refreshIntelligencePanels(true);
       notifyCortexTasksChanged();
-      load(range);
+      await load(range);
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
       setOptimizationError(e.message || 'Cortex optimization could not be completed.');
@@ -763,7 +776,7 @@ const CortexTasksPanel = ({
                       {task.detail && <div className="muted">{task.detail}</div>}
                     </td>
                     <td data-label="Priority"><span className={`task-priority ${task.priority}`}>{task.priority}</span></td>
-                    <td data-label="Where">{displayWorkArea(task.screen || task.actionTarget || 'command')}</td>
+                    <td data-label="Where">{displayWorkArea(task.actionTarget || task.screen || 'command')}</td>
                     <td data-label="Source"><Chip dot={false}>{displayTaskSource(task.source)}</Chip></td>
                     <td data-label="Actions">
                       <div className="row-actions">
