@@ -316,13 +316,15 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           error={intelligenceErrors.readiness}
           onRetry={() => void refreshIntelligencePanels(true)}
         />
-        {loading && !data ? (
-          <div className="card"><Loading rows={3} /></div>
-        ) : data ? (
-          <RevenueTrendCard data={data} bd={bd} compact />
-        ) : (
-          <div className="card"><div className="card-body"><EmptyState>Revenue activity is unavailable.</EmptyState></div></div>
-        )}
+        <IntelligenceReadinessPanel
+          readiness={readiness}
+          latest={latestOpt}
+          recommendations={decisionRecommendations}
+          loading={intelligenceLoading}
+          error={intelligenceErrors.readiness}
+          onRetry={() => void refreshIntelligencePanels(true)}
+          onNavigate={onNavigate}
+        />
       </div>
 
       <div className="command-task-plan-row" style={{ marginBottom: 16 }}>
@@ -384,15 +386,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           </div>
 
           <div className="row-2" style={{ marginBottom: 16 }}>
-            <IntelligenceReadinessPanel
-              readiness={readiness}
-              latest={latestOpt}
-              recommendations={decisionRecommendations}
-              loading={intelligenceLoading}
-              error={intelligenceErrors.readiness}
-              onRetry={() => void refreshIntelligencePanels(true)}
-              onNavigate={onNavigate}
-            />
+            <RevenueTrendCard data={data} bd={bd} />
             <ChannelMixCard data={data} />
           </div>
 
