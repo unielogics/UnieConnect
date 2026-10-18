@@ -289,6 +289,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
           costRed={costRed}
           costRedAmount={costRedAmount}
           slaImp={slaImp}
+          taskTotal={taskTotal}
           taskSummary={taskSummary}
           optimizing={optimizing}
           optimizationNotice={optimizationNotice}
@@ -346,6 +347,7 @@ const AiPlanCard = ({
   costRed,
   costRedAmount,
   slaImp,
+  taskTotal,
   taskSummary,
   optimizing,
   optimizationNotice,
@@ -357,6 +359,7 @@ const AiPlanCard = ({
   costRed: number;
   costRedAmount: number;
   slaImp: number;
+  taskTotal: number;
   taskSummary: CortexTaskSummary;
   optimizing: boolean;
   optimizationNotice: string | null;
@@ -371,6 +374,14 @@ const AiPlanCard = ({
   const hasModeledImpact = decisionReady && Boolean(upside || costRed || costRedAmount || slaImp);
   const horizon = bd?.plan?.forecastHorizonMonths || 6;
   const highPriorityTasks = taskSummary.highPriority;
+  const planStateLabel = !modeled
+    ? 'Needs optimization run'
+    : !decisionReady
+      ? 'Scenario modeled · baseline mismatch'
+      : hasModeledImpact
+        ? 'Impact traceable'
+        : 'No measurable improvement';
+  const planStateTone = decisionReady ? (hasModeledImpact ? 'green' : 'default') : 'amber';
   const warehouseNodes = Number(bd?.plan?.grounding?.connectedWarehouseNodes ?? bd?.plan?.currentMetrics?.warehouseNodes ?? 0);
   const sourceConfidence = Number(bd?.plan?.source?.confidence || 0);
   const sourceConfidencePct = sourceConfidence > 1 ? sourceConfidence : sourceConfidence * 100;
@@ -408,15 +419,17 @@ const AiPlanCard = ({
           <MiniMetric label="SLA improvement" value={hasModeledImpact && slaImp ? `−${Math.abs(slaImp).toFixed(1)}d` : '—'} sub={decisionReady ? 'delivery speed' : 'awaiting traceable baseline'} tone={hasModeledImpact && slaImp ? 'green' : undefined} />
         </div>
         <div className="ai-plan-readiness">
-          <Chip tone={hasModeledImpact ? 'green' : 'amber'} dot={false}>
-            {hasModeledImpact ? 'Impact traceable' : modeled ? 'Scenario modeled · baseline mismatch' : 'Needs optimization run'}
+          <Chip tone={planStateTone} dot={false}>
+            {planStateLabel}
           </Chip>
           <span>
             {decisionReady
               ? `${horizon}-month plan · ${approvals} approval gates · ${staged} staged actions`
               : modeled
                 ? 'Approval is blocked until modeled costs and warehouse count reconcile with account truth.'
-              : `${highPriorityTasks} high-priority task${highPriorityTasks === 1 ? '' : 's'} before traceable impact can be modeled`}
+              : taskTotal
+                ? `${taskTotal} open readiness task${taskTotal === 1 ? '' : 's'}${highPriorityTasks ? ` · ${highPriorityTasks} high priority` : ''}`
+                : 'Run optimization to establish a traceable baseline'}
           </span>
           <span className="ai-plan-evidence">
             {warehouseNodes} connected warehouse node{warehouseNodes === 1 ? '' : 's'}
