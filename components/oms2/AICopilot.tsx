@@ -14,6 +14,7 @@ import {
 
 type ChatAction = {
   id?: string;
+  dedupeKey?: string;
   title?: string;
   priority?: string;
   screen?: string;
@@ -21,6 +22,7 @@ type ChatAction = {
   actionLabel?: string;
   entityType?: string;
   entityId?: string;
+  navigationPayload?: string;
 };
 
 type Msg = {
@@ -628,7 +630,10 @@ export const AICopilot = ({
                     <button
                       key={`${action.id || action.title || 'action'}-${idx}`}
                       className="ai-answer-action"
-                      onClick={() => onNavigate?.(action.actionTarget || action.screen || 'command', action.entityId || undefined)}
+                      onClick={() => onNavigate?.(
+                        action.actionTarget || action.screen || 'command',
+                        action.navigationPayload || action.entityId || undefined,
+                      )}
                     >
                       <Icon name="arrowRight" size={11} /> {action.actionLabel || action.title || 'Open'}
                     </button>
