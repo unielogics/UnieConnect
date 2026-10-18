@@ -212,29 +212,47 @@ const messageToHistory = (m: CortexChatMessage): Msg => ({
 
 const CopilotInput = ({ onSubmit, disabled }: { onSubmit: (q: string) => void; disabled?: boolean }) => {
   const [text, setText] = useState('');
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 140)}px`;
+  }, [text]);
+
   const submit = () => {
     const q = text.trim();
-    if (q && !disabled) onSubmit(q);
+    if (!q || disabled) return;
+    onSubmit(q);
     setText('');
   };
   return (
-    <form onSubmit={(e) => { e.preventDefault(); submit(); }} style={{ position: 'relative' }}>
+    <form className="copilot-composer" onSubmit={(e) => { e.preventDefault(); submit(); }}>
       <textarea
+        ref={inputRef}
         className="copilot-input"
         aria-label="Ask Cortex"
         placeholder="Ask Cortex about this account, screen, SKUs, orders, warehouses, or tasks"
+        rows={1}
         value={text}
         disabled={disabled}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
+          if (e.key === 'Enter' && !e.shiftKey && !(e.nativeEvent as KeyboardEvent).isComposing) {
             e.preventDefault();
             submit();
           }
         }}
       />
-      <button type="submit" className="btn ai sm" disabled={disabled} style={{ position: 'absolute', right: 8, bottom: 8 }}>
-        <Icon name="sparkle" size={12} /> Ask
+      <button
+        type="submit"
+        className="icon-btn copilot-send-btn"
+        disabled={disabled || !text.trim()}
+        aria-label="Send message"
+        data-hint="Send message"
+      >
+        <Icon name="arrowUp" size={15} />
       </button>
     </form>
   );
@@ -526,11 +544,15 @@ export const AICopilot = ({
       <div className="copilot-head">
         <div className="copilot-title">
           <span className={`ai-dot ${cortexHealth}`} />
-          Cortex
-          <Chip tone={cortexHealth === 'online' ? 'green' : cortexHealth === 'offline' ? 'red' : 'amber'} dot={false}>
-            {cortexHealth === 'online' ? 'Cortex ready' : cortexHealth === 'offline' ? 'Cortex unavailable' : 'Checking Cortex'}
-          </Chip>
-          {entityId ? <span className="copilot-entity-context" title={entityId}>Focused on this {entityType || 'record'}</span> : null}
+          <div className="copilot-title-copy">
+            <div className="copilot-title-line">
+              <strong>Cortex</strong>
+              <Chip tone={cortexHealth === 'online' ? 'green' : cortexHealth === 'offline' ? 'red' : 'amber'} dot={false}>
+                {cortexHealth === 'online' ? 'Ready' : cortexHealth === 'offline' ? 'Unavailable' : 'Checking'}
+              </Chip>
+            </div>
+            {entityId ? <span className="copilot-entity-context" title={entityId}>Focused on this {entityType || 'record'}</span> : <span className="copilot-entity-context">Account intelligence</span>}
+          </div>
         </div>
         <button className="icon-btn" onClick={onClose} data-hint="Close" aria-label="Close Cortex">
           <Icon name="x" />
