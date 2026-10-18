@@ -118,6 +118,17 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
+  useEffect(() => {
+    if (!router.isReady || router.query.action !== 'upload-csv') return;
+    setUploadOpen(true);
+  }, [router.isReady, router.query.action]);
+
+  const closeUpload = useCallback(() => {
+    setUploadOpen(false);
+    if (router.query.action === 'upload-csv') {
+      void router.replace({ pathname: '/oms', query: { view: 'labels' } }, undefined, { shallow: true });
+    }
+  }, [router]);
 
   const findings = data?.findings || [];
   const ref = (f: F) => num(f.refundAmount ?? f.refund);
@@ -417,7 +428,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
           </div>
         </>
       )}
-      {uploadOpen && <LabelAuditUploadModal busy={uploading} onClose={() => setUploadOpen(false)} onSubmit={submitCsv} />}
+      {uploadOpen && <LabelAuditUploadModal busy={uploading} onClose={closeUpload} onSubmit={submitCsv} />}
       {runDetail && <RunDetailDrawer detail={runDetail} onClose={() => closeRun()} onNavigationClose={() => closeRun(false)} onRetry={() => openRun(runDetail.run)} />}
       {recDrawer}
     </div>

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Loading, EmptyState, Modal } from '../ui';
@@ -433,6 +433,7 @@ export const Connections = (_: ScreenProps) => {
   const [connectOpen, setConnectOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [loadErrors, setLoadErrors] = useState<Partial<Record<Owner, string>>>({});
+  const handledRouteAction = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -594,7 +595,7 @@ export const Connections = (_: ScreenProps) => {
     }
   };
 
-  const repairConnection = async (c: Conn) => {
+  const repairConnection = useCallback(async (c: Conn) => {
     const channel = String(c.raw?.channel || '').toLowerCase();
     if (c.owner !== 'marketplace' || !['shopify', 'amazon', 'ebay'].includes(channel)) {
       setNotice('This connection does not expose a self-service repair flow yet.');
@@ -633,7 +634,17 @@ export const Connections = (_: ScreenProps) => {
       setNotice(error?.message || `${c.name} authorization failed.`);
       setBusy(null);
     }
-  };
+  }, [load]);
+
+  useEffect(() => {
+    if (loading || router.query.action !== 'repair' || !focusedConnectionId) return;
+    const actionKey = `repair:${focusedConnectionId}`;
+    if (handledRouteAction.current === actionKey) return;
+    const connection = conns.find((item) => String(item.raw?.id || '') === focusedConnectionId);
+    if (!connection) return;
+    handledRouteAction.current = actionKey;
+    void repairConnection(connection);
+  }, [conns, focusedConnectionId, loading, repairConnection, router.query.action]);
 
   const removeConnection = async (c: Conn) => {
     if (!window.confirm(`Remove ${c.name}? This disconnects it from this OMS account.`)) return;

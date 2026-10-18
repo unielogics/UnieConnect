@@ -252,6 +252,7 @@ export const TopBar = ({
   const completionLabel = (task: CortexTask) =>
     task.source === 'readiness' || task.source === 'connection_health' ? 'Verify completion' : 'Mark done';
   const taskNavigationPayload = (task: CortexTask) => {
+    if (task.navigationPayload) return task.navigationPayload;
     if (task.dedupeKey === 'readiness:sku-unit-cost') return 'filter:missing-cost';
     if (task.dedupeKey === 'readiness:sku-dimensions-weight') return 'filter:missing-dimensions';
     if (task.dedupeKey === 'readiness:supplier-pickup-profiles') return 'filter:missing-pickup';

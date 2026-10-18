@@ -819,6 +819,7 @@ export type CortexTask = {
   status: 'open' | 'done' | 'dismissed' | string;
   actionLabel?: string | null;
   actionTarget?: string | null;
+  navigationPayload?: string | null;
   evidence?: Record<string, unknown>;
   recommendationId?: string | null;
   completedAt?: string;

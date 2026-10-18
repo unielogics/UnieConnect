@@ -243,10 +243,16 @@ export default function UnieConnectApp() {
         q.returnId = payload;
       }
       if (safeTarget === 'labels' && payload) {
-        q.run = payload;
+        if (payload === 'action:upload-csv') q.action = 'upload-csv';
+        else q.run = payload;
       }
       if (safeTarget === 'connections' && payload) {
-        q.connection = payload;
+        if (payload.startsWith('action:repair:')) {
+          q.connection = payload.slice('action:repair:'.length);
+          q.action = 'repair';
+        } else {
+          q.connection = payload;
+        }
       }
       if (safeTarget === 'orders' && payload) {
         q.order = payload;
