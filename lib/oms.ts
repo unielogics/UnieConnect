@@ -1474,21 +1474,17 @@ export const refreshCortexTasks = async () => {
 };
 
 export const completeCortexTask = async (id: string) => {
-  const result = await omsFetch<{ task: CortexTask; verified: boolean; message?: string }>(`/intelligence/tasks/${encodeURIComponent(id)}/complete`, {
+  return omsFetch<{ task: CortexTask; verified: boolean; message?: string }>(`/intelligence/tasks/${encodeURIComponent(id)}/complete`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
-  notifyCortexTasksChanged();
-  return result;
 };
 
 export const dismissCortexTask = async (id: string) => {
-  const result = await omsFetch<{ task: CortexTask }>(`/intelligence/tasks/${encodeURIComponent(id)}/dismiss`, {
+  return omsFetch<{ task: CortexTask }>(`/intelligence/tasks/${encodeURIComponent(id)}/dismiss`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
-  notifyCortexTasksChanged();
-  return result;
 };
 
 export const fetchIntelligenceReadiness = () =>

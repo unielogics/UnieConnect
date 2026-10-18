@@ -54,6 +54,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   const [decisionUpdatingId, setDecisionUpdatingId] = useState<string | null>(null);
   const commandRequestRef = useRef(0);
   const intelligenceRequestRef = useRef(0);
+  const suppressNextTaskEventRef = useRef(false);
 
   const refreshIntelligencePanels = useCallback(async (refreshTasks = false) => {
     const requestId = ++intelligenceRequestRef.current;
@@ -104,6 +105,10 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
   useEffect(() => {
     let cancelled = false;
     const onTasksChanged = () => {
+      if (suppressNextTaskEventRef.current) {
+        suppressNextTaskEventRef.current = false;
+        return;
+      }
       fetchCortexTasks({ status: 'open', limit: 10 })
         .then((result) => {
           if (!cancelled) {
@@ -166,6 +171,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
         ? 'Plan updated with the latest Cortex model.'
         : 'Cortex is still processing. The plan will refresh from the latest completed run.');
       await refreshIntelligencePanels(true);
+      suppressNextTaskEventRef.current = true;
       notifyCortexTasksChanged();
       await load(range);
     } catch (e: any) {
@@ -218,6 +224,7 @@ export const CommandCenter = ({ onNavigate }: ScreenProps) => {
         setTaskFeedback({ tone: 'success', text: 'Task dismissed from the active inbox.' });
       }
       await refreshIntelligencePanels(true);
+      suppressNextTaskEventRef.current = true;
       notifyCortexTasksChanged();
     } catch (error: any) {
       setTaskFeedback({ tone: 'error', text: error?.message || 'The task could not be updated. Try again.' });
