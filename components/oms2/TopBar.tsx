@@ -9,6 +9,7 @@ import {
   dismissCortexTask,
   fetchCortexChatHealth,
   fetchCortexTasks,
+  getLatestCortexHealth,
   notifyCortexTasksChanged,
   notifyCortexHealthChanged,
   searchOms,
@@ -82,8 +83,8 @@ export const TopBar = ({
   const [taskTotal, setTaskTotal] = useState(0);
   const [taskSummary, setTaskSummary] = useState<CortexTaskSummary>({ highPriority: 0, workAreas: [], sources: [] });
   const [tasksLoading, setTasksLoading] = useState(true);
-  const [cortexHealth, setCortexHealth] = useState<CortexHealthState>('checking');
-  const [cortexLatencyMs, setCortexLatencyMs] = useState<number | null>(null);
+  const [cortexHealth, setCortexHealth] = useState<CortexHealthState>(() => getLatestCortexHealth()?.status || 'checking');
+  const [cortexLatencyMs, setCortexLatencyMs] = useState<number | null>(() => getLatestCortexHealth()?.latencyMs ?? null);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskNotice, setTaskNotice] = useState<{ tone: 'info' | 'success'; text: string } | null>(null);
   const [taskUpdatingId, setTaskUpdatingId] = useState<string | null>(null);
@@ -224,7 +225,9 @@ export const TopBar = ({
       notifyCortexHealthChanged(status, { latencyMs, checkedAt });
     };
     const checkHealth = (showChecking = false) => {
-      if (showChecking) shareHealth('checking');
+      if (showChecking) {
+        setCortexHealth((current) => current === 'online' || current === 'offline' ? current : 'checking');
+      }
       fetchCortexChatHealth(section)
         .then((res) => {
           shareHealth(res.ok ? 'online' : 'offline', res.health?.latencyMs, res.health?.checkedAt);

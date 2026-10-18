@@ -1437,9 +1437,15 @@ export type CortexHealthEventDetail = {
 
 export const CORTEX_HEALTH_CHANGED_EVENT = 'unie:cortex-health-changed';
 
+let latestCortexHealth: CortexHealthEventDetail | null = null;
+
+export const getLatestCortexHealth = () =>
+  typeof window === 'undefined' ? null : latestCortexHealth;
+
 export const notifyCortexHealthChanged = (status: CortexHealthState, details: Omit<CortexHealthEventDetail, 'status'> = {}) => {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent<CortexHealthEventDetail>(CORTEX_HEALTH_CHANGED_EVENT, { detail: { status, ...details } }));
+    latestCortexHealth = { status, ...details };
+    window.dispatchEvent(new CustomEvent<CortexHealthEventDetail>(CORTEX_HEALTH_CHANGED_EVENT, { detail: latestCortexHealth }));
   }
 };
 

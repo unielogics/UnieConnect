@@ -6,6 +6,7 @@ import {
   fetchCortexChatThread,
   fetchCortexChatThreads,
   fetchCortexChatHealth,
+  getLatestCortexHealth,
   CORTEX_HEALTH_CHANGED_EVENT,
   CortexHealthState,
   CortexHealthEventDetail,
@@ -385,8 +386,8 @@ export const AICopilot = ({
   const [failedThreadId, setFailedThreadId] = useState<string | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
   const [contextLoading, setContextLoading] = useState(true);
-  const [cortexHealth, setCortexHealth] = useState<CortexHealthState>('checking');
-  const [cortexLatencyMs, setCortexLatencyMs] = useState<number | null>(null);
+  const [cortexHealth, setCortexHealth] = useState<CortexHealthState>(() => getLatestCortexHealth()?.status || 'checking');
+  const [cortexLatencyMs, setCortexLatencyMs] = useState<number | null>(() => getLatestCortexHealth()?.latencyMs ?? null);
   const [pending, setPending] = useState(false);
   const [pendingStage, setPendingStage] = useState<'reading' | 'comparing' | 'writing'>('reading');
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
@@ -498,7 +499,9 @@ export const AICopilot = ({
       notifyCortexHealthChanged(status, { latencyMs, checkedAt });
     };
     const checkHealth = (showChecking = false) => {
-      if (showChecking) shareHealth('checking');
+      if (showChecking) {
+        setCortexHealth((current) => current === 'online' || current === 'offline' ? current : 'checking');
+      }
       fetchCortexChatHealth(section)
         .then((res) => {
           shareHealth(res.ok ? 'online' : 'offline', res.health?.latencyMs, res.health?.checkedAt);
