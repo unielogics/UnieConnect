@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { StatusChip, Avatar, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation, downloadCsv } from '../ui';
 import { useCtxMenu, type CtxItem } from '../ContextMenu';
@@ -29,6 +30,8 @@ const ChannelTag = ({ ch }: { ch: string }) => (
 );
 
 export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: ScreenProps) => {
+  const router = useRouter();
+  const openedOrderRef = useRef<string | null>(null);
   const [orders, setOrders] = useState<OmsOrder[]>([]);
   const [marketplaceFilter, setMarketplaceFilter] = useState<MarketplaceFilterValue>({});
   const [loading, setLoading] = useState(true);
@@ -50,6 +53,24 @@ export const Orders = ({ onOpenOrder, onNavigate, onNewOrder, onImportCsv }: Scr
       .finally(() => setLoading(false));
   };
   useEffect(load, [marketplaceFilter.channel, marketplaceFilter.channelAccountId]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const requested = String(router.query.order || '').trim();
+    if (!requested) {
+      openedOrderRef.current = null;
+      return;
+    }
+    const order = orders.find((candidate) => [
+      candidate.id,
+      candidate.displayId,
+      candidate.publicId,
+      candidate.chOrderId,
+    ].some((value) => String(value || '') === requested));
+    if (!order || openedOrderRef.current === requested) return;
+    openedOrderRef.current = requested;
+    onOpenOrder?.(order);
+  }, [onOpenOrder, orders, router.isReady, router.query.order]);
 
   const norm = (o: OmsOrder) => ({
     ...o,

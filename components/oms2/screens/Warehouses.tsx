@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, EmptyState, ErrorState, fmt, Loading, StatusChip, Thumb, useCloseOnOmsNavigation } from '../ui';
 import {
@@ -13,6 +14,8 @@ import type { ScreenProps } from '../UnieConnectApp';
 type Tab = 'overview' | 'inventory' | 'orders' | 'asns' | 'events' | 'activity' | 'cortex';
 
 export const Warehouses = ({ onNavigate, onCortexEntityChange }: ScreenProps) => {
+  const router = useRouter();
+  const openedWarehouseRef = useRef<string | null>(null);
   const [data, setData] = useState<{ warehouses: OmsWarehouseOverview[]; total: number } | null>(null);
   const [selected, setSelected] = useState<OmsWarehouseOverview | null>(null);
   const [detail, setDetail] = useState<OmsWarehouseDetail | null>(null);
@@ -47,6 +50,20 @@ export const Warehouses = ({ onNavigate, onCortexEntityChange }: ScreenProps) =>
   };
 
   const warehouses = data?.warehouses || [];
+  useEffect(() => {
+    if (!router.isReady) return;
+    const requested = String(router.query.warehouse || '').trim();
+    if (!requested) {
+      openedWarehouseRef.current = null;
+      return;
+    }
+    const warehouse = warehouses.find((candidate) => [candidate.id, candidate.warehouseCode]
+      .some((value) => String(value || '') === requested));
+    if (!warehouse || openedWarehouseRef.current === requested) return;
+    openedWarehouseRef.current = requested;
+    openWarehouse(warehouse);
+  }, [data, router.isReady, router.query.warehouse]);
+
   const totals = useMemo(
     () => ({
       inventoryUnits: warehouses.reduce((sum, wh) => sum + num(wh.inventoryUnits), 0),

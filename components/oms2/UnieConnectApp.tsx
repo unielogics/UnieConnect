@@ -229,6 +229,12 @@ export default function UnieConnectApp() {
       if (safeTarget === 'connections' && payload) {
         q.connection = payload;
       }
+      if (safeTarget === 'orders' && payload) {
+        q.order = payload;
+      }
+      if (safeTarget === 'warehouses' && payload) {
+        q.warehouse = payload;
+      }
       setSection(safeTarget);
       router.push({ pathname: '/oms', query: q }, undefined, { shallow: true });
     },
