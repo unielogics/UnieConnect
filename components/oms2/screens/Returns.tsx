@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { StatusChip, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation, useModalOverlayKeyboard } from '../ui';
 import { fetchOmsReturns, fetchOmsReturn, OmsReturn } from '../../../lib/oms';
@@ -19,6 +20,7 @@ const RETURN_MEDIA_NOTE =
   'Playback for condition-on-arrival video/photos is served directly from the warehouse -- contact support if you need the file.';
 
 export const Returns = ({ onNavigate, onCortexEntityChange }: ScreenProps) => {
+  const router = useRouter();
   const [returns, setReturns] = useState<OmsReturn[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export const Returns = ({ onNavigate, onCortexEntityChange }: ScreenProps) => {
   };
   useEffect(load, []);
 
-  const openDetail = (r: OmsReturn) => {
+  const openDetail = useCallback((r: OmsReturn, syncRoute = true) => {
     setSelected(r);
     onCortexEntityChange?.({ type: 'return', id: r.id });
     setDetailLoading(true);
@@ -45,15 +47,29 @@ export const Returns = ({ onNavigate, onCortexEntityChange }: ScreenProps) => {
       .then((d) => setSelected(d.return))
       .catch((error: any) => setDetailError(error?.message || 'The complete return detail could not be loaded.'))
       .finally(() => setDetailLoading(false));
-  };
+    if (syncRoute) {
+      void router.replace({ pathname: '/oms', query: { view: 'returns', returnId: r.id } }, undefined, { shallow: true });
+    }
+  }, [onCortexEntityChange, router]);
 
-  const closeDetail = () => {
+  const closeDetail = useCallback((syncRoute = true) => {
     setSelected(null);
     setDetailError(null);
     onCortexEntityChange?.(null);
-  };
-  useCloseOnOmsNavigation(closeDetail, !!selected);
-  const detailOverlayRef = useModalOverlayKeyboard(closeDetail, !!selected);
+    if (syncRoute && router.query.returnId) {
+      void router.replace({ pathname: '/oms', query: { view: 'returns' } }, undefined, { shallow: true });
+    }
+  }, [onCortexEntityChange, router]);
+  useCloseOnOmsNavigation(() => closeDetail(false), !!selected);
+  const detailOverlayRef = useModalOverlayKeyboard(() => closeDetail(), !!selected);
+
+  useEffect(() => {
+    if (!router.isReady || loading) return;
+    const requested = typeof router.query.returnId === 'string' ? router.query.returnId.trim() : '';
+    if (!requested || selected?.id === requested) return;
+    const match = returns.find((item) => item.id === requested || item.rmaNumber === requested || item.displayId === requested);
+    if (match) openDetail(match, false);
+  }, [loading, openDetail, returns, router.isReady, router.query.returnId, selected?.id]);
 
   const openCount = returns.filter((r) => !['closed', 'cancelled'].includes(r.status)).length;
   const withMedia = returns.filter((r) => (r.mediaCaptures || []).length > 0).length;
@@ -132,11 +148,11 @@ export const Returns = ({ onNavigate, onCortexEntityChange }: ScreenProps) => {
       </div>
 
       {selected && (
-        <div ref={detailOverlayRef} className="modal-overlay" onClick={closeDetail}>
+        <div ref={detailOverlayRef} className="modal-overlay" onClick={() => closeDetail()}>
           <div className="modal" role="dialog" aria-modal="true" aria-label={`Return ${selected.rmaNumber || selected.displayId || selected.id}`} tabIndex={-1} style={{ width: 560 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <div style={{ fontSize: 16, fontWeight: 700 }}>RMA {selected.rmaNumber || selected.displayId}</div>
-              <button className="icon-btn" aria-label="Close return details" onClick={closeDetail}>
+              <button className="icon-btn" aria-label="Close return details" onClick={() => closeDetail()}>
                 <Icon name="x" size={16} />
               </button>
             </div>

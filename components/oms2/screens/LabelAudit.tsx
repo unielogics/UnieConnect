@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, StatusChip, fmt, Loading, ErrorState, EmptyState, useCloseOnOmsNavigation, useModalOverlayKeyboard } from '../ui';
 import { useCtxMenu } from '../ContextMenu';
@@ -84,6 +85,7 @@ const issueChip = (f: F) => {
 };
 
 export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
+  const router = useRouter();
   const [data, setData] = useState<LabelAuditResponse | null>(null);
   const [runs, setRuns] = useState<LabelAuditRun[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -151,6 +153,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
       const res = await createLabelAuditRun({ filename, rows });
       if (res.run) {
         setRunDetail({ run: res.run, findings: res.findings || [] });
+        void router.replace({ pathname: '/oms', query: { view: 'labels', run: res.run.id } }, undefined, { shallow: true });
       }
       setUploadOpen(false);
       await load();
@@ -161,15 +164,33 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
     }
   };
 
-  const openRun = async (run: LabelAuditRun) => {
+  const openRun = useCallback(async (run: LabelAuditRun, syncRoute = true) => {
     setRunDetail({ run, findings: [], loading: true });
+    if (syncRoute) {
+      void router.replace({ pathname: '/oms', query: { view: 'labels', run: run.id } }, undefined, { shallow: true });
+    }
     try {
       const detail = await fetchLabelAuditRun(run.id);
       setRunDetail(detail);
     } catch (error: any) {
       setRunDetail({ run, findings: [], error: error?.message || 'This audit run could not be loaded.' });
     }
-  };
+  }, [router]);
+
+  const closeRun = useCallback((syncRoute = true) => {
+    setRunDetail(null);
+    if (syncRoute && router.query.run) {
+      void router.replace({ pathname: '/oms', query: { view: 'labels' } }, undefined, { shallow: true });
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (!router.isReady || loading) return;
+    const requested = typeof router.query.run === 'string' ? router.query.run.trim() : '';
+    if (!requested || runDetail?.run.id === requested || runDetail?.run.publicId === requested) return;
+    const match = runs.find((run) => run.id === requested || run.publicId === requested);
+    if (match) void openRun(match, false);
+  }, [loading, openRun, router.isReady, router.query.run, runDetail?.run.id, runDetail?.run.publicId, runs]);
 
   return (
     <div className="page fade-in">
@@ -397,7 +418,7 @@ export const LabelAudit = ({ onOpenOrderById }: ScreenProps) => {
         </>
       )}
       {uploadOpen && <LabelAuditUploadModal busy={uploading} onClose={() => setUploadOpen(false)} onSubmit={submitCsv} />}
-      {runDetail && <RunDetailDrawer detail={runDetail} onClose={() => setRunDetail(null)} onRetry={() => openRun(runDetail.run)} />}
+      {runDetail && <RunDetailDrawer detail={runDetail} onClose={() => closeRun()} onNavigationClose={() => closeRun(false)} onRetry={() => openRun(runDetail.run)} />}
       {recDrawer}
     </div>
   );
@@ -495,12 +516,13 @@ const LabelAuditUploadModal = ({
   );
 };
 
-const RunDetailDrawer = ({ detail, onClose, onRetry }: {
+const RunDetailDrawer = ({ detail, onClose, onNavigationClose, onRetry }: {
   detail: { run: LabelAuditRun; findings: LabelAuditResponse['findings']; loading?: boolean; error?: string };
   onClose: () => void;
+  onNavigationClose: () => void;
   onRetry: () => void;
 }) => {
-  useCloseOnOmsNavigation(onClose);
+  useCloseOnOmsNavigation(onNavigationClose);
   const overlayRef = useModalOverlayKeyboard(onClose);
 
   return (

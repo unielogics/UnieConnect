@@ -232,6 +232,12 @@ export default function UnieConnectApp() {
       if (safeTarget === 'customers' && payload) {
         q.customer = payload;
       }
+      if (safeTarget === 'returns' && payload) {
+        q.returnId = payload;
+      }
+      if (safeTarget === 'labels' && payload) {
+        q.run = payload;
+      }
       if (safeTarget === 'connections' && payload) {
         q.connection = payload;
       }
