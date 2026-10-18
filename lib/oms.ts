@@ -1411,10 +1411,36 @@ export const sendCortexChat = (
     signal,
   });
 
-export const fetchCortexChatHealth = (screen = 'command') =>
-  omsFetch<{ ok: boolean; status?: number; health?: NonNullable<CortexChatResponse['cortex']>['health'] }>(
+type CortexChatHealthResponse = {
+  ok: boolean;
+  status?: number;
+  health?: NonNullable<CortexChatResponse['cortex']>['health'];
+};
+
+let cortexHealthResponse: CortexChatHealthResponse | null = null;
+let cortexHealthResponseAt = 0;
+let cortexHealthRequest: Promise<CortexChatHealthResponse> | null = null;
+const CORTEX_HEALTH_FRESH_MS = 45_000;
+
+export const fetchCortexChatHealth = (screen = 'command') => {
+  if (cortexHealthResponse && Date.now() - cortexHealthResponseAt < CORTEX_HEALTH_FRESH_MS) {
+    return Promise.resolve(cortexHealthResponse);
+  }
+  if (cortexHealthRequest) return cortexHealthRequest;
+
+  cortexHealthRequest = omsFetch<CortexChatHealthResponse>(
     `/intelligence/cortex/health?screen=${encodeURIComponent(screen)}`
-  );
+  )
+    .then((response) => {
+      cortexHealthResponse = response;
+      cortexHealthResponseAt = Date.now();
+      return response;
+    })
+    .finally(() => {
+      cortexHealthRequest = null;
+    });
+  return cortexHealthRequest;
+};
 
 export const fetchCortexChatThreads = (screen?: string, entityType?: string | null, entityId?: string | null) => {
   const qs = new URLSearchParams();
