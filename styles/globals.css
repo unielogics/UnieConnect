@@ -1416,6 +1416,12 @@ a {
   color: #15803d;
 }
 
+.alert.session {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 @media (max-width: 900px) {
   .auth-shell {
     grid-template-columns: 1fr;

@@ -11,6 +11,12 @@ const LOGIN_FEATURES = [
   { title: 'Continuous Auditing', description: 'Optimal placement, storage, and routes to save money and increase profit.' },
 ] as const;
 
+const safeLoginReturnPath = () => {
+  if (typeof window === 'undefined') return '/oms';
+  const value = new URLSearchParams(window.location.search).get('returnTo') || '';
+  return value.startsWith('/') && !value.startsWith('//') ? value : '/oms';
+};
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,6 +26,7 @@ export default function Login() {
   const [mounted, setMounted] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -29,6 +36,9 @@ export default function Login() {
       return;
     }
     console.info('[unieconnect][config]', { apiOrigin: getApiOrigin(), host: window.location.host });
+    if (new URLSearchParams(window.location.search).get('reason') === 'session-expired') {
+      setSessionNotice('Your session expired. Sign in again to continue where you left off.');
+    }
     const saved = localStorage.getItem('unie-theme');
     const initial = saved === 'dark' || saved === 'light' ? saved : 'light';
     setTheme(initial as 'light' | 'dark');
@@ -44,7 +54,7 @@ export default function Login() {
     if (typeof window === 'undefined') return;
     const existing = localStorage.getItem(TOKEN_KEY);
     if (existing) {
-      window.location.href = '/oms';
+      window.location.href = safeLoginReturnPath();
     }
   }, []);
 
@@ -86,7 +96,7 @@ export default function Login() {
       localStorage.setItem(TOKEN_KEY, data.token);
       setStatusMessage('Signed in. Redirecting…');
       console.info('[unieconnect][login] success', { email });
-      window.location.href = '/oms';
+      window.location.href = safeLoginReturnPath();
     } catch (err: any) {
       const isNetworkError =
         err?.name === 'TypeError' &&
@@ -224,6 +234,7 @@ export default function Login() {
               </div>
             </div>
 
+            {sessionNotice ? <div className="alert session">{sessionNotice}</div> : null}
             {loginError ? <div className="alert error">{loginError}</div> : null}
             {statusMessage ? <div className="alert success">{statusMessage}</div> : null}
           </form>

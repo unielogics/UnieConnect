@@ -1,4 +1,7 @@
 export const TOKEN_KEY = 'unie-token';
+export const SESSION_EXPIRED_EVENT = 'unie:session-expired';
+
+let sessionRedirectStarted = false;
 
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -11,6 +14,18 @@ export function clearStoredToken() {
   localStorage.removeItem(TOKEN_KEY);
   document.cookie = `${TOKEN_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
   document.cookie = `${TOKEN_KEY}=; Max-Age=0; Path=/; Domain=.unieconnect.com; SameSite=None; Secure`;
+}
+
+function handleExpiredSession() {
+  clearStoredToken();
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+  const publicPaths = new Set(['/', '/login', '/signup', '/register', '/audit']);
+  if (publicPaths.has(window.location.pathname) || sessionRedirectStarted) return;
+  sessionRedirectStarted = true;
+  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const params = new URLSearchParams({ reason: 'session-expired', returnTo });
+  window.location.replace(`/login?${params.toString()}`);
 }
 
 export function authHeaders(extra?: HeadersInit): HeadersInit {
@@ -33,16 +48,23 @@ export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}
     headers,
   });
 
-  if (res.status !== 401 || !token) return res;
+  if (res.status !== 401) return res;
+
+  if (!token) {
+    handleExpiredSession();
+    return res;
+  }
 
   const retryHeaders = new Headers(init.headers || {});
   retryHeaders.delete('Authorization');
   retryHeaders.delete('authorization');
-  return fetch(input, {
+  const cookieResponse = await fetch(input, {
     ...init,
     credentials: init.credentials || 'include',
     headers: retryHeaders,
   });
+  if (cookieResponse.status === 401) handleExpiredSession();
+  return cookieResponse;
 }
 
 /**
