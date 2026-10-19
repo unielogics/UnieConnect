@@ -98,7 +98,7 @@ const marketplaceRefreshNotice = (connection: Conn, result: any) => {
 
   if (String(connection.raw?.channel || '').toLowerCase() === 'shopify'
     && /location-level inventory|read_locations|location inventory/i.test(inventoryWarning)) {
-    return `${connection.name} refreshed.${summary} Products and orders are current. Warehouse-level inventory still needs Shopify authorization. Select Repair Shopify access and approve location inventory access.`;
+    return `${connection.name} refreshed successfully.${summary} Shopify inventory totals are current; per-location allocation is not enabled.`;
   }
   if (result?.syncStatus === 'partial') {
     return `${connection.name} refreshed with partial coverage.${summary}${webhookError ? ' Real-time updates could not be verified.' : ''} Review the highlighted capability and use Repair when authorization is required.`;
@@ -519,15 +519,21 @@ export const Connections = (_: ScreenProps) => {
             entitySyncIssue,
             webhookError ? `real-time updates: ${webhookError}. Use Refresh to retry webhook setup.` : '',
           ].filter(Boolean).join('; ');
-          const degraded = Boolean(missingLocationScope || syncIssue || syncEntries.some(([, state]) => state?.metadata?.degraded));
-          const locationAccessIssue = missingLocationScope
-            ? 'Products and orders are syncing. Inventory totals use product-variant quantities until Shopify location access is approved. Select Repair Shopify access to restore warehouse-level inventory.'
+          const inventoryState = a.sync?.inventory;
+          const aggregateInventoryHealthy = missingLocationScope
+            && String(inventoryState?.status || '').toLowerCase() === 'synced'
+            && String(inventoryState?.metadata?.source || '') === 'mapped_variant_fallback'
+            && !inventoryState?.error;
+          const locationAccessBlocking = missingLocationScope && !aggregateInventoryHealthy;
+          const degraded = Boolean(locationAccessBlocking || syncIssue || syncEntries.some(([, state]) => state?.metadata?.degraded));
+          const locationAccessIssue = locationAccessBlocking
+            ? 'Shopify inventory could not be synchronized because location access is unavailable. Repair Shopify access to continue.'
             : '';
           const syncedEntities: ConnectionCapability[] = syncEntries.length
             ? syncEntries.map(([entity, state]) => {
                 const hasIssue = Boolean(state?.error || state?.metadata?.warning || state?.metadata?.degraded);
                 const isCurrent = ['synced', 'complete', 'completed', 'healthy'].includes(String(state?.status || '').toLowerCase());
-                const isShopifyInventoryBlocked = a.channel === 'shopify' && missingLocationScope && entity === 'inventory';
+                const isShopifyInventoryBlocked = a.channel === 'shopify' && locationAccessBlocking && entity === 'inventory';
                 return {
                   label: entity.replace(/_/g, ' '),
                   count: state?.count,
@@ -551,12 +557,12 @@ export const Connections = (_: ScreenProps) => {
             id: `marketplace-${a.id}`,
             name: a.label || a.displayName || a.shopDomain || a.channel.toUpperCase(),
             region: a.shopDomain || a.marketplaceId || a.channel,
-            status: missingLocationScope && !syncIssue ? 'partial' : degraded ? 'degraded' : a.status || 'connected',
+            status: degraded ? 'degraded' : a.status || 'connected',
             lastSync: a.lastSyncAt ? timeAgo(a.lastSyncAt) : 'pending',
             entities,
             owner: 'marketplace',
             issue: [locationAccessIssue, syncIssue].filter(Boolean).join(' ') || undefined,
-            needsRepair: a.status === 'needs_authorization' || a.status === 'needs_configuration' || missingLocationScope,
+            needsRepair: a.status === 'needs_authorization' || a.status === 'needs_configuration' || locationAccessBlocking,
             raw: a,
           });
         });
