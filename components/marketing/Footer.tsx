@@ -34,6 +34,10 @@ export const Footer = () => (
           <Link href="/#demo">Book a Demo</Link>
           <Link href="/#why">How it Works</Link>
           <Link href="/#different">Why Different</Link>
+          <Link href="/support">Support</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/data-deletion">Data Deletion</Link>
         </div>
       </div>
       <div className="footer-bottom">
