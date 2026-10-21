@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { Icon } from '../icons';
 import { Chip, Loading, EmptyState, Modal } from '../ui';
 import { apiFetch, fetchCortexChatHealth, fetchLabelAudit, refreshCortexTasks } from '../../../lib/oms';
-import { apiUrl, authFetch, oauthApiUrl, TOKEN_KEY } from '../../../lib/api';
+import { apiUrl, authFetch } from '../../../lib/api';
 import { timeAgo } from '../../../lib/oms-adapters';
 import type { ScreenProps } from '../UnieConnectApp';
 
@@ -219,7 +219,6 @@ const ConnectNewModal = ({
   initialKind?: 'shopify' | 'amazon' | 'ebay' | 'wms';
 }) => {
   const [kind, setKind] = useState<'shopify' | 'amazon' | 'ebay' | 'wms'>(initialKind);
-  const [shop, setShop] = useState('');
   const [wmsCode, setWmsCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -227,9 +226,8 @@ const ConnectNewModal = ({
   const [missingFields, setMissingFields] = useState<string[]>([]);
 
   const startMarketplace = async () => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      setError('Session expired. Please sign in again.');
+    if (kind === 'shopify') {
+      window.open(process.env.NEXT_PUBLIC_SHOPIFY_INSTALL_URL || 'https://apps.shopify.com/unieconnect', '_top');
       return;
     }
     setBusy(true);
@@ -237,19 +235,12 @@ const ConnectNewModal = ({
     setMissingFields([]);
     setMessage(null);
     try {
-      const url = new URL(oauthApiUrl(`/api/v1/auth/${kind}/start`));
+      const url = new URL(apiUrl(`/api/v1/auth/${kind}/start`));
       url.searchParams.set('format', 'json');
-      if (kind === 'shopify') {
-        const normalized = normalizeShop(shop);
-        if (!normalized || !normalized.includes('.myshopify.com')) {
-          throw new Error('Enter a Shopify domain like myshop.myshopify.com');
-        }
-        url.searchParams.set('shop', normalized);
-      }
       if (typeof window !== 'undefined') url.searchParams.set('redirectTo', `${window.location.origin}/oms?view=connections`);
 
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      const res = await authFetch(url.toString(), {
+        headers: { Accept: 'application/json' },
         credentials: 'include',
       });
       const data = await res.json().catch(() => ({}));
@@ -333,7 +324,7 @@ const ConnectNewModal = ({
             <button className="btn ghost" onClick={onClose} disabled={busy}>Cancel</button>
             <button className="btn primary" onClick={submit} disabled={busy}>
               <Icon name="plug" size={13} />
-              {busy ? 'Connecting...' : kind === 'wms' ? 'Connect warehouse' : 'Start authorization'}
+              {busy ? 'Connecting...' : kind === 'wms' ? 'Connect warehouse' : kind === 'shopify' ? 'Open Shopify App Store' : 'Start authorization'}
             </button>
           </div>
         </>
@@ -372,17 +363,9 @@ const ConnectNewModal = ({
           <div className="card-body" style={{ display: 'grid', gap: 12 }}>
             {kind === 'shopify' && (
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>Shop domain</label>
-                <input
-                  value={shop}
-                  onChange={(e) => setShop(e.target.value)}
-                  placeholder="myshop.myshopify.com"
-                  style={{ width: '100%', height: 36, marginTop: 6, padding: '0 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') submit();
-                  }}
-                />
-                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 8 }}>We redirect the owner to Shopify authorization and store the resulting connection in Aurora.</div>
+                <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                  Shopify controls app installation and store authorization. Select your store in Shopify, approve UnieConnect, and the store will appear here automatically.
+                </div>
               </div>
             )}
             {kind === 'wms' && (
@@ -724,20 +707,15 @@ export const Connections = (_: ScreenProps) => {
       setNotice('This Shopify connection is missing its store domain. Remove it and reconnect the store.');
       return;
     }
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      setNotice('Session expired. Please sign in again.');
-      return;
-    }
     setBusy(c.id);
     setNotice(null);
     try {
-      const url = new URL(oauthApiUrl(`/api/v1/auth/${channel}/start`));
+      const url = new URL(apiUrl(`/api/v1/auth/${channel}/start`));
       url.searchParams.set('format', 'json');
       if (channel === 'shopify') url.searchParams.set('shop', normalizeShop(String(c.raw?.shopDomain || '')));
       url.searchParams.set('redirectTo', `${window.location.origin}/oms?view=connections`);
-      const response = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      const response = await authFetch(url.toString(), {
+        headers: { Accept: 'application/json' },
         credentials: 'include',
       });
       const payload = await response.json().catch(() => ({}));

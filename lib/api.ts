@@ -3,6 +3,11 @@ export const SESSION_EXPIRED_EVENT = 'unie:session-expired';
 
 let sessionRedirectStarted = false;
 
+export function isShopifyEmbedded(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.self !== window.top && Boolean((window as any).shopify?.idToken);
+}
+
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
   const token = localStorage.getItem(TOKEN_KEY);
@@ -50,6 +55,8 @@ export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}
 
   if (res.status !== 401) return res;
 
+  if (isShopifyEmbedded()) return res;
+
   if (!token) {
     handleExpiredSession();
     return res;
@@ -79,6 +86,7 @@ export function getApiOrigin(): string {
     process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_BACKEND_URL;
 
   if (typeof window !== 'undefined') {
+    if (isShopifyEmbedded()) return window.location.origin;
     if (env) return env.replace(/\/+$/, '');
     const host = window.location.hostname;
     if (host === 'user.unieconnect.com') return 'https://api.unieconnect.com';

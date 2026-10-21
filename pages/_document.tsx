@@ -10,6 +10,8 @@ export default class UnieDocument extends Document {
     return (
       <Html lang="en">
         <Head>
+          <meta name="shopify-api-key" content={process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || 'af780ecf92da02ddbc1fa15580d2b68b'} />
+          <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
           <link rel="icon" href="/favicon.ico?v=20260604" sizes="any" />
           <link rel="icon" href="/favicon.png?v=20260604" type="image/png" />
           <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20260604" />
