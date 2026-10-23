@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { apiUrl, authFetch } from '../../../lib/api';
-import { canManageUsers, fetchCurrentUser, type UserRole } from '../../../lib/user';
+import { canManageUsers, fetchCurrentUser, type CurrentUser, type UserRole } from '../../../lib/user';
 import type { ScreenProps } from '../UnieConnectApp';
 import { Icon } from '../icons';
 import { Chip, EmptyState, ErrorState, Loading, useCloseOnOmsNavigation, useModalOverlayKeyboard } from '../ui';
@@ -26,6 +26,7 @@ export const TeamAccess = (_props: ScreenProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [activityUser, setActivityUser] = useState<TeamUser | null>(null);
@@ -38,6 +39,7 @@ export const TeamAccess = (_props: ScreenProps) => {
     setError('');
     try {
       const current = await fetchCurrentUser();
+      setCurrentUser(current);
       const permitted = canManageUsers(current?.role);
       setAllowed(permitted);
       if (!permitted) return;
@@ -79,11 +81,13 @@ export const TeamAccess = (_props: ScreenProps) => {
     if (user) void openActivity(user);
   }, [activityUser, loading, openActivity, router.isReady, router.query.user, users]);
 
-  const closeActivity = useCallback(() => {
+  const closeActivity = useCallback(async () => {
+    if (router.query.user) {
+      await router.replace({ pathname: '/oms', query: { view: 'team' } }, undefined, { shallow: true });
+    }
     setActivityUser(null);
     setActivity([]);
     setActivityError('');
-    if (router.query.user) void router.replace({ pathname: '/oms', query: { view: 'team' } }, undefined, { shallow: true });
   }, [router]);
 
   const filtered = useMemo(() => {
@@ -116,7 +120,7 @@ export const TeamAccess = (_props: ScreenProps) => {
         </div>
       )}
       {createOpen && <CreateMemberDrawer onClose={() => setCreateOpen(false)} onCreated={loadUsers} />}
-      {activityUser && <ActivityDrawer user={activityUser} events={activity} loading={activityLoading} error={activityError} onClose={closeActivity} onRetry={() => void openActivity(activityUser)} />}
+      {activityUser && <ActivityDrawer user={activityUser} events={activity} loading={activityLoading} error={activityError} canDestroy={currentUser?.role === 'super_admin' && currentUser.userId !== activityUser.id} onClose={() => void closeActivity()} onRetry={() => void openActivity(activityUser)} onAccountChanged={async () => { await closeActivity(); await loadUsers(); }} />}
     </div>
   );
 };
@@ -161,10 +165,60 @@ const CreateMemberDrawer = ({ onClose, onCreated }: { onClose: () => void; onCre
   </div></div></div>;
 };
 
-const ActivityDrawer = ({ user, events, loading, error, onClose, onRetry }: { user: TeamUser; events: ActivityEvent[]; loading: boolean; error: string; onClose: () => void; onRetry: () => void }) => {
+const ActivityDrawer = ({ user, events, loading, error, canDestroy, onClose, onRetry, onAccountChanged }: { user: TeamUser; events: ActivityEvent[]; loading: boolean; error: string; canDestroy: boolean; onClose: () => void; onRetry: () => void; onAccountChanged: () => Promise<void> }) => {
   useCloseOnOmsNavigation(onClose);
   const overlayRef = useModalOverlayKeyboard(onClose);
-  return <div ref={overlayRef} className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}><div className="modal oms-side-drawer" role="dialog" aria-modal="true" aria-label={`${displayName(user)} activity`} tabIndex={-1} style={{ width: 'min(100vw, 520px)', minWidth: 0, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(event) => event.stopPropagation()}><div className="modal-head"><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span className="avatar sm">{initials(user)}</span><div><div style={{ fontSize: 16, fontWeight: 800 }}>{displayName(user)}</div><div className="muted" style={{ fontSize: 11.5 }}>{user.email} · {ROLE_LABELS[user.role]}</div></div></div><button className="icon-btn" onClick={onClose} aria-label="Close"><Icon name="x" size={14} /></button></div><div className="modal-body"><div className="section-label" style={{ marginBottom: 12 }}>Access history</div>{loading ? <Loading rows={6} /> : error ? <ErrorState message={error} onRetry={onRetry} /> : events.length === 0 ? <EmptyState>No activity has been recorded for this member.</EmptyState> : <div style={{ display: 'grid' }}>{events.map((event, index) => <div key={`${event.action}-${event.createdAt}-${index}`} style={{ display: 'grid', gridTemplateColumns: '28px minmax(0, 1fr)', gap: 10, padding: '12px 0', borderBottom: index < events.length - 1 ? '1px solid var(--border)' : 'none' }}><span className="sb-panel-icon"><Icon name={event.action === 'login' ? 'login' : 'ledger'} size={13} /></span><div><div style={{ fontWeight: 700 }}>{ACTION_LABELS[event.action] || event.action.replace(/_/g, ' ')}</div><div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>{formatDate(event.createdAt, true)}</div></div></div>)}</div>}</div></div></div>;
+  return <div ref={overlayRef} className="modal-overlay" style={{ placeItems: 'stretch end' }} onClick={onClose}>
+    <div className="modal oms-side-drawer" role="dialog" aria-modal="true" aria-label={`${displayName(user)} activity`} tabIndex={-1} style={{ width: 'min(100vw, 520px)', minWidth: 0, maxHeight: '100vh', height: '100vh', borderRadius: 0 }} onClick={(event) => event.stopPropagation()}>
+      <div className="modal-head">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span className="avatar sm">{initials(user)}</span><div><div style={{ fontSize: 16, fontWeight: 800 }}>{displayName(user)}</div><div className="muted" style={{ fontSize: 11.5 }}>{user.email} · {ROLE_LABELS[user.role]}</div></div></div>
+        <button className="icon-btn" type="button" onClick={onClose} aria-label="Close"><Icon name="x" size={14} /></button>
+      </div>
+      <div className="modal-body" style={{ display: 'grid', alignContent: 'start', gap: 22 }}>
+        <section><div className="section-label" style={{ marginBottom: 12 }}>Access history</div>{loading ? <Loading rows={6} /> : error ? <ErrorState message={error} onRetry={onRetry} /> : events.length === 0 ? <EmptyState>No activity has been recorded for this member.</EmptyState> : <div style={{ display: 'grid' }}>{events.map((event, index) => <div key={`${event.action}-${event.createdAt}-${index}`} style={{ display: 'grid', gridTemplateColumns: '28px minmax(0, 1fr)', gap: 10, padding: '12px 0', borderBottom: index < events.length - 1 ? '1px solid var(--border)' : 'none' }}><span className="sb-panel-icon"><Icon name={event.action === 'login' ? 'login' : 'ledger'} size={13} /></span><div><div style={{ fontWeight: 700 }}>{ACTION_LABELS[event.action] || event.action.replace(/_/g, ' ')}</div><div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>{formatDate(event.createdAt, true)}</div></div></div>)}</div>}</section>
+        {canDestroy && <AccountControls user={user} onChanged={onAccountChanged} />}
+      </div>
+    </div>
+  </div>;
+};
+
+const AccountControls = ({ user, onChanged }: { user: TeamUser; onChanged: () => Promise<void> }) => {
+  const [mode, setMode] = useState<'reset' | 'delete' | null>(null);
+  const [confirmation, setConfirmation] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const exactMatch = confirmation.trim().toLowerCase() === user.email.trim().toLowerCase();
+
+  const execute = async () => {
+    if (!mode || !exactMatch) return;
+    setBusy(true);
+    setError('');
+    try {
+      const response = await authFetch(apiUrl(`/api/v1/users/${encodeURIComponent(user.id)}${mode === 'reset' ? '/reset' : ''}`), {
+        method: mode === 'reset' ? 'POST' : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmationEmail: confirmation.trim() }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.message || body?.error || `Account ${mode} failed.`);
+      await onChanged();
+    } catch (actionError: any) {
+      setError(actionError?.message || `Account ${mode} failed.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <section style={{ borderTop: '1px solid var(--border)', paddingTop: 18, display: 'grid', gap: 10 }}>
+    <div><div className="section-label">Account controls</div><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Super administrator actions. Reset preserves login and profile; delete removes the account permanently.</div></div>
+    {!mode ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}><button className="btn sm" type="button" onClick={() => setMode('reset')}><Icon name="refresh" size={12} /> Reset account data</button><button className="btn sm" type="button" style={{ color: 'var(--red-text)' }} onClick={() => setMode('delete')}><Icon name="warning" size={12} /> Delete account</button></div> : <div className="inline-banner danger" style={{ display: 'grid', gap: 10 }}>
+      <div style={{ fontWeight: 800 }}>{mode === 'reset' ? 'Reset all account data?' : 'Delete this account permanently?'}</div>
+      <div style={{ fontSize: 12 }}>{mode === 'reset' ? 'Connections, catalog, orders, shipments, credentials, and activity will be removed. The login and profile remain.' : 'The login and all account-owned data will be permanently removed.'}</div>
+      <label style={{ display: 'grid', gap: 5, fontSize: 11, fontWeight: 800 }}>Type {user.email} to confirm<input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" style={fieldInputStyle} /></label>
+      {error && <div style={{ color: 'var(--red-text)', fontSize: 12 }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 8 }}><button className="btn sm" type="button" onClick={() => { setMode(null); setConfirmation(''); setError(''); }} disabled={busy}>Cancel</button><button className="btn primary sm" type="button" onClick={() => void execute()} disabled={!exactMatch || busy}>{busy ? 'Working...' : mode === 'reset' ? 'Reset account data' : 'Delete account'}</button></div>
+    </div>}
+  </section>;
 };
 
 const fieldLabelStyle: React.CSSProperties = { display: 'grid', gap: 5, fontSize: 11, fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase' };
