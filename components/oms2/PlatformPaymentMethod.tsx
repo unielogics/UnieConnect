@@ -133,10 +133,11 @@ export const PlatformPaymentMethod = () => {
 
   return (
     <div className="card-body" style={{ maxWidth: 560, display: 'grid', gap: 12 }}>
-      <Chip tone="purple" dot={false}>Direct billing (UnieLogics)</Chip>
+      <Chip tone="purple" dot={false}>Logistics services payment method</Chip>
       <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-        Card or bank account UnieLogics charges directly for your account activity — used only if
-        your account bills straight to UnieLogics rather than through a specific warehouse.
+        UnieConnect app access is free for Shopify merchants. This optional payment method is used
+        only for separately ordered warehouse, carrier, and physical fulfillment services. It is
+        never charged for installing or accessing the Shopify app.
       </div>
 
       {termsError && (
@@ -159,7 +160,7 @@ export const PlatformPaymentMethod = () => {
         <div>
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
             <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} style={{ marginTop: 2 }} />
-            <span>I authorize UnieLogics to charge this card or bank account for my account's billed activity, per its terms of service.</span>
+            <span>I authorize UnieLogics to charge this payment method only for separately ordered warehouse, carrier, and physical fulfillment services, per its terms of service.</span>
           </label>
           <Elements stripe={stripe} options={{ clientSecret }}>
             <SetupForm termsAccepted={termsAccepted} onDone={onSetupDone} />
