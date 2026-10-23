@@ -1,4 +1,4 @@
-import { apiUrl, TOKEN_KEY } from './api';
+import { apiUrl, authFetch, TOKEN_KEY } from './api';
 
 function authHeaders(): Record<string, string> {
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
@@ -26,7 +26,7 @@ export type TransportationTemplate = {
 export async function fetchTransportationTemplates(supplierId?: string): Promise<{ templates: TransportationTemplate[] }> {
   const url = new URL(apiUrl('/api/v1/transportation-templates'));
   if (supplierId) url.searchParams.set('supplierId', supplierId);
-  const res = await fetch(url.toString(), { headers: { ...authHeaders(), Accept: 'application/json' } });
+  const res = await authFetch(url.toString(), { headers: { ...authHeaders(), Accept: 'application/json' } });
   return readJson<{ templates: TransportationTemplate[] }>(res);
 }
 
@@ -38,7 +38,7 @@ export async function createTransportationTemplate(body: {
   weightPerUnit?: number;
   dimensions?: { length?: number; width?: number; height?: number };
 }): Promise<TransportationTemplate> {
-  const res = await fetch(apiUrl('/api/v1/transportation-templates'), {
+  const res = await authFetch(apiUrl('/api/v1/transportation-templates'), {
     method: 'POST',
     headers: { ...authHeaders(), 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
@@ -57,7 +57,7 @@ export async function updateTransportationTemplate(
     dimensions?: { length?: number; width?: number; height?: number };
   }>
 ): Promise<TransportationTemplate> {
-  const res = await fetch(apiUrl(`/api/v1/transportation-templates/${encodeURIComponent(id)}`), {
+  const res = await authFetch(apiUrl(`/api/v1/transportation-templates/${encodeURIComponent(id)}`), {
     method: 'PUT',
     headers: { ...authHeaders(), 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
@@ -66,7 +66,7 @@ export async function updateTransportationTemplate(
 }
 
 export async function deleteTransportationTemplate(id: string): Promise<void> {
-  const res = await fetch(apiUrl(`/api/v1/transportation-templates/${encodeURIComponent(id)}`), {
+  const res = await authFetch(apiUrl(`/api/v1/transportation-templates/${encodeURIComponent(id)}`), {
     method: 'DELETE',
     headers: authHeaders(),
   });

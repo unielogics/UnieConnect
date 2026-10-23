@@ -239,7 +239,7 @@ async function readJson<T>(res: Response): Promise<T> {
 }
 
 export async function fetchAmazonAccounts() {
-  const res = await fetch(apiUrl('/api/v1/channel-accounts'), {
+  const res = await authFetch(apiUrl('/api/v1/channel-accounts'), {
     headers: {
       ...authHeaders(),
       Accept: 'application/json',
@@ -262,7 +262,7 @@ export async function fetchAmazonCatalogItems(params: {
   if (params.q) url.searchParams.set('q', params.q);
   if (params.nextToken) url.searchParams.set('nextToken', params.nextToken);
   if (params.pageSize !== undefined) url.searchParams.set('pageSize', String(params.pageSize));
-  const res = await fetch(url.toString(), {
+  const res = await authFetch(url.toString(), {
     headers: {
       ...authHeaders(),
       Accept: 'application/json',
@@ -389,7 +389,7 @@ export async function deleteShipFromLocation(id: string) {
 }
 
 export async function saveAmazonInboundDraft(body: Record<string, unknown>) {
-  const res = await fetch(apiUrl('/api/v1/amazon/inbound/workflows/draft'), {
+  const res = await authFetch(apiUrl('/api/v1/amazon/inbound/workflows/draft'), {
     method: 'POST',
     headers: {
       ...authHeaders(),
@@ -402,7 +402,7 @@ export async function saveAmazonInboundDraft(body: Record<string, unknown>) {
 }
 
 export async function fetchAmazonInboundSkuLabels(body: Record<string, unknown>) {
-  const res = await fetch(apiUrl('/api/v1/amazon/inbound/workflows/sku-labels'), {
+  const res = await authFetch(apiUrl('/api/v1/amazon/inbound/workflows/sku-labels'), {
     method: 'POST',
     headers: {
       ...authHeaders(),
@@ -415,7 +415,7 @@ export async function fetchAmazonInboundSkuLabels(body: Record<string, unknown>)
 }
 
 export async function createAmazonInboundPlan(body: Record<string, unknown>) {
-  const res = await fetch(apiUrl('/api/v1/amazon/inbound/plan'), {
+  const res = await authFetch(apiUrl('/api/v1/amazon/inbound/plan'), {
     method: 'POST',
     headers: {
       ...authHeaders(),
@@ -428,7 +428,7 @@ export async function createAmazonInboundPlan(body: Record<string, unknown>) {
 }
 
 export async function createAmazonInboundShipment(body: Record<string, unknown>) {
-  const res = await fetch(apiUrl('/api/v1/amazon/inbound/shipment'), {
+  const res = await authFetch(apiUrl('/api/v1/amazon/inbound/shipment'), {
     method: 'POST',
     headers: {
       ...authHeaders(),
@@ -452,7 +452,7 @@ export async function fetchAmazonInboundLabels(params: {
   if (params.pageType) url.searchParams.set('pageType', params.pageType);
   if (params.labelType) url.searchParams.set('labelType', params.labelType);
   if (params.numberOfPackages !== undefined) url.searchParams.set('numberOfPackages', String(params.numberOfPackages));
-  const res = await fetch(url.toString(), {
+  const res = await authFetch(url.toString(), {
     headers: {
       ...authHeaders(),
       Accept: 'application/json',
@@ -466,7 +466,7 @@ export async function fetchAmazonInboundHistory(params: { accountId: string; wor
   url.searchParams.set('accountId', params.accountId);
   if (params.workflowStatus) url.searchParams.set('workflowStatus', params.workflowStatus);
   if (params.limit !== undefined) url.searchParams.set('limit', String(params.limit));
-  const res = await fetch(url.toString(), {
+  const res = await authFetch(url.toString(), {
     headers: {
       ...authHeaders(),
       Accept: 'application/json',
@@ -479,7 +479,7 @@ export async function fetchAmazonInboundDetail(params: { accountId: string; work
   const url = new URL(apiUrl(`/api/v1/amazon/inbound/history/${encodeURIComponent(params.workflowOrShipmentId)}`));
   url.searchParams.set('accountId', params.accountId);
   if (params.mode) url.searchParams.set('mode', params.mode);
-  const res = await fetch(url.toString(), {
+  const res = await authFetch(url.toString(), {
     headers: {
       ...authHeaders(),
       Accept: 'application/json',
@@ -496,7 +496,7 @@ export async function fetchSendToAmazonWorkflows(params: {
   url.searchParams.set('accountId', params.accountId);
   if (params.limit !== undefined) url.searchParams.set('limit', String(params.limit));
 
-  const res = await fetch(url.toString(), {
+  const res = await authFetch(url.toString(), {
     headers: {
       ...authHeaders(),
       Accept: 'application/json',
@@ -526,7 +526,7 @@ export async function saveSendToAmazonWorkflowDraft(body: {
     labelOwner?: 'AMAZON' | 'SELLER';
   }>;
 }) {
-  const res = await fetch(apiUrl('/api/v1/amazon/send-to-amazon/workflows'), {
+  const res = await authFetch(apiUrl('/api/v1/amazon/send-to-amazon/workflows'), {
     method: 'POST',
     headers: {
       ...authHeaders(),
@@ -546,7 +546,7 @@ export async function fetchSendToAmazonWorkflow(params: {
   const url = new URL(apiUrl(`/api/v1/amazon/send-to-amazon/workflows/${encodeURIComponent(params.workflowId)}`));
   url.searchParams.set('accountId', params.accountId);
 
-  const res = await fetch(url.toString(), {
+  const res = await authFetch(url.toString(), {
     headers: {
       ...authHeaders(),
       Accept: 'application/json',
@@ -560,7 +560,7 @@ export async function generateSendToAmazonPlacementPreview(body: {
   accountId: string;
   workflowId: string;
 }) {
-  const res = await fetch(apiUrl(`/api/v1/amazon/send-to-amazon/workflows/${encodeURIComponent(body.workflowId)}/placement-preview`), {
+  const res = await authFetch(apiUrl(`/api/v1/amazon/send-to-amazon/workflows/${encodeURIComponent(body.workflowId)}/placement-preview`), {
     method: 'POST',
     headers: {
       ...authHeaders(),
@@ -578,7 +578,7 @@ export async function confirmSendToAmazonPlacement(body: {
   workflowId: string;
   placementOptionId?: string;
 }) {
-  const res = await fetch(apiUrl(`/api/v1/amazon/send-to-amazon/workflows/${encodeURIComponent(body.workflowId)}/confirm-placement`), {
+  const res = await authFetch(apiUrl(`/api/v1/amazon/send-to-amazon/workflows/${encodeURIComponent(body.workflowId)}/confirm-placement`), {
     method: 'POST',
     headers: {
       ...authHeaders(),
@@ -596,7 +596,7 @@ export async function fetchSendToAmazonShipmentLabels(body: {
   workflowId: string;
   shipmentId: string;
 }) {
-  const res = await fetch(
+  const res = await authFetch(
     apiUrl(
       `/api/v1/amazon/send-to-amazon/workflows/${encodeURIComponent(body.workflowId)}/shipments/${encodeURIComponent(body.shipmentId)}/labels`,
     ),

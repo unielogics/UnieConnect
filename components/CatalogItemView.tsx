@@ -8,7 +8,7 @@ import { CatalogRecentOrdersTable } from './catalog/CatalogRecentOrdersTable';
 import { CatalogOrdersTable } from './catalog/CatalogOrdersTable';
 import { CatalogAsnsTable } from './catalog/CatalogAsnsTable';
 import { CatalogActivityFeed } from './catalog/CatalogActivityFeed';
-import { apiUrl, TOKEN_KEY } from '../lib/api';
+import { apiUrl, authFetch, isShopifyEmbedded, TOKEN_KEY } from '../lib/api';
 import type { CatalogItem } from '../lib/catalog-types';
 import { AuthenticatedImage } from './AuthenticatedImage';
 
@@ -93,10 +93,10 @@ export function CatalogItemView({ item, supplierName }: CatalogItemViewProps) {
   useEffect(() => {
     if (!item.sku) return;
     const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-    if (!token) return;
+    if (!token && !isShopifyEmbedded()) return;
     setWmsLoading(true);
-    fetch(apiUrl(`/api/v1/items/${item._id}/wms-activities`), {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    authFetch(apiUrl(`/api/v1/items/${item._id}/wms-activities`), {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), Accept: 'application/json' },
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setWmsActivities(data || null))

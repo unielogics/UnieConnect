@@ -1,4 +1,4 @@
-import { apiUrl, TOKEN_KEY } from './api';
+import { apiUrl, authFetch, TOKEN_KEY } from './api';
 
 function authHeaders(): Record<string, string> {
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
@@ -22,7 +22,7 @@ export async function validateAddress(address: string): Promise<{
   warning?: string;
   address?: ValidatedAddress;
 }> {
-  const res = await fetch(apiUrl('/api/v1/address/validate'), {
+  const res = await authFetch(apiUrl('/api/v1/address/validate'), {
     method: 'POST',
     headers: {
       ...authHeaders(),
@@ -43,7 +43,7 @@ export async function suggestAddress(query: string): Promise<{
 }> {
   const qs = new URLSearchParams();
   qs.set('q', query.trim());
-  const res = await fetch(apiUrl(`/api/v1/address/suggest?${qs.toString()}`), {
+  const res = await authFetch(apiUrl(`/api/v1/address/suggest?${qs.toString()}`), {
     method: 'GET',
     headers: {
       ...authHeaders(),

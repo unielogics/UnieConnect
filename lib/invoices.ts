@@ -1,4 +1,4 @@
-import { apiUrl } from './api';
+import { apiUrl, authFetch } from './api';
 
 const TOKEN_KEY = 'unie-token';
 
@@ -20,7 +20,7 @@ export type InvoiceLine = {
 export async function fetchInvoices(params?: { shipmentPlanId?: string }) {
   const url = new URL(apiUrl('/api/v1/invoices'));
   if (params?.shipmentPlanId) url.searchParams.set('shipmentPlanId', params.shipmentPlanId);
-  const res = await fetch(url.toString(), { headers: { ...authHeaders(), Accept: 'application/json' } });
+  const res = await authFetch(url.toString(), { headers: { ...authHeaders(), Accept: 'application/json' } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as any)?.error || `Request failed (${res.status})`);
   return data as { lines: InvoiceLine[] };

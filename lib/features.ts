@@ -77,7 +77,7 @@ export async function fetchFeatures(params?: {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, { headers });
+  const res = await authFetch(url, { headers });
   if (!res.ok) {
     throw new Error(`Failed to fetch features: ${res.statusText}`);
   }
@@ -107,7 +107,7 @@ export async function fetchMarketplaceFeatures(params?: {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, { headers });
+  const res = await authFetch(url, { headers });
   if (!res.ok) {
     throw new Error(`Failed to fetch marketplace features: ${res.statusText}`);
   }
@@ -124,7 +124,7 @@ export async function fetchFeature(idOrSlug: string): Promise<Feature> {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, { headers });
+  const res = await authFetch(url, { headers });
   if (!res.ok) {
     throw new Error(`Failed to fetch feature: ${res.statusText}`);
   }

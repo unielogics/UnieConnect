@@ -1,4 +1,4 @@
-import { apiUrl, authFetch, getStoredToken, TOKEN_KEY } from './api';
+import { apiUrl, authFetch, getStoredToken, isShopifyEmbedded, TOKEN_KEY } from './api';
 
 export type UserRole = 'super_admin' | 'management' | 'ecommerce_client' | 'billing';
 
@@ -90,12 +90,12 @@ const fileToBase64 = (file: File) =>
 
 export async function uploadProfileAvatar(file: File): Promise<{ url: string; key: string }> {
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-  if (!token) throw new Error('Not authenticated');
-  const res = await fetch(apiUrl('/api/v1/uploads/images'), {
+  if (!token && !isShopifyEmbedded()) throw new Error('Not authenticated');
+  const res = await authFetch(apiUrl('/api/v1/uploads/images'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({
       filename: file.name,

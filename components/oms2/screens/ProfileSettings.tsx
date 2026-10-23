@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../icons';
 import { Chip, Loading } from '../ui';
-import { TOKEN_KEY, apiUrl } from '../../../lib/api';
+import { TOKEN_KEY, apiUrl, authFetch, isShopifyEmbedded } from '../../../lib/api';
 import { uploadProfileAvatar } from '../../../lib/user';
 import { PlatformPaymentMethod } from '../PlatformPaymentMethod';
 import type { ScreenProps } from '../UnieConnectApp';
@@ -38,11 +38,12 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
   const [password, setPassword] = useState({ oldPwd: '', newPwd: '' });
 
   const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+  const hasAuth = Boolean(token) || isShopifyEmbedded();
 
   const load = () => {
-    if (!token) return;
+    if (!hasAuth) return;
     setLoading(true);
-    fetch(apiUrl('/api/v1/auth/me'), { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
+    authFetch(apiUrl('/api/v1/auth/me'), { headers: token ? { Authorization: `Bearer ${token}` } : {}, credentials: 'include' })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed to load profile'))))
       .then((data) => {
         setProfile({
@@ -77,14 +78,14 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
   }, [profile]);
 
   const saveProfile = async () => {
-    if (!token) return;
+    if (!hasAuth) return;
     setSaving('profile');
     setMsg('');
     setMsgTone('info');
     try {
-      const res = await fetch(apiUrl('/api/v1/auth/me'), {
+      const res = await authFetch(apiUrl('/api/v1/auth/me'), {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         credentials: 'include',
         body: JSON.stringify(profile),
       });
@@ -102,14 +103,14 @@ export const ProfileSettings = ({ onNavigate }: ScreenProps) => {
   };
 
   const savePassword = async () => {
-    if (!token) return;
+    if (!hasAuth) return;
     setSaving('password');
     setMsg('');
     setMsgTone('info');
     try {
-      const res = await fetch(apiUrl('/api/v1/auth/change-password'), {
+      const res = await authFetch(apiUrl('/api/v1/auth/change-password'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         credentials: 'include',
         body: JSON.stringify({ oldPassword: password.oldPwd, newPassword: password.newPwd }),
       });

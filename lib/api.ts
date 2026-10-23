@@ -43,9 +43,17 @@ export function authHeaders(extra?: HeadersInit): HeadersInit {
 
 export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const token = getStoredToken();
+  let shopifyToken = '';
+  if (isShopifyEmbedded()) {
+    try {
+      shopifyToken = await (window as any).shopify.idToken();
+    } catch {
+      // Let the API return 401 so the embedded UI can show an authentication error.
+    }
+  }
   const headers: HeadersInit = {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(init.headers || {}),
+    ...(shopifyToken ? { Authorization: `Bearer ${shopifyToken}` } : token ? { Authorization: `Bearer ${token}` } : {}),
   };
   const res = await fetch(input, {
     ...init,

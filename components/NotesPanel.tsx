@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiUrl, TOKEN_KEY } from '../lib/api';
+import { apiUrl, authFetch, isShopifyEmbedded, TOKEN_KEY } from '../lib/api';
 
 type Note = {
   id: string;
@@ -31,14 +31,14 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
 
   const loadNotes = useCallback(async () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-    if (!token || !entityType || !entityId) return;
+    if ((!token && !isShopifyEmbedded()) || !entityType || !entityId) return;
     setLoading(true);
     try {
       const url = new URL(apiUrl('/api/v1/notes'));
       url.searchParams.set('entityType', entityType);
       url.searchParams.set('entityId', entityId);
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      const res = await authFetch(url.toString(), {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), Accept: 'application/json' },
       });
       if (res.ok) {
         const data = await res.json();
@@ -61,13 +61,13 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
     const trimmed = noteInput.trim();
     if (!trimmed || isSaving) return;
     const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-    if (!token) return;
+    if (!token && !isShopifyEmbedded()) return;
     setIsSaving(true);
     try {
-      const res = await fetch(apiUrl('/api/v1/notes'), {
+      const res = await authFetch(apiUrl('/api/v1/notes'), {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },

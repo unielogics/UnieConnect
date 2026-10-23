@@ -219,7 +219,6 @@ const ConnectNewModal = ({
   initialKind?: 'shopify' | 'amazon' | 'ebay' | 'wms';
 }) => {
   const [kind, setKind] = useState<'shopify' | 'amazon' | 'ebay' | 'wms'>(initialKind);
-  const [shopifyStore, setShopifyStore] = useState('');
   const [wmsCode, setWmsCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -228,11 +227,9 @@ const ConnectNewModal = ({
 
   const startMarketplace = async () => {
     if (kind === 'shopify') {
-      const shop = normalizeShop(shopifyStore);
-      if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) {
-        setError('Enter the store domain ending in .myshopify.com.');
-        return;
-      }
+      const clientId = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || 'af780ecf92da02ddbc1fa15580d2b68b';
+      window.location.assign(`https://admin.shopify.com/oauth/install?client_id=${encodeURIComponent(clientId)}`);
+      return;
     }
     setBusy(true);
     setError(null);
@@ -241,7 +238,6 @@ const ConnectNewModal = ({
     try {
       const url = new URL(apiUrl(`/api/v1/auth/${kind}/start`));
       url.searchParams.set('format', 'json');
-      if (kind === 'shopify') url.searchParams.set('shop', normalizeShop(shopifyStore));
       if (typeof window !== 'undefined') url.searchParams.set('redirectTo', `${window.location.origin}/oms?view=connections`);
 
       const res = await authFetch(url.toString(), {
@@ -329,7 +325,7 @@ const ConnectNewModal = ({
             <button className="btn ghost" onClick={onClose} disabled={busy}>Cancel</button>
             <button className="btn primary" onClick={submit} disabled={busy}>
               <Icon name="plug" size={13} />
-              {busy ? 'Connecting...' : kind === 'wms' ? 'Connect warehouse' : kind === 'shopify' ? 'Authorize Shopify' : 'Start authorization'}
+              {busy ? 'Connecting...' : kind === 'wms' ? 'Connect warehouse' : kind === 'shopify' ? 'Continue in Shopify' : 'Start authorization'}
             </button>
           </div>
         </>
@@ -367,30 +363,9 @@ const ConnectNewModal = ({
           </div>
           <div className="card-body" style={{ display: 'grid', gap: 12 }}>
             {kind === 'shopify' && (
-              <div style={{ display: 'grid', gap: 10 }}>
+              <div>
                 <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                  Enter the permanent Shopify store domain. Shopify will open the authorization screen for that store, then return you to Connections.
-                </div>
-                <div>
-                  <label htmlFor="shopify-store-domain" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>Shopify store domain</label>
-                  <input
-                    id="shopify-store-domain"
-                    value={shopifyStore}
-                    onChange={(e) => {
-                      setShopifyStore(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="your-store.myshopify.com"
-                    autoComplete="url"
-                    inputMode="url"
-                    style={{ width: '100%', height: 36, marginTop: 6, padding: '0 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') submit();
-                    }}
-                  />
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                  Use the <strong>.myshopify.com</strong> domain, not the storefront&apos;s custom domain. Each authorized store is added as a separate connection.
+                  Shopify will ask you to sign in, select the store, and approve UnieConnect. The authorized store returns here as a separate connection.
                 </div>
               </div>
             )}
