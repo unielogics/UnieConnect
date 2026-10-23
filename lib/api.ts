@@ -94,7 +94,6 @@ export function getApiOrigin(): string {
     process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_BACKEND_URL;
 
   if (typeof window !== 'undefined') {
-    if (isShopifyEmbedded()) return window.location.origin;
     if (env) return env.replace(/\/+$/, '');
     const host = window.location.hostname;
     if (host === 'user.unieconnect.com') return 'https://api.unieconnect.com';
